@@ -1,7 +1,7 @@
 import Link from "next/link";
 import {
   MessageSquare, BookOpen, Video, Sparkles,
-  Heart, FileText, User, Mail, ArrowRight, Zap, Shield, Clock, BriefcaseIcon
+  Heart, FileText, User, Mail, ArrowRight, Zap, Shield, Clock, BriefcaseIcon, SmilePlus
 } from "lucide-react";
 
 const tools = [
@@ -14,6 +14,7 @@ const tools = [
   { key: "resume", name: "简历优化", desc: "AI重写让HR眼前一亮", icon: User, color: "text-cyan-400" },
   { key: "email", name: "邮件撰写", desc: "商务邮件得体专业", icon: Mail, color: "text-purple-400" },
   { key: "interview", name: "AI 面试官", desc: "模拟真实面试+评估报告", icon: BriefcaseIcon, color: "text-orange-400" },
+  { key: "companion", name: "AI 情感陪伴", desc: "像朋友一样陪你聊天", icon: SmilePlus, color: "text-rose-400" },
 ];
 
 const features = [
@@ -28,10 +29,10 @@ export default function HomePage() {
       {/* Hero */}
       <section className="max-w-5xl mx-auto px-4 pt-24 pb-20 text-center">
         <h1 className="text-4xl md:text-6xl font-bold leading-tight">
-          用 AI 驱动你的<span className="gradient-text">创作效率</span>
+          致力于为你提供<span className="gradient-text">最优质的 AI 体验</span>
         </h1>
         <p className="mt-6 text-lg text-gray-400 max-w-2xl mx-auto">
-          小红书文案、抖音脚本、周报日报、简历优化 —— 8 大工具一站搞定，注册即送 50 积分免费体验
+          每个工具都有专业级提示词，小红书文案、抖音脚本、情感陪伴、面试练习 —— 9 大场景一站搞定，注册即送 50 积分
         </p>
         <div className="mt-10 flex items-center justify-center gap-4 flex-wrap">
           <Link

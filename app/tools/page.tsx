@@ -1,7 +1,7 @@
 import Link from "next/link";
 import {
   MessageSquare, BookOpen, Video, Sparkles, Heart, FileText,
-  User, Mail, ArrowRight, BriefcaseIcon
+  User, Mail, ArrowRight, BriefcaseIcon, SmilePlus
 } from "lucide-react";
 
 const categories = [
@@ -25,9 +25,10 @@ const categories = [
     ],
   },
   {
-    name: "AI 专家角色",
-    desc: "一对一互动，追问+反馈+报告",
+    name: "AI 角色扮演",
+    desc: "沉浸式角色互动，情感陪伴、模拟练习，真实感拉满",
     tools: [
+      { key: "companion", name: "AI 情感陪伴", desc: "像朋友一样陪你聊，倾听、共情、有来有往", icon: SmilePlus, color: "text-rose-400" },
       { key: "interview", name: "AI 面试官", desc: "模拟真实面试，结束给评估报告", icon: BriefcaseIcon, color: "text-orange-400" },
     ],
   },

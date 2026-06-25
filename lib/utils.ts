@@ -28,6 +28,7 @@ export const TOOLS = {
   resume: { name: "简历优化", cost: 8, icon: "User" },
   email: { name: "邮件撰写", cost: 5, icon: "Mail" },
   interview: { name: "AI 面试官", cost: 3, icon: "BriefcaseIcon" },
+  companion: { name: "AI 情感陪伴", cost: 2, icon: "Heart" },
 } as const;
 
 export type ToolKey = keyof typeof TOOLS;
