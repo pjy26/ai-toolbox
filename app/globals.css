@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: 124 58 237;
+  --accent: 236 72 153;
+}
+
+body {
+  background: #0F0F1A;
+  color: #F9FAFB;
+}
+
+@layer utilities {
+  .gradient-text {
+    @apply bg-gradient-to-r from-brand to-accent bg-clip-text text-transparent;
+  }
+  .gradient-btn {
+    @apply bg-gradient-to-r from-brand to-accent hover:opacity-90 transition-opacity;
+  }
+  .card-glow {
+    box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.3),
+                0 4px 20px rgba(124, 58, 237, 0.1);
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(124, 58, 237, 0.4); border-radius: 3px; }
+
+/* Animated background */
+.hero-bg {
+  background: radial-gradient(ellipse at 50% 0%, rgba(124,58,237,0.15) 0%, transparent 60%),
+              radial-gradient(ellipse at 80% 50%, rgba(236,72,153,0.08) 0%, transparent 40%);
+}
