@@ -1,8 +1,6 @@
-import { MessageCircle, Mail, Heart } from "lucide-react";
+"use client";
 
-export const metadata = {
-  title: "联系我们 - AI 工具箱",
-};
+import { MessageCircle, Mail, Heart } from "lucide-react";
 
 export default function ContactPage() {
   return (
