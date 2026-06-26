@@ -1,5 +1,7 @@
 import { getAuthUser, checkCredits, deductCredits, logUsage } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 import OpenAI from "openai";
 
 const COMPANION_COST = 2;
@@ -161,6 +163,52 @@ function buildSystemPrompt(config: {
 现在，就当是TA来找你说话了。把TA放在心上，自然地聊。`;
 }
 
+interface CompanionRow {
+  id: string;
+  user_id: string;
+  relationship_type: string;
+  gender: string | null;
+  companion_name: string | null;
+  user_nickname: string | null;
+}
+
+interface ProfileRow {
+  profile: Record<string, any> | null;
+}
+
+interface SummaryRow {
+  summary: string;
+  importance: number;
+}
+
+// 把 jsonb profile 渲染成给 prompt 用的简短文本
+function profileToText(profile: Record<string, any> | null): string {
+  if (!profile || Object.keys(profile).length === 0) return "";
+  const lines: string[] = [];
+  const basic = profile.basic_info;
+  if (basic && typeof basic === "object") {
+    const parts = Object.entries(basic).map(([k, v]) => `${k}: ${v}`).join("，");
+    if (parts) lines.push(`【基本信息】${parts}`);
+  }
+  if (profile.preferences && Object.keys(profile.preferences).length > 0) {
+    const parts = Object.entries(profile.preferences).map(([k, v]) => `${k}: ${v}`).join("，");
+    if (parts) lines.push(`【偏好】${parts}`);
+  }
+  if (Array.isArray(profile.important_people) && profile.important_people.length > 0) {
+    lines.push(`【重要的人】${profile.important_people.map((p: any) => typeof p === "string" ? p : JSON.stringify(p)).join("；")}`);
+  }
+  if (Array.isArray(profile.ongoing_matters) && profile.ongoing_matters.length > 0) {
+    lines.push(`【正在经历的事】${profile.ongoing_matters.join("；")}`);
+  }
+  if (profile.personality_notes) {
+    lines.push(`【性格特点】${profile.personality_notes}`);
+  }
+  if (Array.isArray(profile.key_facts) && profile.key_facts.length > 0) {
+    lines.push(`【其他】${profile.key_facts.join("；")}`);
+  }
+  return lines.join("\n");
+}
+
 export async function POST(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
@@ -170,17 +218,80 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "积分不足", code: "INSUFFICIENT_CREDITS" }, { status: 402 });
   }
 
-  const { message, history, config } = await req.json();
+  const supabase = createRouteHandlerClient({ cookies });
+  const { message, history, companion_id, session_id } = await req.json();
   if (!message?.trim()) {
     return NextResponse.json({ error: "消息不能为空" }, { status: 400 });
   }
+  if (!companion_id) {
+    return NextResponse.json({ error: "缺少 companion_id" }, { status: 400 });
+  }
 
+  // 1. 验证 companion 归属
+  const { data: companion, error: compErr } = await supabase
+    .from("companions")
+    .select("id, user_id, relationship_type, gender, companion_name, user_nickname")
+    .eq("id", companion_id)
+    .eq("user_id", user.id)
+    .single<CompanionRow>();
+
+  if (compErr || !companion) {
+    return NextResponse.json({ error: "陪伴角色不存在" }, { status: 404 });
+  }
+
+  // 2. 拉 profile + 最近 memory_summaries（按 importance desc, 取前 20 条）
+  const [{ data: profileRow }, { data: summaries }] = await Promise.all([
+    supabase.from("user_profiles").select("profile").eq("companion_id", companion_id).maybeSingle<ProfileRow>(),
+    supabase
+      .from("memory_summaries")
+      .select("summary, importance")
+      .eq("companion_id", companion_id)
+      .order("importance", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .limit(20),
+  ]);
+
+  const profileText = profileToText(profileRow?.profile || null);
+  const memText = (summaries as SummaryRow[] || [])
+    .map((s) => `- ${s.summary}`)
+    .join("\n");
+
+  // 3. 获取/创建会话
+  let sessionId = session_id;
+  if (!sessionId) {
+    const { data: newSession, error: sessionErr } = await supabase
+      .from("chat_sessions")
+      .insert({ user_id: user.id, companion_id, title: message.slice(0, 30) })
+      .select("id")
+      .single();
+    if (sessionErr || !newSession) {
+      return NextResponse.json({ error: "创建会话失败" }, { status: 500 });
+    }
+    sessionId = newSession.id;
+  }
+
+  // 4. 拉取最近历史消息（短期记忆）
+  const { data: dbHistory } = await supabase
+    .from("chat_messages")
+    .select("role, content, created_at")
+    .eq("session_id", sessionId)
+    .order("created_at", { ascending: true })
+    .limit(30);
+
+  // 5. 落库用户消息
+  await supabase.from("chat_messages").insert({
+    session_id: sessionId,
+    role: "user",
+    content: message,
+  });
+
+  // 6. 组装 messages
   const systemPrompt = buildSystemPrompt({
-    role: config?.role || "friend",
-    companion_gender: config?.companion_gender || "不限",
-    nickname: config?.nickname || "",
-    user_profile: config?.user_profile || "",
-    memory_summaries: config?.memory_summaries || "",
+    role: companion.relationship_type,
+    companion_gender: companion.gender || "不限",
+    nickname: companion.user_nickname || "",
+    user_profile: profileText,
+    memory_summaries: memText,
   });
 
   const openai = new OpenAI({
@@ -191,8 +302,19 @@ export async function POST(req: Request) {
   const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
   ];
+  const mergedHistory = (dbHistory as { role: string; content: string }[] | null) || [];
+  for (const h of mergedHistory) {
+    if (h.role === "user" || h.role === "assistant") {
+      messages.push({ role: h.role, content: h.content });
+    }
+  }
   if (Array.isArray(history)) {
-    messages.push(...history.slice(-30));
+    // 兜底：如果前端额外传了未落库的 history，追加
+    for (const h of history.slice(-10)) {
+      if (h?.role === "user" || h?.role === "assistant") {
+        messages.push({ role: h.role, content: h.content });
+      }
+    }
   }
   messages.push({ role: "user", content: message });
 
@@ -205,14 +327,27 @@ export async function POST(req: Request) {
     });
 
     const encoder = new TextEncoder();
+    let assistantFull = "";
     const readable = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of stream) {
+            const delta = chunk.choices?.[0]?.delta?.content || "";
+            if (delta) assistantFull += delta;
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
           }
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
+          // 落库 assistant 回复
+          if (assistantFull) {
+            await supabase.from("chat_messages").insert({
+              session_id: sessionId,
+              role: "assistant",
+              content: assistantFull,
+            });
+            // 更新会话时间
+            await supabase.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId);
+          }
           await deductCredits(user.id, COMPANION_COST);
           await logUsage(user.id, "companion", COMPANION_COST);
         } catch (err) {
@@ -226,6 +361,7 @@ export async function POST(req: Request) {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
+        "x-session-id": sessionId as string,
       },
     });
   } catch (error) {
