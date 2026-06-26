@@ -44,8 +44,7 @@ const categories = [
 export default function ToolsPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
-      <h1 className="text-2xl font-bold mb-2">全部工具</h1>
-      <p className="text-gray-400 text-sm mb-10">按需选用，每个工具都有精准提示词，不是套壳</p>
+      <h1 className="text-2xl font-bold mb-10">全部工具</h1>
 
       {categories.map((cat) => (
         <div key={cat.name} className="mb-10">
