@@ -217,6 +217,7 @@ export async function POST(req: Request) {
   if (!credit.ok) {
     return NextResponse.json({ error: "积分不足", code: "INSUFFICIENT_CREDITS" }, { status: 402 });
   }
+  const isMember = credit.isMember;
 
   const supabase = createRouteHandlerClient({ cookies });
   const { message, history, companion_id, session_id } = await req.json();
@@ -348,8 +349,8 @@ export async function POST(req: Request) {
             // 更新会话时间
             await supabase.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId);
           }
-          await deductCredits(user.id, COMPANION_COST);
-          await logUsage(user.id, "companion", COMPANION_COST);
+          await deductCredits(user.id, isMember ? 0 : COMPANION_COST);
+          await logUsage(user.id, "companion", isMember ? 0 : COMPANION_COST);
         } catch (err) {
           controller.error(err);
         }

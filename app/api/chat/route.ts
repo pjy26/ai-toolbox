@@ -10,6 +10,7 @@ export async function POST(req: Request) {
   if (!credit.ok) {
     return NextResponse.json({ error: "积分不足", code: "INSUFFICIENT_CREDITS" }, { status: 402 });
   }
+  const isMember = credit.isMember;
 
   const { message, history } = await req.json();
   if (!message?.trim()) {
@@ -47,9 +48,11 @@ export async function POST(req: Request) {
           }
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
-          // Deduct credits only after stream completes successfully
-          await deductCredits(user.id, 2);
-          await logUsage(user.id, "chat", 2);
+          // 会员不扣积分；非会员扣 2
+          if (!isMember) {
+            await deductCredits(user.id, 2);
+          }
+          await logUsage(user.id, "chat", isMember ? 0 : 2);
         } catch (err) {
           controller.error(err);
         }

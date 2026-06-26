@@ -57,26 +57,36 @@ export async function POST(req: Request) {
         .from("profiles")
         .update({ credits: profile.credits + order.credits_amount })
         .eq("id", order.user_id);
-    } else if (order.type === "membership" && order.membership_months) {
+    } else if (order.type === "membership" && (order.membership_months || order.membership_weeks)) {
       // Extend from current expiry if still active
       const base =
         profile.membership_expires_at && new Date(profile.membership_expires_at) > new Date()
           ? new Date(profile.membership_expires_at)
           : new Date();
-      base.setMonth(base.getMonth() + order.membership_months);
 
-      const membershipType = order.membership_months >= 12 ? "yearly" : "monthly";
-      // Grant monthly bonus credits
-      const bonusCredits = membershipType === "yearly" ? 800 : 500;
-
-      await supabase
-        .from("profiles")
-        .update({
-          membership_type: membershipType,
-          membership_expires_at: base.toISOString(),
-          credits: profile.credits + bonusCredits,
-        })
-        .eq("id", order.user_id);
+      if (order.membership_weeks) {
+        // 新人周卡
+        base.setDate(base.getDate() + 7 * order.membership_weeks);
+        await supabase
+          .from("profiles")
+          .update({
+            membership_type: "weekly",
+            membership_expires_at: base.toISOString(),
+          })
+          .eq("id", order.user_id);
+      } else if (order.membership_months) {
+        base.setMonth(base.getMonth() + order.membership_months);
+        const membershipType = order.membership_months >= 12 ? "yearly" : "monthly";
+        const bonusCredits = membershipType === "yearly" ? 800 : 500;
+        await supabase
+          .from("profiles")
+          .update({
+            membership_type: membershipType,
+            membership_expires_at: base.toISOString(),
+            credits: profile.credits + bonusCredits,
+          })
+          .eq("id", order.user_id);
+      }
     }
 
     return new Response("success");

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSessionContext } from "@supabase/auth-helpers-react";
-import { Sparkles, LogIn, User, CreditCard } from "lucide-react";
+import { Sparkles, LogIn, User, CreditCard, Heart } from "lucide-react";
 
 export function Navbar() {
   const { session } = useSessionContext();
@@ -17,7 +17,12 @@ export function Navbar() {
 
         <div className="hidden md:flex items-center gap-6 text-sm text-gray-300">
           <Link href="/tools" className="hover:text-white transition">工具</Link>
+          <Link href="/tools/companion" className="hover:text-white transition flex items-center gap-1">
+            <Heart className="w-3.5 h-3.5 text-rose-400" />
+            情感陪伴
+          </Link>
           <Link href="/pricing" className="hover:text-white transition">定价</Link>
+          <Link href="/contact" className="hover:text-white transition">联系</Link>
         </div>
 
         <div className="flex items-center gap-3">
