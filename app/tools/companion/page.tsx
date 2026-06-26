@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, RotateCcw, Heart, Plus, MessageSquare, Trash2, ChevronLeft, BookOpen } from "lucide-react";
+import { Send, Loader2, RotateCcw, Heart, Plus, MessageSquare, Trash2, ChevronLeft, BookOpen, Brain, X, AlertTriangle } from "lucide-react";
 
 interface Message {
   id?: string;
@@ -40,6 +40,7 @@ export default function CompanionPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
+  const [createError, setCreateError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [extracting, setExtracting] = useState(false);
 
@@ -98,15 +99,19 @@ export default function CompanionPage() {
   };
 
   const handleCreate = async () => {
+    setCreateError("");
     const res = await fetch("/api/companion/list", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(createForm),
     });
     const data = await res.json();
+    if (data.error) {
+      setCreateError(data.error);
+      return;
+    }
     if (data.companion) {
       await loadCompanions();
-      setView("list");
       openCompanion(data.companion);
     }
   };
@@ -136,6 +141,33 @@ export default function CompanionPage() {
       });
     } finally {
       setExtracting(false);
+    }
+  };
+
+  // ============ 记忆管理 ============
+  const [memoryData, setMemoryData] = useState<{ profile: Record<string, any>; profile_updated_at: string | null; summaries: any[] } | null>(null);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+
+  const loadMemory = useCallback(async () => {
+    if (!currentCompanion) return;
+    setMemoryLoading(true);
+    const res = await fetch(`/api/companion/memory?companion_id=${currentCompanion.id}`);
+    const data = await res.json();
+    setMemoryData(data);
+    setMemoryLoading(false);
+  }, [currentCompanion]);
+
+  const handleDeleteMemory = async (memoryId: string) => {
+    if (!currentCompanion || !confirm("确定删除这条记忆吗？")) return;
+    const res = await fetch("/api/companion/memory", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memory_id: memoryId, companion_id: currentCompanion.id }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setMemoryData((prev) => prev ? { ...prev, summaries: prev.summaries.filter((s) => s.id !== memoryId) } : prev);
+      loadCompanions();
     }
   };
 
@@ -317,7 +349,7 @@ export default function CompanionPage() {
     return (
       <div className="max-w-2xl mx-auto px-4 py-10">
         <button
-          onClick={() => setView("list")}
+          onClick={() => { setView("list"); setCreateError(""); }}
           className="flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-6"
         >
           <ChevronLeft className="w-4 h-4" /> 返回
@@ -398,6 +430,14 @@ export default function CompanionPage() {
             </p>
           </div>
 
+          {createError && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              {createError}
+              <button onClick={() => setCreateError("")} className="ml-auto text-red-400/60 hover:text-red-400"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          )}
+
           <button
             onClick={handleCreate}
             className="w-full py-3 rounded-xl gradient-btn text-white font-semibold mt-2"
@@ -448,6 +488,12 @@ export default function CompanionPage() {
               className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1"
             >
               <Plus className="w-3.5 h-3.5" /> 新对话
+            </button>
+            <button
+              onClick={() => { setView("memory"); loadMemory(); }}
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1"
+            >
+              <Brain className="w-3.5 h-3.5" /> 记忆
             </button>
           </div>
         </div>
@@ -518,6 +564,94 @@ export default function CompanionPage() {
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
             </button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ 记忆管理 ============
+  if (view === "memory" && currentCompanion) {
+    const profileEntries = memoryData?.profile ? Object.entries(memoryData.profile).filter(([_, v]) => v) : [];
+    return (
+      <div className="h-[calc(100vh-4rem)] flex flex-col max-w-3xl mx-auto">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setView("chat")} className="text-gray-400 hover:text-white">
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span className="text-white font-medium text-sm">
+              {currentCompanion.companion_name || "TA"} 的记忆
+            </span>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-5">
+          {memoryLoading ? (
+            <div className="text-center py-10 text-gray-500">
+              <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" /> 加载中...
+            </div>
+          ) : (
+            <>
+              {/* 用户画像 */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                  <Brain className="w-4 h-4 text-brand" /> TA知道的你
+                </h3>
+                {profileEntries.length === 0 ? (
+                  <p className="text-gray-500 text-sm bg-surface rounded-xl p-4 border border-white/5">
+                    TA 还不了解你，多聊聊 TA 会逐渐认识你
+                  </p>
+                ) : (
+                  <div className="bg-surface rounded-xl p-4 border border-white/5 space-y-2">
+                    {profileEntries.map(([key, value]) => (
+                      <div key={key} className="flex items-start gap-3 text-sm">
+                        <span className="text-gray-500 w-20 shrink-0">{key}</span>
+                        <span className="text-gray-200">{String(value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 记忆列表 */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-brand" />
+                  TA记得的事
+                  <span className="text-xs text-gray-600 font-normal ml-1">({memoryData?.summaries?.length || 0} 条)</span>
+                </h3>
+                {!memoryData?.summaries?.length ? (
+                  <p className="text-gray-500 text-sm bg-surface rounded-xl p-4 border border-white/5">
+                    还没有记忆，跟TA多聊聊你们之间的事吧
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {memoryData.summaries.map((s) => (
+                      <div key={s.id} className="bg-surface rounded-xl p-4 border border-white/5 hover:border-brand/20 transition group">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-sm text-gray-200 leading-relaxed">{s.summary}</p>
+                          <button
+                            onClick={() => handleDeleteMemory(s.id)}
+                            className="p-1 text-gray-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${s.importance >= 8 ? "bg-amber-400/15 text-amber-400" : s.importance >= 5 ? "bg-sky-400/15 text-sky-400" : "bg-white/5 text-gray-500"}`}>
+                            重要性 {s.importance}
+                          </span>
+                          <span className="text-[10px] text-gray-600">
+                            {new Date(s.updated_at).toLocaleDateString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
