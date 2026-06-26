@@ -9,6 +9,7 @@ interface Message {
 }
 
 interface CompanionConfig {
+  role: string;
   companion_gender: string;
   nickname: string;
   user_profile: string;
@@ -17,6 +18,7 @@ interface CompanionConfig {
 
 export default function CompanionPage() {
   const [config, setConfig] = useState<CompanionConfig>({
+    role: "friend",
     companion_gender: "女生",
     nickname: "",
     user_profile: "",
@@ -128,8 +130,11 @@ export default function CompanionPage() {
     setStarted(false);
     setMessages([]);
     setInput("");
-    setConfig({ companion_gender: "女生", nickname: "", user_profile: "", memory_summaries: "" });
+    setConfig({ role: "friend", companion_gender: "女生", nickname: "", user_profile: "", memory_summaries: "" });
   };
+
+  const isLover = config.role === "lover";
+  const roleLabel = isLover ? "恋人" : "朋友";
 
   if (!started) {
     return (
@@ -138,14 +143,38 @@ export default function CompanionPage() {
           <Heart className="w-12 h-12 text-rose-400 mx-auto mb-4" />
           <h1 className="text-2xl font-bold">AI 情感陪伴</h1>
           <p className="text-gray-400 mt-2 text-sm">
-            不是助手，不是客服——是一个真正陪着你的朋友
+            {isLover ? "一个真的爱着你、把你放在心上的人" : "一个真正陪着你的朋友"}
           </p>
           <p className="text-gray-500 text-xs mt-1">每条消息消耗 2 积分</p>
         </div>
 
         <div className="bg-surface rounded-2xl p-6 space-y-5">
           <div>
-            <label className="block text-sm text-gray-300 mb-2">朋友的性别</label>
+            <label className="block text-sm text-gray-300 mb-2">你想找谁？</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { v: "friend", label: "朋友", desc: "亲近的朋友，听你说心里话" },
+                { v: "lover", label: "恋人", desc: "爱着你的人，甜且在意" },
+              ].map((opt) => (
+                <button
+                  key={opt.v}
+                  type="button"
+                  onClick={() => setConfig((c) => ({ ...c, role: opt.v }))}
+                  className={`py-3 px-4 rounded-lg text-left transition ${
+                    config.role === opt.v
+                      ? "bg-brand text-white border border-brand"
+                      : "bg-white/5 border border-white/10 text-gray-300 hover:border-brand/50"
+                  }`}
+                >
+                  <div className="font-medium text-sm">{opt.label}</div>
+                  <div className={`text-xs mt-0.5 ${config.role === opt.v ? "text-white/80" : "text-gray-500"}`}>{opt.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-300 mb-2">TA的性别</label>
             <div className="grid grid-cols-3 gap-2">
               {["女生", "男生", "不限"].map((v) => (
                 <button
@@ -171,7 +200,7 @@ export default function CompanionPage() {
             <input
               value={config.nickname}
               onChange={(e) => setConfig((c) => ({ ...c, nickname: e.target.value }))}
-              placeholder="例如：小鱼、阿杰、宝、不限"
+              placeholder={isLover ? "例如：宝、亲爱的、小名、不限" : "例如：小鱼、阿杰、宝、不限"}
               className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
             />
           </div>
@@ -183,7 +212,7 @@ export default function CompanionPage() {
             <textarea
               value={config.user_profile}
               onChange={(e) => setConfig((c) => ({ ...c, user_profile: e.target.value }))}
-              placeholder="例如：我是一个996的程序员，养了一只猫叫豆豆，最近有点迷茫..."
+              placeholder={isLover ? "例如：我是一个996的程序员，最近总加班很累，养了一只猫..." : "例如：我是一个996的程序员，养了一只猫叫豆豆，最近有点迷茫..."}
               rows={3}
               className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none resize-none"
             />
@@ -191,12 +220,12 @@ export default function CompanionPage() {
 
           <div>
             <label className="block text-sm text-gray-300 mb-1.5">
-              你们之前聊过的重要的事<span className="text-gray-500 text-xs ml-1">（选填，让TA"记得"你们的历史）</span>
+              {isLover ? "你们之间以前的事" : "你们之前聊过的重要的事"}<span className="text-gray-500 text-xs ml-1">（选填，让TA"记得"你们的历史）</span>
             </label>
             <textarea
               value={config.memory_summaries}
               onChange={(e) => setConfig((c) => ({ ...c, memory_summaries: e.target.value }))}
-              placeholder="例如：上次聊了我和前任分手的事，TA帮我想通了很多..."
+              placeholder={isLover ? "例如：昨天为一件小事拌了嘴，后来又好了..." : "例如：上次聊了我和前任分手的事，TA帮我想通了很多..."}
               rows={2}
               className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none resize-none"
             />
@@ -220,9 +249,9 @@ export default function CompanionPage() {
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
           <span className="text-sm text-gray-400">
-            <span className="text-white font-medium">情感陪伴</span>
+            <span className="text-white font-medium">{isLover ? "恋人" : "情感陪伴"}</span>
             <span className="mx-2">·</span>
-            {config.companion_gender}朋友
+            {config.companion_gender}{roleLabel}
             {config.nickname && <><span className="mx-2">·</span>称呼你"{config.nickname}"</>}
           </span>
         </div>
@@ -241,7 +270,7 @@ export default function CompanionPage() {
           <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             {msg.role === "assistant" && (
               <div className="w-7 h-7 rounded-full bg-rose-400/20 border border-rose-400/30 flex items-center justify-center text-xs text-rose-300 mr-2 mt-1 shrink-0">
-                友
+                {isLover ? "恋" : "友"}
               </div>
             )}
             <div
