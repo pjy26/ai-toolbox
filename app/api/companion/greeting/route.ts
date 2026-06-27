@@ -110,13 +110,18 @@ ${profileText}
 # 性格
 ${PERSONA_BLOCKS[persona].slice(0, 200)}
 
-# 要求
-- 只说一句话（最多两句），短、口语、自然
-- 像真人聊天，不要"你好""欢迎回来"这种机械开场
+# 要求（严格遵守）
+- 只说【一句话】，不许发两条或更多
+- 短、口语、自然，像真人发的一条微信消息
 - ${relationshipType === "lover" ? "恋人间的亲昵和温度，但不过火" : "朋友间的关心和轻松"}
 - 不要提任何功能、不要解释任何规则、不要用 emoji 堆砌
 
-现在，直接说出你的第一句话：`;
+# 严禁
+- 禁止在一条消息里自说自话、脑补对方在做什么（如"你在笑什么""你看起来很开心"）
+- 禁止设定具体场景细节后又重复推翻（如不要说"我在泡茶…我泡了杯茶…我又在泡茶"）
+- 禁止先问候又突然转换话题——保持一个自然、连贯的语气
+
+现在，直接说出你的第一句话（只能一句）：`;
 
   try {
     const openai = new OpenAI({
@@ -127,8 +132,8 @@ ${PERSONA_BLOCKS[persona].slice(0, 200)}
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || "deepseek-chat",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.9,
-      max_tokens: 100,
+      temperature: 0.6,
+      max_tokens: 60,
     });
 
     const greeting = completion.choices?.[0]?.message?.content?.trim() || getFallbackGreeting(daysSinceLastChat, relationshipType);

@@ -55,10 +55,12 @@ function ChatInner() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [greetingDone, setGreetingDone] = useState(false);
+  const hasInitRef = useRef(false);
 
   /* ── 初始化 ── */
   const init = useCallback(async () => {
-    if (!session) return;
+    if (!session || hasInitRef.current) return;
+    hasInitRef.current = true;
     try {
       // 配额
       const qRes = await fetch("/api/companion/quota");
