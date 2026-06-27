@@ -15,6 +15,62 @@ import {
   type PersonaType,
 } from "@/lib/amara-persona";
 
+// ====== 代码级硬约束（拼接在 system prompt 末尾，覆盖 prompt 里的软性规则）======
+function buildCodeConstraints(
+  nickname: string,
+  history: { role: string; content: string }[],
+  userMessage: string
+): string {
+  const parts: string[] = [];
+
+  // 1. 称呼锁死
+  if (nickname) {
+    parts.push(`【硬约束·称呼】对方叫「${nickname}」。你只能用这个称呼，禁造其他名字。`);
+  } else {
+    parts.push("【硬约束·称呼】你不知道TA的名字。禁止自行编造任何名字称呼TA。");
+  }
+
+  // 2. 对话连续锚：提取上一轮 Amara 说了什么 + 用户现在回了什么
+  const lastAssistant = [...history].reverse().find((h) => h.role === "assistant");
+  if (lastAssistant) {
+    const snippet = lastAssistant.content.length > 60
+      ? lastAssistant.content.slice(0, 60) + "…"
+      : lastAssistant.content;
+    parts.push(`【硬约束·连续性】你上一句是"${snippet}"。现在TA说"${userMessage}"。你必须直接承接TA这句话，不得另起话题，不得把TA当成刚出现。`);
+  }
+
+  // 3. 场景/物件锚：从 Amara 最近的消息里提取括号内的动作/物件，强制保持
+  const recentAmara = history.filter((h) => h.role === "assistant").slice(-3);
+  const actions: string[] = [];
+  for (const msg of recentAmara) {
+    const matches = msg.content.match(/（[^）]+）|\([^)]+\)/g);
+    if (matches) actions.push(...matches);
+  }
+  // 也提取关键词：茶、咖啡、水、吃的、坐、躺等涉及物件的词
+  const objectPattern = /(?:泡|倒|递|拿|喝|吃|做|煮|买|带)(?:了|的|杯|碗|份)?(?:茶|咖啡|奶茶|水|牛奶|酒|饭|面|汤|菜|零食|点心)/g;
+  const recentAll = history.slice(-6);
+  const objects: string[] = [];
+  for (const msg of recentAll) {
+    const matches = msg.content.match(objectPattern);
+    if (matches) objects.push(...matches);
+  }
+  if (actions.length > 0 || objects.length > 0) {
+    const sceneItems = [
+      ...actions.slice(-2),
+      ...objects.slice(-2),
+    ];
+    parts.push(`【硬约束·场景】当前互动涉及：${sceneItems.join("、")}。禁止改变或替换这些物件。茶就是茶，不能变成咖啡或奶茶。`);
+  }
+
+  // 4. 消息数量锁
+  parts.push("【硬约束·消息数】一次只能说一句话。不要在同一回复里塞多个来回、不要自问自答。");
+
+  // 5. 旁白锁
+  parts.push("【硬约束·旁白】括号里的动作只能是你能做的事（递东西、靠近、表情），不能描写TA在做什么。");
+
+  return "# ====== 硬约束（优先级最高，违反即错误）======\n" + parts.join("\n");
+}
+
 // ====== 恋人版 Amara system prompt（带变量占位由后端填充）======
 function buildLoverSystemPrompt(config: {
   persona: PersonaType;
@@ -364,10 +420,18 @@ export async function POST(req: Request) {
     baseURL: process.env.OPENAI_BASE_URL || "https://api.deepseek.com",
   });
 
-  const messages: OpenAI.ChatCompletionMessageParam[] = [
-    { role: "system", content: systemPrompt },
-  ];
   const mergedHistory = (dbHistory as { role: string; content: string }[] | null) || [];
+
+  // 10. 代码级硬约束（拼接在 system prompt 末尾，AI 无法绕过）
+  const codeConstraints = buildCodeConstraints(
+    companion.user_nickname || "",
+    mergedHistory,
+    message
+  );
+
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: "system", content: systemPrompt + "\n\n" + codeConstraints },
+  ];
   for (const h of mergedHistory) {
     if (h.role === "user" || h.role === "assistant") {
       messages.push({ role: h.role, content: h.content });
