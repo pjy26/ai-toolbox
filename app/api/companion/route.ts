@@ -15,60 +15,44 @@ import {
   type PersonaType,
 } from "@/lib/amara-persona";
 
-// ====== 代码级硬约束（拼接在 system prompt 末尾，覆盖 prompt 里的软性规则）======
-function buildCodeConstraints(
-  nickname: string,
-  history: { role: string; content: string }[],
-  userMessage: string
-): string {
-  const parts: string[] = [];
+// ====== 称呼兜底：AI 输出后扫描替换自创昵称（保守策略，宁可漏过不误伤）======
+function fixNickname(assistantFull: string, dbNickname: string): string {
+  if (!dbNickname || assistantFull.length === 0) return assistantFull;
 
-  // 1. 称呼锁死
-  if (nickname) {
-    parts.push(`【硬约束·称呼】对方叫「${nickname}」。你只能用这个称呼，禁造其他名字。`);
-  } else {
-    parts.push("【硬约束·称呼】你不知道TA的名字。禁止自行编造任何名字称呼TA。");
+  // 只检查消息开头 40 字（称呼位置靠前）
+  const head = assistantFull.slice(0, 40);
+  const tail = assistantFull.slice(40);
+
+  // 常见虚词/时间词，永远不会是昵称
+  const stopWords = new Set([
+    "今天","明天","昨天","现在","刚才","等一下","一会儿","马上","已经",
+    "还是","或者","因为","所以","但是","不过","如果","虽然","然后",
+    "这个","那个","什么","怎么","哪里","为什么","可以","应该",
+  ]);
+
+  // 只有在这些上下文位置才认为是称呼（消息开头 / 逗号句号后 / 括号后）
+  const addrPattern = /(?:^|[，。！？…、,（(])[\u4e00-\u9fff]{2,3}(?=[，。！？…\s,，你我来去在]|$)/g;
+  let fixedHead = head;
+  let match: RegExpExecArray | null;
+  while ((match = addrPattern.exec(head)) !== null) {
+    const found = match[0].replace(/^[，。！？…、,（(]/, "");
+    if (found.length < 2 || found.length > 3) continue;
+    if (found === dbNickname) continue;
+    if (stopWords.has(found)) continue;
+
+    // 排除引号/书名号内
+    const pos = match.index + (match[0].length - found.length);
+    const before = head.slice(Math.max(0, pos - 1), pos);
+    if (["「","《","\u201c","\u2018"].includes(before)) continue;
+    const after = head.slice(pos + found.length, pos + found.length + 1);
+    if (["」","》","\u201d","\u2019"].includes(after)) continue;
+
+    // 高置信度称呼位置 → 替换，只换一次
+    fixedHead = fixedHead.slice(0, pos) + dbNickname + fixedHead.slice(pos + found.length);
+    break;
   }
 
-  // 2. 对话连续锚：提取上一轮 Amara 说了什么 + 用户现在回了什么
-  const lastAssistant = [...history].reverse().find((h) => h.role === "assistant");
-  if (lastAssistant) {
-    const snippet = lastAssistant.content.length > 60
-      ? lastAssistant.content.slice(0, 60) + "…"
-      : lastAssistant.content;
-    parts.push(`【硬约束·连续性】你上一句是"${snippet}"。现在TA说"${userMessage}"。你必须直接承接TA这句话，不得另起话题，不得把TA当成刚出现。`);
-  }
-
-  // 3. 场景/物件锚：从 Amara 最近的消息里提取括号内的动作/物件，强制保持
-  const recentAmara = history.filter((h) => h.role === "assistant").slice(-3);
-  const actions: string[] = [];
-  for (const msg of recentAmara) {
-    const matches = msg.content.match(/（[^）]+）|\([^)]+\)/g);
-    if (matches) actions.push(...matches);
-  }
-  // 也提取关键词：茶、咖啡、水、吃的、坐、躺等涉及物件的词
-  const objectPattern = /(?:泡|倒|递|拿|喝|吃|做|煮|买|带)(?:了|的|杯|碗|份)?(?:茶|咖啡|奶茶|水|牛奶|酒|饭|面|汤|菜|零食|点心)/g;
-  const recentAll = history.slice(-6);
-  const objects: string[] = [];
-  for (const msg of recentAll) {
-    const matches = msg.content.match(objectPattern);
-    if (matches) objects.push(...matches);
-  }
-  if (actions.length > 0 || objects.length > 0) {
-    const sceneItems = [
-      ...actions.slice(-2),
-      ...objects.slice(-2),
-    ];
-    parts.push(`【硬约束·场景】当前互动涉及：${sceneItems.join("、")}。禁止改变或替换这些物件。茶就是茶，不能变成咖啡或奶茶。`);
-  }
-
-  // 4. 消息数量锁
-  parts.push("【硬约束·消息数】一次只能说一句话。不要在同一回复里塞多个来回、不要自问自答。");
-
-  // 5. 旁白锁
-  parts.push("【硬约束·旁白】括号里的动作只能是你能做的事（递东西、靠近、表情），不能描写TA在做什么。");
-
-  return "# ====== 硬约束（优先级最高，违反即错误）======\n" + parts.join("\n");
+  return fixedHead + tail;
 }
 
 // ====== 恋人版 Amara system prompt（带变量占位由后端填充）======
@@ -130,6 +114,8 @@ ${stageBlock(relationship_stage)}
 如果对方隔了几天没来,自然流露出"想念又有点小委屈"的感觉,但别太重:"你这几天去哪了呀,还以为你把我忘了呢"。关心 TA 这段时间过得怎样,而不是一上来就质问或大发脾气。
 
 # ====== 关于对方(记忆注入)======
+【称呼锁定】TA的称呼是${nickname ? `「${nickname}」，你只能用这个称呼，不可自行编造` : "暂无，你还不知道TA叫什么，不可自行编造"}
+
 你知道的：${user_profile || "（还不太了解，慢慢认识）"}
 以前的事：${memory_summaries || "（暂无）"}
 你们之间的事：${relationship_events || "（暂无）"}
@@ -215,7 +201,8 @@ function buildFriendSystemPrompt(config: {
 你的性别是${companion_gender}。
 
 # 关于 TA
-${nickname ? `你喊 TA：${nickname}（这是固定称呼，每次都用这个，不要换）` : "你还不知道 TA 的名字，先自然地聊，等 TA 自己告诉你再记住。"}
+${nickname ? `TA叫「${nickname}」，你只能用这个称呼，不可自行编造。` : "你还不知道 TA 的名字，不可自行编造称呼。"}
+你喊 TA：${nickname || "（等 TA 自己告诉你）"}
 你知道的：${user_profile || "（还不太了解，慢慢认识）"}
 以前的事：${memory_summaries || "（暂无）"}
 
@@ -367,13 +354,14 @@ export async function POST(req: Request) {
     sessionId = newSession.id;
   }
 
-  // 5. 拉取最近历史消息
-  const { data: dbHistory } = await supabase
+  // 5. 拉取最近 30 条历史消息（降序取最新 → 代码反转成正序）
+  const { data: dbHistoryRaw } = await supabase
     .from("chat_messages")
     .select("role, content, created_at")
     .eq("session_id", sessionId)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(30);
+  const dbHistory = (dbHistoryRaw || []).reverse();
 
   // 6. 落库用户消息
   await supabase.from("chat_messages").insert({
@@ -422,15 +410,8 @@ export async function POST(req: Request) {
 
   const mergedHistory = (dbHistory as { role: string; content: string }[] | null) || [];
 
-  // 10. 代码级硬约束（拼接在 system prompt 末尾，AI 无法绕过）
-  const codeConstraints = buildCodeConstraints(
-    companion.user_nickname || "",
-    mergedHistory,
-    message
-  );
-
   const messages: OpenAI.ChatCompletionMessageParam[] = [
-    { role: "system", content: systemPrompt + "\n\n" + codeConstraints },
+    { role: "system", content: systemPrompt },
   ];
   for (const h of mergedHistory) {
     if (h.role === "user" || h.role === "assistant") {
@@ -468,10 +449,13 @@ export async function POST(req: Request) {
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
           if (assistantFull) {
+            // 称呼兜底：用 DB 里的 nickname 替换 AI 自创的称呼
+            const nicknameFix = companion.user_nickname || "";
+            const fixedContent = fixNickname(assistantFull, nicknameFix);
             await supabase.from("chat_messages").insert({
               session_id: sessionId,
               role: "assistant",
-              content: assistantFull,
+              content: fixedContent,
             });
             await supabase.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId);
           }

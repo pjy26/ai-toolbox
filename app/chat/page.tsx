@@ -55,12 +55,25 @@ function ChatInner() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [greetingDone, setGreetingDone] = useState(false);
-  const hasInitRef = useRef(false);
 
   /* ── 初始化 ── */
+  // 主动消息去重锁 + 当前 session 指针：均落 sessionStorage + companion_id 维度。
+  // useRef 是组件实例内存锁，Suspense + useSearchParams 触发重挂载时会归零，
+  // 导致 greeting 被反复请求、连发雷同消息。sessionStorage 跨组件实例持久，
+  // 能扛住重挂载。生命周期 = tab 会话：
+  //   - F5 刷新：不清 → greeting 锁命中、session 指针恢复 → 对话续上（正确）
+  //   - 关 tab 重进：清空 → 锁失忆、重新发开场白 → 重新相遇（正确）
+  // session 指针同理：重挂载后 useState 清空，需从 sessionStorage 恢复，
+  // 否则只能退到 /sessions 取最近，有"刚新建空 session 排前面"的串台风险。
+  const GREETING_KEY = (cid: string) => `amara_greeting_sent:${cid}`;
+  const SESSION_KEY = (cid: string) => `amara_session:${cid}`;
   const init = useCallback(async () => {
-    if (!session || hasInitRef.current) return;
-    hasInitRef.current = true;
+    // 治本：早 return 必须先放 initLoading，否则任何无 session 访问 /chat
+    // 都会卡在 initLoading=true 的黑屏（登出弹回、直接访问 URL 等）
+    if (!session) {
+      setInitLoading(false);
+      return;
+    }
     try {
       // 配额
       const qRes = await fetch("/api/companion/quota");
@@ -82,13 +95,42 @@ function ChatInner() {
 
       setCompanion(c);
 
-      // 获取开场白
-      const greetRes = await fetch(`/api/companion/greeting?companion_id=${c.id}`);
-      if (greetRes.ok) {
-        const greetData = await greetRes.json();
-        typeWriter(greetData.greeting, () => setGreetingDone(true));
-      } else {
+      // 去重锁：命中则跳过 greeting，但恢复历史对话（重挂载后 messages 已清空，必须回填）
+      if (sessionStorage.getItem(GREETING_KEY(c.id))) {
+        try {
+          // 优先用本 tab 内持久化的 sessionId（避免取最近 session 串台）
+          let lastSid = sessionStorage.getItem(SESSION_KEY(c.id));
+          if (!lastSid) {
+            // 退路：本 tab 从未发过消息，取最近 session
+            const sRes = await fetch(`/api/companion/sessions?companion_id=${c.id}`);
+            const sData = await sRes.json();
+            lastSid = sData.sessions?.[0]?.id || null;
+          }
+          if (lastSid) {
+            setSessionId(lastSid);
+            const mRes = await fetch(`/api/companion/messages?session_id=${lastSid}`);
+            if (mRes.ok) {
+              const mData = await mRes.json();
+              if (Array.isArray(mData.messages) && mData.messages.length > 0) {
+                // 一次性铺出，不走打字机（历史是"已说过的话"，非"此刻在说"）
+                setMessages(mData.messages.map((m: any) => ({ role: m.role, content: m.content })));
+              }
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
         setGreetingDone(true);
+      } else {
+        sessionStorage.setItem(GREETING_KEY(c.id), "1");
+        // 获取开场白
+        const greetRes = await fetch(`/api/companion/greeting?companion_id=${c.id}`);
+        if (greetRes.ok) {
+          const greetData = await greetRes.json();
+          typeWriter(greetData.greeting, () => setGreetingDone(true));
+        } else {
+          setGreetingDone(true);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -156,7 +198,11 @@ function ChatInner() {
     }
 
     const sid = res.headers.get("x-session-id");
-    if (sid) setSessionId(sid);
+    if (sid) {
+      setSessionId(sid);
+      // 持久化到 sessionStorage，重挂载后从这里恢复，避免取最近 session 串台
+      if (companion) sessionStorage.setItem(`amara_session:${companion.id}`, sid);
+    }
 
     const reader = res.body?.getReader();
     const decoder = new TextDecoder();
@@ -484,8 +530,16 @@ function MyDrawer({ isLover, quota, onClose, onShowPaywall }: {
   const accentRgb = isLover ? "212, 132, 154" : "201, 169, 110";
 
   const handleLogout = async () => {
+    // 清理 amara_* sessionStorage：现在里面存的是真实 session 指针（用户作用域数据），
+    // 换号登录后残留会指向别人的会话。封板该清干净，不靠后端 404 兜底。
+    try {
+      const keys = Object.keys(sessionStorage).filter((k) => k.startsWith("amara_"));
+      keys.forEach((k) => sessionStorage.removeItem(k));
+    } catch { /* ignore */ }
     await supabaseClient.auth.signOut();
-    window.location.href = "/";
+    // 跳 /?logged_out=1：首页 useEffect 检测到此 query 直接 return，跳过自动跳 /chat 逻辑。
+    // 不赌 onAuthStateChange 异步清 session 的窗口期，用显式标志一刀切死弹回链路。
+    window.location.href = "/?logged_out=1";
   };
 
   const membershipLabel = () => {

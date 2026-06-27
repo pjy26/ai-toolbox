@@ -3,16 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 
-export default function HomePage() {
+function HomeInner() {
   const { session, isLoading: authLoading } = useSessionContext();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [ready, setReady] = useState(false);
-  const [transitioning, setTransitioning] = useState<"friend" | "lover" | null>(null);
   const [creating, setCreating] = useState(false);
 
-  // 检查是否已有关系 → 有则直接跳转聊天页
+  /* ── 已登录且有关系 → 自动跳转 ── */
   useEffect(() => {
-    if (!session) return;
+    if (!session || authLoading) return;
     fetch("/api/companion/list")
       .then((r) => r.json())
       .then((data) => {
@@ -22,7 +20,7 @@ export default function HomePage() {
         }
       })
       .catch(() => {});
-  }, [session]);
+  }, [session, authLoading]);
 
   /* ── 粒子 ── */
   useEffect(() => {
@@ -81,97 +79,49 @@ export default function HomePage() {
     }
     animate();
 
-    setTimeout(() => setReady(true), 200);
-
     return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); };
   }, []);
 
   const handleChoice = async (mode: "friend" | "lover") => {
-    setTransitioning(mode);
     setCreating(true);
-
     try {
-      // 创建关系（首次也是唯一一次）
       const res = await fetch("/api/companion/list", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ relationship_type: mode }),
       });
       const data = await res.json();
-
-      if (!res.ok) {
-        // 如果已有关系（409），直接进聊天
-        if (res.status === 409) {
-          setTimeout(() => {
-            window.location.href = `/chat?role=${mode}`;
-          }, 900);
-          return;
-        }
-        throw new Error(data.error || "创建失败");
-      }
-
-      // 创建成功，跳转聊天页
-      setTimeout(() => {
-        window.location.href = `/chat?role=${mode}`;
-      }, 900);
+      if (!res.ok && res.status !== 409) throw new Error(data.error || "创建失败");
+      setTimeout(() => { window.location.href = `/chat?role=${mode}`; }, 900);
     } catch {
-      // 出错时也尝试跳转
       setTimeout(() => {
-        if (!session) {
-          window.location.href = `/login?redirect=/chat?role=${mode}`;
-        } else {
-          window.location.href = `/chat?role=${mode}`;
-        }
+        window.location.href = session
+          ? `/chat?role=${mode}`
+          : `/login?redirect=/chat?role=${mode}`;
       }, 900);
     }
   };
-
-  // 加载中
-  if (authLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center" style={{ background: "#08080F" }}>
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-amber-400/30 animate-spin" />
-      </div>
-    );
-  }
-
-  // 未登录 → 显示选择页（无创建逻辑，先选再引导登录）
-  // 已登录但还在检查关系 → 显示选择页（检查完后会自动跳转）
 
   return (
     <div className="h-screen flex flex-col items-center justify-center relative" style={{ background: "#08080F", overflow: "hidden" }}>
       <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />
 
-      {/* 顶部标识 */}
-      <div
-        className="absolute text-center"
-        style={{
-          top: "12vh", zIndex: 10,
-          opacity: ready ? 1 : 0,
-          transform: ready ? "translateY(0)" : "translateY(20px)",
-          transition: "all 1.2s cubic-bezier(0.22, 1, 0.36, 1)",
-        }}
-      >
-        <div className="text-xs uppercase mb-6" style={{ letterSpacing: 10, color: "rgba(232, 213, 196, 0.5)" }}>Amara</div>
-        <div className="text-lg md:text-xl font-light leading-relaxed" style={{ letterSpacing: 4, color: "rgba(232, 213, 196, 0.9)" }}>
+      {/* 顶部标识 — 直接可见，无 opacity 控制 */}
+      <div className="absolute text-center" style={{ top: "12vh", zIndex: 10 }}>
+        <div className="text-xs uppercase mb-6" style={{ letterSpacing: 10, color: "#E8D5C4" }}>Amara</div>
+        <div className="text-lg md:text-xl font-light leading-relaxed" style={{ letterSpacing: 4, color: "#E8D5C4" }}>
           你想以什么样的身份<br />
-          与 <span style={{ color: "#F4C2C2", textShadow: "0 0 20px rgba(244, 194, 194, 0.3)", fontStyle: "normal" }}>Amara</span> 相遇？
+          与 <span style={{ color: "#FFB6C1", textShadow: "0 0 20px rgba(255, 182, 193, 0.4)", fontStyle: "normal" }}>Amara</span> 相遇？
         </div>
       </div>
 
-      {/* 双径 */}
+      {/* 双径 — 直接可见 */}
       <div className="flex items-center justify-center relative z-10" style={{ gap: "8vw" }}>
         {/* 朋友 */}
         <div
           onClick={() => !creating && handleChoice("friend")}
           className="relative cursor-pointer flex flex-col items-center justify-center text-center"
-          style={{
-            width: 260, height: 320, borderRadius: 24,
-            opacity: ready ? 1 : 0, transform: ready ? "scale(1)" : "scale(0.9)",
-            transition: "all 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
-            transitionDelay: "0.6s",
-            pointerEvents: creating ? "none" : "auto",
-          }}
+          style={{ width: 260, height: 320, borderRadius: 24, pointerEvents: creating ? "none" : "auto" }}
         >
           <div
             className="absolute inset-0 rounded-3xl pointer-events-none"
@@ -186,9 +136,9 @@ export default function HomePage() {
             <div className="mx-auto mb-5 relative" style={{ width: 48, height: 48, borderRadius: "50%", border: "1.5px solid rgba(201, 169, 110, 0.5)", boxShadow: "0 0 20px rgba(201, 169, 110, 0.2)" }}>
               <div className="absolute" style={{ inset: 8, borderRadius: "50%", border: "1px solid rgba(201, 169, 110, 0.3)" }} />
             </div>
-            <div className="text-xl font-light mb-3" style={{ letterSpacing: 6, color: "#C9A96E" }}>朋友</div>
-            <div className="text-xs font-light leading-loose" style={{ letterSpacing: 2, color: "rgba(201, 169, 110, 0.85)" }}>陪伴 · 倾听 · 理解</div>
-            <div className="text-xs font-light mt-4" style={{ letterSpacing: 1, color: "#C9A96E", opacity: 0, transition: "opacity 0.6s ease", transitionDelay: "0.2s" }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0"; }}>
+            <div className="text-xl font-light mb-3" style={{ letterSpacing: 6, color: "#D4B87A" }}>朋友</div>
+            <div className="text-xs font-light leading-loose" style={{ letterSpacing: 2, color: "#C9A96E" }}>陪伴 · 倾听 · 理解</div>
+            <div className="text-xs font-light mt-4" style={{ letterSpacing: 1, color: "#D4B87A", opacity: 0.6, transition: "opacity 0.6s ease" }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.6"; }}>
               我在这里，听你说话
             </div>
           </div>
@@ -200,13 +150,7 @@ export default function HomePage() {
         <div
           onClick={() => !creating && handleChoice("lover")}
           className="relative cursor-pointer flex flex-col items-center justify-center text-center"
-          style={{
-            width: 260, height: 320, borderRadius: 24,
-            opacity: ready ? 1 : 0, transform: ready ? "scale(1)" : "scale(0.9)",
-            transition: "all 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
-            transitionDelay: "0.9s",
-            pointerEvents: creating ? "none" : "auto",
-          }}
+          style={{ width: 260, height: 320, borderRadius: 24, pointerEvents: creating ? "none" : "auto" }}
         >
           <div
             className="absolute inset-0 rounded-3xl pointer-events-none"
@@ -220,70 +164,24 @@ export default function HomePage() {
           />
           <div className="relative z-10">
             <div className="mx-auto mb-5" style={{ width: 48, height: 48, borderRadius: "50%", background: "radial-gradient(circle, rgba(212, 132, 154, 0.4) 0%, transparent 70%)", boxShadow: "0 0 24px rgba(212, 132, 154, 0.3)" }} />
-            <div className="text-xl font-light mb-3" style={{ letterSpacing: 6, color: "#D4849A" }}>恋人</div>
-            <div className="text-xs font-light leading-loose" style={{ letterSpacing: 2, color: "rgba(212, 132, 154, 0.85)" }}>亲密 · 共鸣 · 专属</div>
-            <div className="text-xs font-light mt-4" style={{ letterSpacing: 1, color: "#D4849A", opacity: 0, transition: "opacity 0.6s ease", transitionDelay: "0.2s" }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0"; }}>
+            <div className="text-xl font-light mb-3" style={{ letterSpacing: 6, color: "#E8909F" }}>恋人</div>
+            <div className="text-xs font-light leading-loose" style={{ letterSpacing: 2, color: "#D4849A" }}>亲密 · 共鸣 · 专属</div>
+            <div className="text-xs font-light mt-4" style={{ letterSpacing: 1, color: "#E8909F", opacity: 0.6, transition: "opacity 0.6s ease" }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.6"; }}>
               我在这里，为你存在
             </div>
           </div>
         </div>
       </div>
 
-      {/* 底部 */}
-      <div
-        className="absolute text-center"
-        style={{
-          bottom: "6vh", zIndex: 10,
-          opacity: ready ? 1 : 0,
-          transform: ready ? "translateY(0)" : "translateY(10px)",
-          transition: "all 1s ease",
-          transitionDelay: "1.4s",
-        }}
-      >
-        <p className="text-xs font-light" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.65)" }}>这不是永久的决定，你随时可以回到这里</p>
-        <p className="text-xs font-light mt-2" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.55)" }}>先让我们说说话。没有门槛，也没有承诺</p>
+      {/* 底部 — 直接可见 */}
+      <div className="absolute text-center" style={{ bottom: "6vh", zIndex: 10 }}>
+        <p className="text-xs font-light" style={{ letterSpacing: 2, color: "#C8BFB0" }}>这不是永久的决定，你随时可以回到这里</p>
+        <p className="text-xs font-light mt-2" style={{ letterSpacing: 2, color: "#B5ACA0" }}>先让我们说说话。没有门槛，也没有承诺</p>
       </div>
-
-      {/* 过渡动画 */}
-      {transitioning && <TransitionOverlay mode={transitioning} />}
     </div>
   );
 }
 
-/* ── 过渡动画组件 ── */
-function TransitionOverlay({ mode }: { mode: "friend" | "lover" }) {
-  const isFriend = mode === "friend";
-  const color = isFriend ? "201, 169, 110" : "212, 132, 154";
-  const hexColor = isFriend ? "#C9A96E" : "#D4849A";
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center pointer-events-none"
-      style={{
-        animation: "transitionOverlay 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards",
-        background: `radial-gradient(ellipse at center, rgba(${color}, 0.3) 0%, rgba(14, 12, 10, 0.96) 60%)`,
-      }}
-    >
-      <div
-        style={{
-          width: 120, height: 120, borderRadius: "50%",
-          background: `radial-gradient(circle, rgba(${color}, 0.4) 0%, transparent 70%)`,
-          animation: "transitionGlow 0.6s ease-out forwards",
-          position: "absolute",
-        }}
-      />
-      <div
-        className="relative z-10 text-center"
-        style={{
-          animation: "transitionText 0.7s 0.15s cubic-bezier(0.22, 1, 0.36, 1) forwards",
-          opacity: 0,
-        }}
-      >
-        <div style={{ fontSize: 28, letterSpacing: 8, color: hexColor, fontWeight: 300 }}>Amara</div>
-        <div style={{ fontSize: 14, letterSpacing: 4, marginTop: 12, color: `rgba(${color}, 0.5)` }}>
-          {isFriend ? "正在靠近..." : "为你而来..."}
-        </div>
-      </div>
-    </div>
-  );
+export default function HomePage() {
+  return <HomeInner />;
 }
