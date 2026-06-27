@@ -2,55 +2,37 @@
 
 import Link from "next/link";
 import { useSessionContext } from "@supabase/auth-helpers-react";
-import { Sparkles, LogIn, User, CreditCard, Heart } from "lucide-react";
+import { LogIn, User, Heart } from "lucide-react";
 
 export function Navbar() {
   const { session } = useSessionContext();
 
+  if (!session) return null;
+
   return (
-    <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-surface-dark/80 backdrop-blur-xl">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-          <Heart className="w-5 h-5 text-rose-400" />
-          <span className="gradient-text">Amara</span>
+    <nav className="fixed top-0 w-full z-50" style={{ borderBottom: "1px solid rgba(201,169,110,0.06)", background: "rgba(15,13,11,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
+      <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2 font-normal text-sm" style={{ color: "#E8D5C4", letterSpacing: 3 }}>
+          <Heart className="w-4 h-4" style={{ color: "#D4849A" }} />
+          Amara
         </Link>
-
-        <div className="hidden md:flex items-center gap-6 text-sm text-gray-300">
-          <Link href="/tools/companion" className="hover:text-white transition flex items-center gap-1">
-            <Heart className="w-3.5 h-3.5 text-rose-400" />
-            情感陪伴
+        <div className="flex items-center gap-3 text-xs" style={{ color: "rgba(232,213,196,0.4)" }}>
+          <Link href="/" className="hover:text-white transition" style={{ letterSpacing: 1 }}>
+            选择
           </Link>
-          <Link href="/tools" className="hover:text-white transition">工具</Link>
-          <Link href="/pricing" className="hover:text-white transition">定价</Link>
-          <Link href="/contact" className="hover:text-white transition">联系</Link>
+          <span style={{ color: "rgba(232,213,196,0.15)" }}>·</span>
+          <Link href="/pricing" className="hover:text-white transition" style={{ letterSpacing: 1 }}>
+            定价
+          </Link>
+          <span style={{ color: "rgba(232,213,196,0.15)" }}>·</span>
+          <Link href="/contact" className="hover:text-white transition" style={{ letterSpacing: 1 }}>
+            联系
+          </Link>
         </div>
-
-        <div className="flex items-center gap-3">
-          {session ? (
-            <>
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-1.5 text-sm text-gray-300 hover:text-white"
-              >
-                <CreditCard className="w-4 h-4" />
-                <span>控制台</span>
-              </Link>
-              <Link
-                href="/dashboard"
-                className="w-8 h-8 rounded-full bg-brand/20 flex items-center justify-center"
-              >
-                <User className="w-4 h-4 text-brand-light" />
-              </Link>
-            </>
-          ) : (
-            <Link
-              href="/login"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg gradient-btn text-sm font-medium text-white"
-            >
-              <LogIn className="w-4 h-4" />
-              登录
-            </Link>
-          )}
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: "rgba(201,169,110,0.1)", border: "1px solid rgba(201,169,110,0.15)" }}>
+            <User className="w-3.5 h-3.5" style={{ color: "rgba(201,169,110,0.5)" }} />
+          </div>
         </div>
       </div>
     </nav>

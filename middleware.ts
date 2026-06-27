@@ -7,7 +7,7 @@ export async function middleware(req: NextRequest) {
   const supabase = createMiddlewareClient({ req, res });
   const { data: { user } } = await supabase.auth.getUser();
 
-  const protectedPaths = ["/tools", "/dashboard"];
+  const protectedPaths = ["/chat"];
   const isProtected = protectedPaths.some((p) => req.nextUrl.pathname.startsWith(p));
 
   if (isProtected && !user) {
@@ -27,5 +27,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/tools/:path*", "/dashboard", "/api/((?!pay/notify).*)"],
+  matcher: ["/chat", "/api/((?!pay/notify).*)"],
 };

@@ -39,7 +39,7 @@ export default function LoginForm() {
 
       // 如果立即返回了 session（邮箱确认关闭的情况），直接跳转
       if (data?.session) {
-        const redirectTo = searchParams.get("redirectTo") || "/tools/companion";
+        const redirectTo = searchParams.get("redirectTo") || "/chat";
         router.push(redirectTo);
         router.refresh();
       } else {
@@ -72,7 +72,7 @@ export default function LoginForm() {
       return;
     }
 
-    const redirectTo = searchParams.get("redirectTo") || "/tools/companion";
+    const redirectTo = searchParams.get("redirectTo") || "/chat";
     router.push(redirectTo);
     router.refresh();
   };

@@ -2,36 +2,85 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --brand: 124 58 237;
-  --accent: 236 72 153;
-}
+@layer base {
+  :root {
+    --amber: 201 169 110;
+    --rose: 212 132 154;
+    --text-main: 232 213 196;
+    --text-dim: 255 255 255;
+    --bg-deep: 8 8 15;
+    --bg-warm: 14 12 10;
+    --bg-panel: 21 18 16;
+    --bg-input: 26 23 22;
+    --bubble-amara: 42 30 21;
+    --bubble-user: 26 24 22;
+    --brand: 201 169 110;
+    --brand-light: 232 213 196;
+  }
 
-body {
-  background: #0F0F1A;
-  color: #F9FAFB;
+  body {
+    background: #08080F;
+    color: #E8D5C4;
+    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    overflow: hidden;
+    height: 100%;
+  }
+  body {
+    overflow: hidden;
+    height: 100%;
+  }
 }
 
 @layer utilities {
   .gradient-text {
-    @apply bg-gradient-to-r from-brand to-accent bg-clip-text text-transparent;
+    background: linear-gradient(90deg, #C9A96E, #D4849A);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
+
   .gradient-btn {
-    @apply bg-gradient-to-r from-brand to-accent hover:opacity-90 transition-opacity;
+    background: linear-gradient(135deg, #C9A96E, #D4849A);
+    transition: opacity 0.3s ease;
   }
-  .card-glow {
-    box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.3),
-                0 4px 20px rgba(124, 58, 237, 0.1);
-  }
+  .gradient-btn:hover { opacity: 0.9; }
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(124, 58, 237, 0.4); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: rgba(201, 169, 110, 0.15); border-radius: 3px; }
 
-/* Animated background */
-.hero-bg {
-  background: radial-gradient(ellipse at 50% 0%, rgba(124,58,237,0.15) 0%, transparent 60%),
-              radial-gradient(ellipse at 80% 50%, rgba(236,72,153,0.08) 0%, transparent 40%);
+/* Animations */
+@keyframes breatheFriend {
+  0%, 100% { opacity: 0.12; transform: scale(1); }
+  50% { opacity: 0.22; transform: scale(1.03); }
+}
+@keyframes breatheLover {
+  0%, 100% { opacity: 0.12; transform: scale(1); }
+  50% { opacity: 0.22; transform: scale(1.03); }
+}
+@keyframes riseUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn { to { opacity: 1; } }
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.9); }
+}
+@keyframes hintIn { to { opacity: 1; } }
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Card glow helper */
+.card-glow {
+  box-shadow: 0 0 0 1px rgba(201, 169, 110, 0.15), 0 4px 20px rgba(0,0,0,0.3);
 }

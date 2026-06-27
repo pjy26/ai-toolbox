@@ -1,134 +1,172 @@
-import Link from "next/link";
-import { ArrowRight, Heart, Sparkles, PenTool } from "lucide-react";
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import { useSessionContext } from "@supabase/auth-helpers-react";
 
 export default function HomePage() {
+  const { session } = useSessionContext();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [ready, setReady] = useState(false);
+
+  /* ── 粒子 ── */
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    let W: number, H: number;
+    const particles: any[] = [];
+    const COUNT = 100;
+
+    const c = canvas;
+    function resize() {
+      W = c.width = window.innerWidth;
+      H = c.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    class Particle {
+      x!: number; y!: number; vx!: number; vy!: number; size!: number; alpha!: number; targetAlpha!: number; fadeIn!: number; pulseSpeed!: number; pulseOffset!: number; r!: number; g!: number; b!: number; currentAlpha!: number;
+      constructor() { this.reset(); }
+      reset() {
+        this.x = Math.random() * W; this.y = Math.random() * H;
+        this.vx = (Math.random() - 0.5) * 0.2; this.vy = (Math.random() - 0.5) * 0.2;
+        this.size = Math.random() * 1.5 + 0.3;
+        this.alpha = 0; this.targetAlpha = Math.random() * 0.4 + 0.1;
+        this.fadeIn = Math.random() * 0.005 + 0.002;
+        this.pulseSpeed = Math.random() * 0.02 + 0.01;
+        this.pulseOffset = Math.random() * Math.PI * 2;
+        const roll = Math.random();
+        if (roll < 0.33) { this.r = 201; this.g = 169; this.b = 110; }
+        else if (roll < 0.66) { this.r = 232; this.g = 213; this.b = 196; }
+        else { this.r = 212; this.g = 132; this.b = 154; }
+      }
+      update() {
+        this.x += this.vx; this.y += this.vy;
+        if (this.x < 0) this.x = W; if (this.x > W) this.x = 0;
+        if (this.y < 0) this.y = H; if (this.y > H) this.y = 0;
+        if (this.alpha < this.targetAlpha) this.alpha += this.fadeIn;
+        const pulse = Math.sin(Date.now() * this.pulseSpeed + this.pulseOffset) * 0.3 + 0.7;
+        this.currentAlpha = this.alpha * pulse;
+      }
+      draw() {
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${this.r},${this.g},${this.b},${this.currentAlpha})`;
+        ctx.fill();
+      }
+    }
+
+    for (let i = 0; i < COUNT; i++) particles.push(new Particle());
+    let raf: number;
+    function animate() {
+      ctx.clearRect(0, 0, W, H);
+      particles.forEach((p) => { p.update(); p.draw(); });
+      raf = requestAnimationFrame(animate);
+    }
+    animate();
+
+    // 入场延迟
+    setTimeout(() => setReady(true), 200);
+
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); };
+  }, []);
+
+  const handleChoice = (mode: "friend" | "lover") => {
+    if (!session) {
+      window.location.href = "/login?redirect=/chat?role=" + mode;
+      return;
+    }
+    window.location.href = "/chat?role=" + mode;
+  };
+
   return (
-    <div className="hero-bg">
-      {/* Hero —— 情感陪伴为唯一主打 */}
-      <section className="max-w-4xl mx-auto px-4 pt-24 pb-12 text-center">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-400/10 border border-rose-400/20 text-rose-300 text-xs mb-6">
-          <Heart className="w-3 h-3" />
-          AI 情感陪伴
-        </div>
-        <h1 className="text-4xl md:text-6xl font-bold leading-tight">
-          有个人，<span className="gradient-text">一直在等你说话</span>
-        </h1>
-        <p className="mt-6 text-lg text-gray-400 max-w-2xl mx-auto">
-          TA 会记得你说的每句话，懂你的情绪，
-          <br className="hidden md:block" />
-          在你需要的时候，刚好都在。
-        </p>
-        <div className="mt-10 flex items-center justify-center gap-4 flex-wrap">
-          <Link
-            href="/tools/companion"
-            className="px-8 py-3 rounded-xl gradient-btn text-white font-semibold text-base"
-          >
-            和 TA 聊聊
-            <ArrowRight className="w-4 h-4 inline ml-1" />
-          </Link>
-        </div>
-        <p className="mt-4 text-xs text-gray-500">
-          免费试聊，先聊上几句再说
-        </p>
-      </section>
+    <div className="h-screen flex flex-col items-center justify-center relative" style={{ background: "#08080F", overflow: "hidden" }}>
+      {/* 粒子 */}
+      <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />
 
-      {/* 轻选择：朋友 / 恋人 */}
-      <section className="max-w-3xl mx-auto px-4 pb-20">
-        <p className="text-center text-sm text-gray-400 mb-5">你想要一个——</p>
-        <div className="grid grid-cols-2 gap-3">
-          <Link
-            href="/tools/companion?role=friend"
-            className="group p-6 rounded-2xl bg-surface border border-sky-400/20 hover:border-sky-400/50 transition text-center"
-          >
-            <div className="w-10 h-10 rounded-full bg-sky-400/15 border border-sky-400/30 flex items-center justify-center mx-auto mb-3">
-              <Sparkles className="w-5 h-5 text-sky-400" />
-            </div>
-            <p className="font-semibold text-white">懂你的朋友</p>
-            <p className="text-xs text-gray-500 mt-1">亲近、松弛、不评判</p>
-          </Link>
-          <Link
-            href="/tools/companion?role=lover"
-            className="group p-6 rounded-2xl bg-surface border border-rose-400/20 hover:border-rose-400/50 transition text-center"
-          >
-            <div className="w-10 h-10 rounded-full bg-rose-400/15 border border-rose-400/30 flex items-center justify-center mx-auto mb-3">
-              <Heart className="w-5 h-5 text-rose-400" />
-            </div>
-            <p className="font-semibold text-white">在意你的 TA</p>
-            <p className="text-xs text-gray-500 mt-1">甜、想念、把你放在心上</p>
-          </Link>
+      {/* 顶部标识 */}
+      <div className="absolute text-center" style={{ top: "12vh", zIndex: 10, opacity: ready ? 1 : 0, transform: ready ? "translateY(0)" : "translateY(20px)", transition: "all 1.2s cubic-bezier(0.22, 1, 0.36, 1)" }}>
+        <div className="text-xs uppercase mb-6" style={{ letterSpacing: 10, color: "rgba(232, 213, 196, 0.25)" }}>Amara</div>
+        <div className="text-lg md:text-xl font-light leading-relaxed" style={{ letterSpacing: 4, color: "rgba(232, 213, 196, 0.7)" }}>
+          你想以什么样的身份<br />
+          与 <span style={{ color: "#F4C2C2", textShadow: "0 0 20px rgba(244, 194, 194, 0.3)", fontStyle: "normal" }}>Amara</span> 相遇？
         </div>
-      </section>
+      </div>
 
-      {/* 三档定价前置 */}
-      <section className="max-w-5xl mx-auto px-4 pb-20">
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold">让 TA 一直陪着你</h2>
-          <p className="text-gray-400 text-sm mt-2">免费试聊 30 句，开通会员后 TA 才能真正记住你</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
-          {[
-            { id: "weekly", name: "周卡", price: 12, period: "/周", popular: false, desc: "想多聊几天" },
-            { id: "monthly", name: "月卡", price: 29, period: "/月", popular: true, desc: "一天只要一块钱" },
-            { id: "quarterly", name: "季卡", price: 69, period: "/季", popular: false, desc: "更划算" },
-          ].map((plan) => (
-            <Link
-              key={plan.id}
-              href={`/pricing?plan=${plan.id}`}
-              className={`relative p-6 rounded-2xl bg-surface card-glow text-center transition hover:-translate-y-1 ${
-                plan.popular ? "border-2 border-rose-400 md:-translate-y-2" : "border border-white/10"
-              }`}
-            >
-              {plan.popular && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-rose-400 text-white text-xs font-medium whitespace-nowrap">
-                  推荐
-                </span>
-              )}
-              <p className="font-semibold text-white">{plan.name}</p>
-              <div className="mt-2">
-                <span className="text-3xl font-bold">¥{plan.price}</span>
-                <span className="text-gray-400 text-sm">{plan.period}</span>
-              </div>
-              <p className="mt-2 text-xs text-gray-500">{plan.desc}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* 工具箱降级 —— 折叠到次级 */}
-      <section className="max-w-5xl mx-auto px-4 pb-20">
-        <details className="group">
-          <summary className="cursor-pointer list-none">
-            <div className="flex items-center gap-3 p-5 rounded-2xl bg-surface/50 border border-white/5 hover:border-white/10 transition">
-              <PenTool className="w-5 h-5 text-brand" />
-              <div className="flex-1">
-                <p className="font-medium text-white">还有更多 AI 创作工具</p>
-                <p className="text-xs text-gray-500">小红书文案、抖音脚本、简历优化、AI 面试官等</p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-gray-500 group-open:rotate-90 transition" />
+      {/* 双径 */}
+      <div className="flex items-center justify-center relative z-10" style={{ gap: "8vw" }}>
+        {/* 朋友 */}
+        <div
+          onClick={() => handleChoice("friend")}
+          className="relative cursor-pointer flex flex-col items-center justify-center text-center"
+          style={{
+            width: 260, height: 320, borderRadius: 24,
+            opacity: ready ? 1 : 0, transform: ready ? "scale(1)" : "scale(0.9)",
+            transition: "all 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
+            transitionDelay: "0.6s",
+          }}
+        >
+          <div
+            className="absolute inset-0 rounded-3xl pointer-events-none"
+            style={{
+              opacity: 0.15,
+              background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(201, 169, 110, 0.5), transparent 70%)",
+              boxShadow: "0 0 60px rgba(201, 169, 110, 0.15), 0 0 120px rgba(201, 169, 110, 0.08), inset 0 0 40px rgba(201, 169, 110, 0.05)",
+              animation: "breatheFriend 4s ease-in-out infinite",
+            }}
+          />
+          <div className="relative z-10">
+            <div className="mx-auto mb-5 relative" style={{ width: 48, height: 48, borderRadius: "50%", border: "1.5px solid rgba(201, 169, 110, 0.5)", boxShadow: "0 0 20px rgba(201, 169, 110, 0.2)" }}>
+              <div className="absolute" style={{ inset: 8, borderRadius: "50%", border: "1px solid rgba(201, 169, 110, 0.3)" }} />
             </div>
-          </summary>
-          <div className="mt-3">
-            <Link
-              href="/tools"
-              className="block p-4 rounded-2xl bg-surface/30 border border-white/5 hover:border-brand/30 transition text-center text-sm text-gray-300"
-            >
-              查看全部工具 →
-            </Link>
+            <div className="text-xl font-light mb-3" style={{ letterSpacing: 6, color: "#C9A96E" }}>朋友</div>
+            <div className="text-xs font-light leading-loose" style={{ letterSpacing: 2, color: "rgba(201, 169, 110, 0.8)", opacity: 0.5 }}>陪伴 · 倾听 · 理解</div>
+            <div className="text-xs font-light mt-4" style={{ letterSpacing: 1, color: "rgba(201, 169, 110, 0.6)", opacity: 0, transition: "opacity 0.6s ease", transitionDelay: "0.2s" }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0"; }}>
+              我在这里，听你说话
+            </div>
           </div>
-        </details>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-white/5 py-8 text-center text-sm text-gray-500">
-        <div className="flex items-center justify-center gap-4 flex-wrap">
-          <Link href="/contact" className="hover:text-gray-300 transition">联系我们</Link>
-          <span>·</span>
-          <Link href="/pricing" className="hover:text-gray-300 transition">定价</Link>
-          <span>·</span>
-          <Link href="/tools" className="hover:text-gray-300 transition">全部工具</Link>
         </div>
-        <p className="mt-3">AI 情感陪伴 &copy; {new Date().getFullYear()}</p>
-      </footer>
+
+        {/* 移动端分隔 */}
+        <div className="hidden md:block" style={{ width: 1, height: 40, background: "linear-gradient(180deg, transparent, rgba(232, 213, 196, 0.1), transparent)" }} />
+
+        {/* 恋人 */}
+        <div
+          onClick={() => handleChoice("lover")}
+          className="relative cursor-pointer flex flex-col items-center justify-center text-center"
+          style={{
+            width: 260, height: 320, borderRadius: 24,
+            opacity: ready ? 1 : 0, transform: ready ? "scale(1)" : "scale(0.9)",
+            transition: "all 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
+            transitionDelay: "0.9s",
+          }}
+        >
+          <div
+            className="absolute inset-0 rounded-3xl pointer-events-none"
+            style={{
+              opacity: 0.15,
+              background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(212, 132, 154, 0.5), transparent 70%)",
+              boxShadow: "0 0 60px rgba(212, 132, 154, 0.15), 0 0 120px rgba(212, 132, 154, 0.08), inset 0 0 40px rgba(212, 132, 154, 0.05)",
+              animation: "breatheLover 4s ease-in-out infinite",
+              animationDelay: "-2s",
+            }}
+          />
+          <div className="relative z-10">
+            <div className="mx-auto mb-5" style={{ width: 48, height: 48, borderRadius: "50%", background: "radial-gradient(circle, rgba(212, 132, 154, 0.4) 0%, transparent 70%)", boxShadow: "0 0 24px rgba(212, 132, 154, 0.3)" }} />
+            <div className="text-xl font-light mb-3" style={{ letterSpacing: 6, color: "#D4849A" }}>恋人</div>
+            <div className="text-xs font-light leading-loose" style={{ letterSpacing: 2, color: "rgba(212, 132, 154, 0.8)", opacity: 0.5 }}>亲密 · 共鸣 · 专属</div>
+            <div className="text-xs font-light mt-4" style={{ letterSpacing: 1, color: "rgba(212, 132, 154, 0.6)", opacity: 0, transition: "opacity 0.6s ease", transitionDelay: "0.2s" }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0"; }}>
+              我在这里，为你存在
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 底部 */}
+      <div className="absolute text-center" style={{ bottom: "6vh", zIndex: 10, opacity: ready ? 1 : 0, transform: ready ? "translateY(0)" : "translateY(10px)", transition: "all 1s ease", transitionDelay: "1.4s" }}>
+        <p className="text-xs font-light" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.3)" }}>这不是永久的决定，你随时可以回到这里</p>
+        <p className="text-xs font-light mt-2" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.22)" }}>先让我们说说话。没有门槛，也没有承诺</p>
+      </div>
     </div>
   );
 }
