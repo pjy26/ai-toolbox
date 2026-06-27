@@ -17,6 +17,9 @@ export async function GET() {
       gender,
       companion_name,
       user_nickname,
+      persona,
+      relationship_stage,
+      last_active_at,
       created_at,
       updated_at
     `)
@@ -74,6 +77,10 @@ export async function POST(req: Request) {
       gender: gender || null,
       companion_name: companion_name || null,
       user_nickname: user_nickname || null,
+      persona: body.persona || "gentle",
+      relationship_stage: 5,
+      relationship_events: [],
+      last_active_at: new Date().toISOString(),
     })
     .select()
     .single();

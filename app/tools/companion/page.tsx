@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Send, Loader2, Heart, Plus, MessageSquare, Trash2, ChevronLeft,
-  BookOpen, Brain, X, AlertTriangle, Lock,
+  BookOpen, Brain, X, AlertTriangle, Lock, Check,
 } from "lucide-react";
 
 interface Message {
@@ -19,6 +19,9 @@ interface Companion {
   gender: string | null;
   companion_name: string | null;
   user_nickname: string | null;
+  persona?: string;
+  relationship_stage?: number;
+  last_active_at?: string | null;
   created_at: string;
   updated_at: string;
   profile: Record<string, any>;
@@ -73,6 +76,7 @@ function CompanionInner() {
     gender: "女生",
     companion_name: "",
     user_nickname: "",
+    persona: "gentle" as "gentle" | "playful" | "quiet" | "clingy",
   });
 
   const loadQuota = useCallback(async () => {
@@ -481,6 +485,45 @@ function CompanionInner() {
               className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
             />
           </div>
+
+          {isLover && (
+            <div>
+              <label className="block text-sm text-gray-300 mb-2">TA 的性格</label>
+              <div className="grid grid-cols-1 gap-2">
+                {[
+                  { v: "gentle", label: "温柔包容", desc: "情绪稳定，会安抚人，让你放松", sample: "嗯嗯，没事的，我在呢" },
+                  { v: "playful", label: "活泼俏皮", desc: "爱笑爱逗你，话轻快，闹中有暖", sample: "哈哈你这是夸我呢还是损我呢" },
+                  { v: "quiet", label: "安静细腻", desc: "话不多但句句在点上，越相处越舒服", sample: "嗯。我懂你那种感觉。" },
+                  { v: "clingy", label: "黏人撒娇", desc: "热情主动，会黏你、想你，给足存在感", sample: "人家想你啦，你怎么不理我嘛" },
+                ].map((opt) => (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => setCreateForm((c) => ({ ...c, persona: opt.v as any }))}
+                    className={`p-3 rounded-lg text-left transition ${
+                      createForm.persona === opt.v
+                        ? "bg-brand text-white border border-brand"
+                        : "bg-white/5 border border-white/10 text-gray-300 hover:border-brand/50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">{opt.label}</span>
+                      {createForm.persona === opt.v && <Check className="w-4 h-4 text-white" />}
+                    </div>
+                    <div className={`text-xs mt-0.5 ${createForm.persona === opt.v ? "text-white/80" : "text-gray-500"}`}>
+                      {opt.desc}
+                    </div>
+                    <div className={`text-[11px] mt-1 italic ${createForm.persona === opt.v ? "text-white/60" : "text-gray-600"}`}>
+                      "{opt.sample}"
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                创建后会锁定，TA 的性格不会变了——这样 TA 才像一个人。
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm text-gray-300 mb-1.5">
