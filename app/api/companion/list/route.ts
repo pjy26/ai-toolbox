@@ -56,12 +56,23 @@ export async function GET() {
   return NextResponse.json({ companions: result });
 }
 
-// 创建新的陪伴角色
+// 创建新的陪伴角色（一个用户终身只有一段关系，不可切换）
 export async function POST(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const supabase = createRouteHandlerClient({ cookies });
+
+  // 检查是否已有关系：一个用户终身只有一段关系
+  const { count } = await supabase
+    .from("companions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+
+  if (count && count > 0) {
+    return NextResponse.json({ error: "你已经有了一段关系，无法创建新的" }, { status: 409 });
+  }
+
   const body = await req.json();
   const { relationship_type, gender, companion_name, user_nickname } = body;
 

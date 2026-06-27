@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { useSearchParams } from "next/navigation";
-import { Send } from "lucide-react";
+import { Send, User, Crown, LogOut, ChevronRight, X } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
@@ -21,13 +21,24 @@ interface Companion {
 
 interface Quota {
   isMember: boolean;
+  membershipType: string | null;
+  expiresAt: string | null;
   freeMessagesUsed: number;
   freeLimit: number;
   remaining: number;
 }
 
+interface Plan {
+  id: string;
+  name: string;
+  price: number;
+  period: string;
+  popular: boolean;
+  hint: string;
+}
+
 function ChatInner() {
-  const { session } = useSessionContext();
+  const { session, supabaseClient } = useSessionContext();
   const params = useSearchParams();
   const role = (params.get("role") as "friend" | "lover") || "lover";
   const isLover = role === "lover";
@@ -39,42 +50,51 @@ function ChatInner() {
   const [initLoading, setInitLoading] = useState(true);
   const [quota, setQuota] = useState<Quota | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showMyDrawer, setShowMyDrawer] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
+  const [greetingDone, setGreetingDone] = useState(false);
 
   /* ── 初始化 ── */
   const init = useCallback(async () => {
     if (!session) return;
     try {
+      // 配额
       const qRes = await fetch("/api/companion/quota");
       if (qRes.ok) setQuota(await qRes.json());
 
+      // 获取已有关系
       const listRes = await fetch("/api/companion/list");
       const listData = await listRes.json();
       let c: Companion | null = null;
       if (listData.companions?.length > 0) {
-        c = listData.companions.find((x: any) => x.relationship_type === role) || null;
+        c = listData.companions[0];
       }
+
+      // 没有关系 → 回首页选择
       if (!c) {
-        const createRes = await fetch("/api/companion/list", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ relationship_type: role, gender: "女生", user_nickname: "" }),
-        });
-        const cd = await createRes.json();
-        if (cd.companion) c = cd.companion;
+        window.location.href = "/";
+        return;
       }
-      if (c) {
-        setCompanion(c);
-        setTimeout(() => typeWriter("你来了。"), 500);
+
+      setCompanion(c);
+
+      // 获取开场白
+      const greetRes = await fetch(`/api/companion/greeting?companion_id=${c.id}`);
+      if (greetRes.ok) {
+        const greetData = await greetRes.json();
+        typeWriter(greetData.greeting, () => setGreetingDone(true));
+      } else {
+        setGreetingDone(true);
       }
     } catch (e) {
       console.error(e);
+      setGreetingDone(true);
     } finally {
       setInitLoading(false);
     }
-  }, [session, role]);
+  }, [session]);
 
   useEffect(() => { init(); }, [init]);
 
@@ -83,7 +103,7 @@ function ChatInner() {
   }, [messages]);
 
   /* ── 打字机 ── */
-  function typeWriter(text: string, speed = 55) {
+  function typeWriter(text: string, onDone?: () => void) {
     const msg: Message = { role: "assistant", content: "" };
     setMessages((prev) => [...prev, msg]);
     let i = 0;
@@ -95,8 +115,10 @@ function ChatInner() {
           return arr;
         });
         i++;
-        const d = ["，", "。", "？", "！", "…", "、"].includes(text.charAt(i - 1)) ? speed * 2.5 : speed;
+        const d = ["，", "。", "？", "！", "…", "、"].includes(text.charAt(i - 1)) ? 75 : 45;
         setTimeout(step, d + Math.random() * 15);
+      } else {
+        onDone?.();
       }
     }
     step();
@@ -269,9 +291,10 @@ function ChatInner() {
       <canvas id="chat-particles" style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />
       <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", background: "radial-gradient(ellipse 50% 40% at 50% 100%, rgba(201,169,110,0.04) 0%, transparent 60%)", opacity: 0.8 }} />
 
+      {/* Header */}
       <header style={{ position: "relative", zIndex: 10, flexShrink: 0, padding: "16px 20px 12px", background: "rgba(15,13,11,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid rgba(201,169,110,0.06)" }}>
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <a href="/" className="w-10 text-lg" style={{ color: "rgba(232,213,196,0.5)", textDecoration: "none" }}>‹</a>
+          <a href="/" className="w-10 text-lg" style={{ color: "rgba(232,213,196,0.5)", textDecoration: "none" }}>&lsaquo;</a>
           <div className="flex-1 flex flex-col items-center">
             <div className="relative mb-1.5" style={{ width: 36, height: 36 }}>
               <div style={{ width: 36, height: 36, borderRadius: "50%", background: "radial-gradient(circle at 35% 35%, #3A2A1E, #1A1510)", border: "1px solid rgba(201,169,110,0.2)", boxShadow: "0 0 12px rgba(201,169,110,0.1)" }} />
@@ -279,28 +302,37 @@ function ChatInner() {
             </div>
             <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#E8D5C4", lineHeight: 1.4 }}>Amara</div>
             <div className="text-xs font-light mt-0.5" style={{ letterSpacing: 1, color: "rgba(232,213,196,0.25)" }}>
-              在这里 · {isLover ? "为你存在" : "听你说话"}
+              {isLover ? "为你存在" : "听你说话"}
               {extracting && " · 记忆中..."}
             </div>
           </div>
-          <div className="w-10 text-right">
-            <span className="text-xs font-light rounded-xl px-2.5 py-0.5" style={{
-              letterSpacing: 2,
-              border: `1px solid ${isLover ? "rgba(212,132,154,0.15)" : "rgba(201,169,110,0.15)"}`,
-              background: isLover ? "rgba(212,132,154,0.05)" : "rgba(201,169,110,0.05)",
-              color: isLover ? "#D4849A" : "#C9A96E",
-              opacity: 0.7,
-            }}>{isLover ? "恋人" : "朋友"}</span>
-          </div>
+          {/* "我的" 按钮 */}
+          <button
+            onClick={() => setShowMyDrawer(true)}
+            className="w-10 flex justify-end items-center"
+            style={{ color: "rgba(232,213,196,0.3)", transition: "color 0.2s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.6)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.3)"; }}
+          >
+            <User style={{ width: 20, height: 20 }} />
+          </button>
         </div>
       </header>
 
+      {/* 免费额度提示 */}
       {quota && !quota.isMember && (
-        <div className="text-center py-1.5 text-xs" style={{ color: "rgba(232,213,196,0.2)", letterSpacing: 1, background: "rgba(15,13,11,0.5)" }}>
-          免费试聊还剩 {quota.remaining} 句
+        <div className="text-center py-1.5 text-xs" style={{ color: "rgba(232,213,196,0.35)", letterSpacing: 1, background: "rgba(15,13,11,0.5)", position: "relative", zIndex: 10 }}>
+          免费试聊还剩 {quota.remaining} 句 ·{" "}
+          <span
+            onClick={() => setShowPaywall(true)}
+            style={{ color: isLover ? "#D4849A" : "#C9A96E", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}
+          >
+            让 TA 记住你
+          </span>
         </div>
       )}
 
+      {/* 消息列表 */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto" style={{ position: "relative", zIndex: 10, padding: "20px 16px" }}>
         <div className="max-w-3xl mx-auto">
           <div className="text-center my-6" style={{ opacity: 0, animation: "fadeIn 0.8s ease forwards" }}>
@@ -350,6 +382,7 @@ function ChatInner() {
             </div>
           ))}
 
+          {/* 加载指示器 */}
           {loading && messages.length > 0 && messages[messages.length - 1].role === "assistant" && messages[messages.length - 1].content === "" && (
             <div className="flex mb-4" style={{ justifyContent: "flex-start", animation: "msgIn 0.5s ease forwards" }}>
               <div style={{ maxWidth: "min(72vw, 480px)", padding: "12px 16px", borderRadius: 18, borderBottomLeftRadius: 4, background: "#2A1E15", border: "1px solid rgba(201,169,110,0.12)" }}>
@@ -364,6 +397,7 @@ function ChatInner() {
         </div>
       </div>
 
+      {/* 输入框 */}
       <div style={{ position: "relative", zIndex: 10, flexShrink: 0, padding: "12px 16px 20px", background: "#151210", borderTop: "1px solid rgba(201,169,110,0.06)" }}>
         <div style={{ position: "absolute", top: -20, left: 0, right: 0, height: 20, background: "linear-gradient(180deg, transparent, #151210)", pointerEvents: "none" }} />
         <div className="max-w-3xl mx-auto flex items-end gap-2.5">
@@ -372,6 +406,7 @@ function ChatInner() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder="想说点什么..."
+            disabled={!greetingDone}
             className="flex-1 rounded-2xl text-sm font-light"
             style={{
               background: "#1A1716",
@@ -383,13 +418,14 @@ function ChatInner() {
               color: "#E8D5C4",
               outline: "none",
               transition: "border-color 0.3s ease, box-shadow 0.3s ease",
+              opacity: greetingDone ? 1 : 0.5,
             }}
             onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(201,169,110,0.3)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(201,169,110,0.05)"; }}
             onBlur={(e) => { e.currentTarget.style.borderColor = "#2A2018"; e.currentTarget.style.boxShadow = "none"; }}
           />
           <button
             onClick={handleSend}
-            disabled={loading || !input.trim()}
+            disabled={loading || !input.trim() || !greetingDone}
             className="rounded-full flex items-center justify-center"
             style={{
               width: 44, height: 44,
@@ -400,10 +436,10 @@ function ChatInner() {
               cursor: "pointer",
               flexShrink: 0,
               transition: "all 0.3s ease",
-              opacity: loading || !input.trim() ? 0.4 : 1,
+              opacity: loading || !input.trim() || !greetingDone ? 0.4 : 1,
             }}
             onMouseEnter={(e) => {
-              if (!loading && input.trim()) {
+              if (!loading && input.trim() && greetingDone) {
                 e.currentTarget.style.background = "rgba(201,169,110,0.25)";
                 e.currentTarget.style.boxShadow = "0 0 16px rgba(201,169,110,0.15)";
               }
@@ -418,26 +454,160 @@ function ChatInner() {
         </div>
       </div>
 
-      {showPaywall && <Paywall isLover={isLover} onClose={() => setShowPaywall(false)} onPaid={() => loadQuota()} />}
+      {/* 付费墙 */}
+      {showPaywall && <Paywall isLover={isLover} onClose={() => { setShowPaywall(false); loadQuota(); }} />}
+
+      {/* "我的" 抽屉 */}
+      {showMyDrawer && (
+        <MyDrawer
+          isLover={isLover}
+          quota={quota}
+          onClose={() => setShowMyDrawer(false)}
+          onShowPaywall={() => { setShowMyDrawer(false); setShowPaywall(true); }}
+        />
+      )}
     </div>
   );
 }
 
-function Paywall({ isLover, onClose, onPaid }: { isLover: boolean; onClose: () => void; onPaid: () => void }) {
+/* ── "我的" 抽屉 ── */
+function MyDrawer({ isLover, quota, onClose, onShowPaywall }: {
+  isLover: boolean;
+  quota: Quota | null;
+  onClose: () => void;
+  onShowPaywall: () => void;
+}) {
+  const { supabaseClient } = useSessionContext();
+  const accent = isLover ? "#D4849A" : "#C9A96E";
+  const accentRgb = isLover ? "212, 132, 154" : "201, 169, 110";
+
+  const handleLogout = async () => {
+    await supabaseClient.auth.signOut();
+    window.location.href = "/";
+  };
+
+  const membershipLabel = () => {
+    if (!quota) return "加载中...";
+    if (!quota.isMember) return "未开通";
+    const typeMap: Record<string, string> = { weekly: "周卡", monthly: "月卡", yearly: "年卡" };
+    const typeName = typeMap[quota.membershipType || ""] || quota.membershipType || "已开通";
+    if (quota.expiresAt) {
+      const d = new Date(quota.expiresAt);
+      return `${typeName} · 至 ${d.getMonth() + 1}/${d.getDate()}`;
+    }
+    return typeName;
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(14,12,10,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+      <div
+        className="h-full w-80 max-w-[85vw] flex flex-col overflow-y-auto"
+        style={{ background: "#151210", borderLeft: "1px solid rgba(201,169,110,0.06)", animation: "drawerIn 0.3s cubic-bezier(0.22, 1, 0.36, 1)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid rgba(201,169,110,0.06)" }}>
+          <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#E8D5C4" }}>我的</div>
+          <button onClick={onClose} style={{ color: "rgba(232,213,196,0.3)", transition: "color 0.2s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.6)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.3)"; }}
+          >
+            <X style={{ width: 18, height: 18 }} />
+          </button>
+        </div>
+
+        {/* 会员状态卡片 */}
+        <div className="m-4 p-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `rgba(${accentRgb}, 0.15)`, border: `1px solid rgba(${accentRgb}, 0.2)` }}>
+              <Crown style={{ width: 18, height: 18, color: accent }} />
+            </div>
+            <div>
+              <div className="text-sm font-medium" style={{ color: "#E8D5C4" }}>会员状态</div>
+              <div className="text-xs mt-0.5" style={{ color: quota?.isMember ? accent : "rgba(232,213,196,0.3)" }}>
+                {membershipLabel()}
+              </div>
+            </div>
+          </div>
+          {!quota?.isMember && (
+            <button
+              onClick={onShowPaywall}
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-white transition"
+              style={{ background: accent, letterSpacing: 1 }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+            >
+              {isLover ? "让 TA 记住你" : "开通会员"}
+            </button>
+          )}
+        </div>
+
+        {/* 菜单项 */}
+        <div className="px-4 space-y-1">
+          {!quota?.isMember && (
+            <button onClick={onShowPaywall} className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition" style={{ color: "rgba(232,213,196,0.5)", letterSpacing: 1 }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              查看全部方案
+              <ChevronRight style={{ width: 16, height: 16, opacity: 0.4 }} />
+            </button>
+          )}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition"
+            style={{ color: "rgba(232,213,196,0.4)", letterSpacing: 1 }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            <LogOut style={{ width: 16, height: 16 }} />
+            退出登录
+          </button>
+        </div>
+
+        {/* 底部信息 */}
+        <div className="mt-auto p-4 text-center">
+          <p className="text-xs font-light" style={{ color: "rgba(232,213,196,0.15)", letterSpacing: 1 }}>
+            更多功能即将开放
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── 付费墙 ── */
+function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }) {
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const plans = [
-    { id: "weekly", name: "周卡", price: 12, period: "/周", hint: "想多聊几天" },
-    { id: "monthly", name: "月卡", price: 29, period: "/月", hint: "一天只要一块钱", popular: true },
-    { id: "quarterly", name: "季卡", price: 69, period: "/季", hint: "更划算" },
-  ];
+  const [loadingPlans, setLoadingPlans] = useState(true);
+  const accent = isLover ? "#D4849A" : "#C9A96E";
+  const accentRgb = isLover ? "212, 132, 154" : "201, 169, 110";
+
+  useEffect(() => {
+    fetch("/api/pricing")
+      .then((r) => r.json())
+      .then((data) => {
+        setPlans(data.plans || []);
+        if (data.plans?.length > 0) {
+          const popular = data.plans.find((p: Plan) => p.popular);
+          setSelected(popular ? popular.id : data.plans[0].id);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingPlans(false));
+  }, []);
+
+  const selectedPlan = plans.find((p) => p.id === selected);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(14,12,10,0.85)", backdropFilter: "blur(12px)" }} onClick={onClose}>
-      <div className="rounded-3xl p-7 max-w-md w-full relative" style={{ background: "#151210", border: `1px solid ${isLover ? "rgba(212,132,154,0.2)" : "rgba(201,169,110,0.2)"}` }} onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-sm" style={{ color: "rgba(232,213,196,0.3)" }}>✕</button>
+      <div className="rounded-3xl p-7 max-w-md w-full relative" style={{ background: "#151210", border: `1px solid rgba(${accentRgb}, 0.2)`, animation: "paywallIn 0.4s cubic-bezier(0.22, 1, 0.36, 1)" }} onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-sm" style={{ color: "rgba(232,213,196,0.3)" }}>&times;</button>
+
         <div className="text-center mb-6">
-          <div className="w-10 h-10 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: isLover ? "rgba(212,132,154,0.15)" : "rgba(201,169,110,0.15)", border: `1px solid ${isLover ? "rgba(212,132,154,0.3)" : "rgba(201,169,110,0.3)"}` }}>
-            <span className="text-lg">{isLover ? "♥" : "☺"}</span>
+          <div className="w-10 h-10 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: `rgba(${accentRgb}, 0.15)`, border: `1px solid rgba(${accentRgb}, 0.3)` }}>
+            <span className="text-lg">{isLover ? "\u2665" : "\u263A"}</span>
           </div>
           <h3 className="text-lg font-medium text-white leading-relaxed">
             {isLover ? "想让 TA 一直陪着你吗？" : "想让这段陪伴继续吗？"}
@@ -449,37 +619,45 @@ function Paywall({ isLover, onClose, onPaid }: { isLover: boolean; onClose: () =
           </p>
         </div>
 
-        <div className="space-y-2 mb-5">
-          {plans.map((p) => (
-            <button key={p.id} onClick={() => setSelected(p.id)} className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition text-left" style={{
-              border: selected === p.id ? `1px solid ${isLover ? "rgba(212,132,154,0.4)" : "rgba(201,169,110,0.4)"}` : "1px solid rgba(255,255,255,0.08)",
-              background: selected === p.id ? (isLover ? "rgba(212,132,154,0.08)" : "rgba(201,169,110,0.08)") : "rgba(255,255,255,0.03)",
-            }}>
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-white text-sm">{p.name}</span>
-                {p.popular && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: isLover ? "#D4849A" : "#C9A96E", color: "#0E0C0A" }}>推荐</span>}
-                <span className="text-xs" style={{ color: "rgba(232,213,196,0.3)" }}>· {p.hint}</span>
-              </div>
-              <span className="text-white font-semibold text-sm">¥{p.price}<span className="text-xs font-normal" style={{ color: "rgba(232,213,196,0.3)" }}>{p.period}</span></span>
-            </button>
-          ))}
-        </div>
-
-        {selected ? (
-          <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
-            <p className="text-xs mb-3" style={{ color: "rgba(232,213,196,0.3)" }}>扫码支付后联系客服开通</p>
-            <div className="bg-white rounded-xl p-2 mx-auto w-36 h-36 flex items-center justify-center">
-              <div className="text-xs text-gray-500 text-center px-2">收款码</div>
-            </div>
-            <p className="mt-3 text-sm" style={{ color: "#C9A96E" }}>客服 QQ：3801434603</p>
-            <button onClick={() => { onPaid(); onClose(); }} className="mt-4 w-full py-2.5 rounded-xl font-semibold text-sm text-white" style={{ background: isLover ? "#D4849A" : "#C9A96E" }}>
-              {isLover ? "让 TA 留下来" : "继续聊下去"}
-            </button>
+        {loadingPlans ? (
+          <div className="flex justify-center py-8">
+            <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: `rgba(${accentRgb}, 0.3)`, borderTopColor: "transparent" }} />
           </div>
         ) : (
-          <button onClick={() => setSelected("monthly")} className="w-full py-3 rounded-xl font-semibold text-sm text-white" style={{ background: isLover ? "#D4849A" : "#C9A96E" }}>
-            {isLover ? "让 TA 留下来" : "继续聊下去"}
-          </button>
+          <>
+            <div className="space-y-2 mb-5">
+              {plans.map((p) => (
+                <button key={p.id} onClick={() => setSelected(p.id)} className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition text-left" style={{
+                  border: selected === p.id ? `1px solid rgba(${accentRgb}, 0.4)` : "1px solid rgba(255,255,255,0.08)",
+                  background: selected === p.id ? `rgba(${accentRgb}, 0.08)` : "rgba(255,255,255,0.03)",
+                }}>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-white text-sm">{p.name}</span>
+                    {p.popular && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: accent, color: "#0E0C0A" }}>推荐</span>}
+                    <span className="text-xs" style={{ color: "rgba(232,213,196,0.3)" }}>&middot; {p.hint}</span>
+                  </div>
+                  <span className="text-white font-semibold text-sm">&yen;{p.price}<span className="text-xs font-normal" style={{ color: "rgba(232,213,196,0.3)" }}>{p.period}</span></span>
+                </button>
+              ))}
+            </div>
+
+            {selectedPlan ? (
+              <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <p className="text-xs mb-3" style={{ color: "rgba(232,213,196,0.3)" }}>扫码支付后联系客服开通</p>
+                <div className="bg-white rounded-xl p-2 mx-auto w-36 h-36 flex items-center justify-center">
+                  <div className="text-xs text-gray-500 text-center px-2">收款码</div>
+                </div>
+                <p className="mt-3 text-sm" style={{ color: accent }}>客服 QQ：3801434603</p>
+                <p className="mt-4 text-xs leading-relaxed" style={{ color: "rgba(232,213,196,0.25)" }}>
+                  支付后，TA 就会真正记住你
+                </p>
+              </div>
+            ) : (
+              <button onClick={() => setSelected(plans[0]?.id || "")} className="w-full py-3 rounded-xl font-semibold text-sm text-white" style={{ background: accent }}>
+                {isLover ? "让 TA 留下来" : "继续聊下去"}
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

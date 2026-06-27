@@ -8,7 +8,7 @@ export async function getAuthUser() {
 }
 
 // 陪伴对话的免费额度
-export const FREE_MESSAGE_LIMIT = 30;
+export const FREE_MESSAGE_LIMIT = 20;
 
 // 会员判断
 export async function getMembershipStatus(userId: string): Promise<{
