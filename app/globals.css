@@ -84,3 +84,18 @@
 .card-glow {
   box-shadow: 0 0 0 1px rgba(201, 169, 110, 0.15), 0 4px 20px rgba(0,0,0,0.3);
 }
+
+/* Transition overlay */
+@keyframes transitionOverlay {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes transitionGlow {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.3); opacity: 0.8; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+@keyframes transitionText {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}

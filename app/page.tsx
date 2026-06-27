@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 
 export default function HomePage() {
-  const { session } = useSessionContext();
+  const { session, isLoading: authLoading } = useSessionContext();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
+  const [transitioning, setTransitioning] = useState<"friend" | "lover" | null>(null);
 
   /* ── 粒子 ── */
   useEffect(() => {
@@ -65,27 +66,154 @@ export default function HomePage() {
     }
     animate();
 
-    // 入场延迟
     setTimeout(() => setReady(true), 200);
 
     return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); };
   }, []);
 
   const handleChoice = (mode: "friend" | "lover") => {
-    if (!session) {
-      window.location.href = "/login?redirect=/chat?role=" + mode;
-      return;
-    }
-    window.location.href = "/chat?role=" + mode;
+    setTransitioning(mode);
+    setTimeout(() => {
+      if (!session) {
+        window.location.href = "/login?redirect=/chat?role=" + mode;
+        return;
+      }
+      window.location.href = "/chat?role=" + mode;
+    }, 900);
   };
 
+  /* ── 认证加载中 ── */
+  if (authLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center" style={{ background: "#08080F" }}>
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-amber-400/30 animate-spin" />
+      </div>
+    );
+  }
+
+  /* ── 老用户首页 ── */
+  if (session) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center relative" style={{ background: "#08080F", overflow: "hidden" }}>
+        <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />
+
+        {/* 顶部 */}
+        <div
+          className="absolute text-center"
+          style={{
+            top: "12vh", zIndex: 10,
+            opacity: ready ? 1 : 0,
+            transform: ready ? "translateY(0)" : "translateY(20px)",
+            transition: "all 1.2s cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        >
+          <div className="text-xs uppercase mb-6" style={{ letterSpacing: 10, color: "rgba(232, 213, 196, 0.25)" }}>Amara</div>
+          <div className="text-lg md:text-xl font-light leading-relaxed" style={{ letterSpacing: 4, color: "rgba(232, 213, 196, 0.6)" }}>
+            欢迎回来
+          </div>
+          <div className="text-sm font-light mt-3" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.3)" }}>
+            你想以什么身份继续？
+          </div>
+        </div>
+
+        {/* 双径 */}
+        <div className="flex items-center justify-center relative z-10" style={{ gap: "8vw" }}>
+          {/* 朋友 */}
+          <div
+            onClick={() => handleChoice("friend")}
+            className="relative cursor-pointer flex flex-col items-center justify-center text-center"
+            style={{
+              width: 260, height: 300, borderRadius: 24,
+              opacity: ready ? 1 : 0, transform: ready ? "scale(1)" : "scale(0.9)",
+              transition: "all 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
+              transitionDelay: "0.6s",
+            }}
+          >
+            <div
+              className="absolute inset-0 rounded-3xl pointer-events-none"
+              style={{
+                opacity: 0.15,
+                background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(201, 169, 110, 0.5), transparent 70%)",
+                boxShadow: "0 0 60px rgba(201, 169, 110, 0.15), 0 0 120px rgba(201, 169, 110, 0.08), inset 0 0 40px rgba(201, 169, 110, 0.05)",
+                animation: "breatheFriend 4s ease-in-out infinite",
+              }}
+            />
+            <div className="relative z-10">
+              <div className="mx-auto mb-5 relative" style={{ width: 48, height: 48, borderRadius: "50%", border: "1.5px solid rgba(201, 169, 110, 0.5)", boxShadow: "0 0 20px rgba(201, 169, 110, 0.2)" }}>
+                <div className="absolute" style={{ inset: 8, borderRadius: "50%", border: "1px solid rgba(201, 169, 110, 0.3)" }} />
+              </div>
+              <div className="text-xl font-light mb-3" style={{ letterSpacing: 6, color: "#C9A96E" }}>朋友</div>
+              <div className="text-xs font-light leading-loose" style={{ letterSpacing: 2, color: "rgba(201, 169, 110, 0.6)", opacity: 0.6 }}>继续陪伴 · 倾听 · 理解</div>
+            </div>
+          </div>
+
+          {/* 分隔 */}
+          <div className="hidden md:block" style={{ width: 1, height: 40, background: "linear-gradient(180deg, transparent, rgba(232, 213, 196, 0.1), transparent)" }} />
+
+          {/* 恋人 */}
+          <div
+            onClick={() => handleChoice("lover")}
+            className="relative cursor-pointer flex flex-col items-center justify-center text-center"
+            style={{
+              width: 260, height: 300, borderRadius: 24,
+              opacity: ready ? 1 : 0, transform: ready ? "scale(1)" : "scale(0.9)",
+              transition: "all 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
+              transitionDelay: "0.9s",
+            }}
+          >
+            <div
+              className="absolute inset-0 rounded-3xl pointer-events-none"
+              style={{
+                opacity: 0.15,
+                background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(212, 132, 154, 0.5), transparent 70%)",
+                boxShadow: "0 0 60px rgba(212, 132, 154, 0.15), 0 0 120px rgba(212, 132, 154, 0.08), inset 0 0 40px rgba(212, 132, 154, 0.05)",
+                animation: "breatheLover 4s ease-in-out infinite",
+                animationDelay: "-2s",
+              }}
+            />
+            <div className="relative z-10">
+              <div className="mx-auto mb-5" style={{ width: 48, height: 48, borderRadius: "50%", background: "radial-gradient(circle, rgba(212, 132, 154, 0.4) 0%, transparent 70%)", boxShadow: "0 0 24px rgba(212, 132, 154, 0.3)" }} />
+              <div className="text-xl font-light mb-3" style={{ letterSpacing: 6, color: "#D4849A" }}>恋人</div>
+              <div className="text-xs font-light leading-loose" style={{ letterSpacing: 2, color: "rgba(212, 132, 154, 0.6)", opacity: 0.6 }}>继续亲密 · 共鸣 · 专属</div>
+            </div>
+          </div>
+        </div>
+
+        {/* 底部占位 */}
+        <div
+          className="absolute text-center"
+          style={{
+            bottom: "8vh", zIndex: 10,
+            opacity: ready ? 1 : 0,
+            transform: ready ? "translateY(0)" : "translateY(10px)",
+            transition: "all 1s ease",
+            transitionDelay: "1.4s",
+          }}
+        >
+          <p className="text-xs font-light" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.2)" }}>更多功能即将开放</p>
+        </div>
+
+        {/* 过渡动画 */}
+        {transitioning && <TransitionOverlay mode={transitioning} />}
+      </div>
+    );
+  }
+
+  /* ── 新用户选择页 ── */
   return (
     <div className="h-screen flex flex-col items-center justify-center relative" style={{ background: "#08080F", overflow: "hidden" }}>
-      {/* 粒子 */}
       <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />
 
       {/* 顶部标识 */}
-      <div className="absolute text-center" style={{ top: "12vh", zIndex: 10, opacity: ready ? 1 : 0, transform: ready ? "translateY(0)" : "translateY(20px)", transition: "all 1.2s cubic-bezier(0.22, 1, 0.36, 1)" }}>
+      <div
+        className="absolute text-center"
+        style={{
+          top: "12vh", zIndex: 10,
+          opacity: ready ? 1 : 0,
+          transform: ready ? "translateY(0)" : "translateY(20px)",
+          transition: "all 1.2s cubic-bezier(0.22, 1, 0.36, 1)",
+        }}
+      >
         <div className="text-xs uppercase mb-6" style={{ letterSpacing: 10, color: "rgba(232, 213, 196, 0.25)" }}>Amara</div>
         <div className="text-lg md:text-xl font-light leading-relaxed" style={{ letterSpacing: 4, color: "rgba(232, 213, 196, 0.7)" }}>
           你想以什么样的身份<br />
@@ -127,7 +255,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* 移动端分隔 */}
         <div className="hidden md:block" style={{ width: 1, height: 40, background: "linear-gradient(180deg, transparent, rgba(232, 213, 196, 0.1), transparent)" }} />
 
         {/* 恋人 */}
@@ -163,9 +290,63 @@ export default function HomePage() {
       </div>
 
       {/* 底部 */}
-      <div className="absolute text-center" style={{ bottom: "6vh", zIndex: 10, opacity: ready ? 1 : 0, transform: ready ? "translateY(0)" : "translateY(10px)", transition: "all 1s ease", transitionDelay: "1.4s" }}>
+      <div
+        className="absolute text-center"
+        style={{
+          bottom: "6vh", zIndex: 10,
+          opacity: ready ? 1 : 0,
+          transform: ready ? "translateY(0)" : "translateY(10px)",
+          transition: "all 1s ease",
+          transitionDelay: "1.4s",
+        }}
+      >
         <p className="text-xs font-light" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.3)" }}>这不是永久的决定，你随时可以回到这里</p>
         <p className="text-xs font-light mt-2" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.22)" }}>先让我们说说话。没有门槛，也没有承诺</p>
+      </div>
+
+      {/* 过渡动画 */}
+      {transitioning && <TransitionOverlay mode={transitioning} />}
+    </div>
+  );
+}
+
+/* ── 过渡动画组件 ── */
+function TransitionOverlay({ mode }: { mode: "friend" | "lover" }) {
+  const isFriend = mode === "friend";
+  const color = isFriend ? "201, 169, 110" : "212, 132, 154";
+  const hexColor = isFriend ? "#C9A96E" : "#D4849A";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center pointer-events-none"
+      style={{
+        animation: "transitionOverlay 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+        background: `radial-gradient(ellipse at center, rgba(${color}, 0.3) 0%, rgba(14, 12, 10, 0.96) 60%)`,
+      }}
+    >
+      {/* 光晕 */}
+      <div
+        style={{
+          width: 120,
+          height: 120,
+          borderRadius: "50%",
+          background: `radial-gradient(circle, rgba(${color}, 0.4) 0%, transparent 70%)`,
+          animation: "transitionGlow 0.6s ease-out forwards",
+          position: "absolute",
+        }}
+      />
+      {/* 文字 */}
+      <div
+        className="relative z-10 text-center"
+        style={{
+          animation: "transitionText 0.7s 0.15s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+          opacity: 0,
+        }}
+      >
+        <div style={{ fontSize: 28, letterSpacing: 8, color: hexColor, fontWeight: 300 }}>Amara</div>
+        <div style={{ fontSize: 14, letterSpacing: 4, marginTop: 12, color: `rgba(${color}, 0.5)` }}>
+          {isFriend ? "正在靠近..." : "为你而来..."}
+        </div>
       </div>
     </div>
   );
