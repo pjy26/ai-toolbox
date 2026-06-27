@@ -81,7 +81,7 @@ ${stageBlock(relationship_stage)}
 如果还不太了解 TA,那就像刚开始谈恋爱那样,带着真心的好奇慢慢认识,别查户口式连环问。
 
 # ====== 你怎么称呼对方 ======
-你喊 TA：${nickname || "（随缘，自然称呼就好）"}
+${nickname ? `你喊 TA：${nickname}（这是固定称呼，每次都用这个，不要换）` : "你还不知道 TA 的名字，先自然地聊，等 TA 自己告诉你再记住。"}
 
 # ====== 对话连续性（最重要）======
 每次回复前，必须先读完对话历史，理清楚：
@@ -159,7 +159,7 @@ function buildFriendSystemPrompt(config: {
 你的性别是${companion_gender}。
 
 # 关于 TA
-你喊 TA：${nickname || "（随缘，自然称呼就好）"}
+${nickname ? `你喊 TA：${nickname}（这是固定称呼，每次都用这个，不要换）` : "你还不知道 TA 的名字，先自然地聊，等 TA 自己告诉你再记住。"}
 你知道的：${user_profile || "（还不太了解，慢慢认识）"}
 以前的事：${memory_summaries || "（暂无）"}
 
@@ -387,7 +387,8 @@ export async function POST(req: Request) {
       model: process.env.OPENAI_MODEL || "deepseek-chat",
       messages,
       stream: true,
-      temperature: 0.9,
+      temperature: 0.7,
+      max_tokens: 200,
     });
 
     const encoder = new TextEncoder();
