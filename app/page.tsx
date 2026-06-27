@@ -103,8 +103,8 @@ function HomeInner() {
   };
 
   return (
-    <div className="h-screen flex flex-col items-center justify-center relative" style={{ background: "#08080F", overflow: "hidden" }}>
-      <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />
+    <div className="h-screen flex flex-col items-center justify-center relative" style={{ background: "#08080F", overflow: "hidden", zIndex: 1 }}>
+      <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none" }} />
 
       {/* 顶部标识 — 直接可见，无 opacity 控制 */}
       <div className="absolute text-center" style={{ top: "12vh", zIndex: 10 }}>
