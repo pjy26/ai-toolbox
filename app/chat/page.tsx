@@ -278,7 +278,7 @@ function ChatInner() {
   if (initLoading) {
     return (
       <div className="h-screen flex items-center justify-center" style={{ background: "#0E0C0A" }}>
-        <div className="text-center" style={{ color: "rgba(232,213,196,0.3)" }}>
+        <div className="text-center" style={{ color: "rgba(232,213,196,0.7)" }}>
           <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-amber-400/30 animate-spin mx-auto mb-4" />
           <p className="text-sm" style={{ letterSpacing: 2 }}>正在靠近...</p>
         </div>
@@ -294,14 +294,14 @@ function ChatInner() {
       {/* Header */}
       <header style={{ position: "relative", zIndex: 10, flexShrink: 0, padding: "16px 20px 12px", background: "rgba(15,13,11,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid rgba(201,169,110,0.06)" }}>
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <a href="/" className="w-10 text-lg" style={{ color: "rgba(232,213,196,0.5)", textDecoration: "none" }}>&lsaquo;</a>
+          <a href="/" className="w-10 text-lg" style={{ color: "rgba(232,213,196,0.85)", textDecoration: "none" }}>&lsaquo;</a>
           <div className="flex-1 flex flex-col items-center">
             <div className="relative mb-1.5" style={{ width: 36, height: 36 }}>
               <div style={{ width: 36, height: 36, borderRadius: "50%", background: "radial-gradient(circle at 35% 35%, #3A2A1E, #1A1510)", border: "1px solid rgba(201,169,110,0.2)", boxShadow: "0 0 12px rgba(201,169,110,0.1)" }} />
               <div style={{ position: "absolute", bottom: 2, right: 2, width: 8, height: 8, borderRadius: "50%", background: "#7CB342", border: "2px solid #0E0C0A", boxShadow: "0 0 6px rgba(124,179,66,0.4)", animation: "statusPulse 3s ease-in-out infinite" }} />
             </div>
             <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#E8D5C4", lineHeight: 1.4 }}>Amara</div>
-            <div className="text-xs font-light mt-0.5" style={{ letterSpacing: 1, color: "rgba(232,213,196,0.25)" }}>
+            <div className="text-xs font-light mt-0.5" style={{ letterSpacing: 1, color: "rgba(232,213,196,0.85)" }}>
               {isLover ? "为你存在" : "听你说话"}
               {extracting && " · 记忆中..."}
             </div>
@@ -310,9 +310,9 @@ function ChatInner() {
           <button
             onClick={() => setShowMyDrawer(true)}
             className="w-10 flex justify-end items-center"
-            style={{ color: "rgba(232,213,196,0.3)", transition: "color 0.2s" }}
+            style={{ color: "rgba(232,213,196,0.7)", transition: "color 0.2s" }}
             onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.6)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.3)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.7)"; }}
           >
             <User style={{ width: 20, height: 20 }} />
           </button>
@@ -321,7 +321,7 @@ function ChatInner() {
 
       {/* 免费额度提示 */}
       {quota && !quota.isMember && (
-        <div className="text-center py-1.5 text-xs" style={{ color: "rgba(232,213,196,0.35)", letterSpacing: 1, background: "rgba(15,13,11,0.5)", position: "relative", zIndex: 10 }}>
+        <div className="text-center py-1.5 text-xs" style={{ color: "rgba(232,213,196,0.75)", letterSpacing: 1, background: "rgba(15,13,11,0.5)", position: "relative", zIndex: 10 }}>
           免费试聊还剩 {quota.remaining} 句 ·{" "}
           <span
             onClick={() => setShowPaywall(true)}
@@ -336,7 +336,7 @@ function ChatInner() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto" style={{ position: "relative", zIndex: 10, padding: "20px 16px" }}>
         <div className="max-w-3xl mx-auto">
           <div className="text-center my-6" style={{ opacity: 0, animation: "fadeIn 0.8s ease forwards" }}>
-            <span className="text-xs font-light" style={{ color: "rgba(232,213,196,0.2)", letterSpacing: 2 }}>今天</span>
+            <span className="text-xs font-light" style={{ color: "rgba(232,213,196,0.85)", letterSpacing: 2 }}>今天</span>
           </div>
 
           {messages.map((msg, i) => (
@@ -364,7 +364,7 @@ function ChatInner() {
                     boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
                   } : {
                     background: "#1A1816",
-                    color: "rgba(232,213,196,0.6)",
+                    color: "rgba(232,213,196,0.85)",
                     border: "1px solid rgba(255,255,255,0.05)",
                     borderBottomRightRadius: 4,
                   }),
@@ -372,7 +372,7 @@ function ChatInner() {
                   {msg.content || (msg.role === "assistant" ? "..." : "")}
                 </div>
                 <div className="text-xs mt-1.5" style={{
-                  color: "rgba(232,213,196,0.15)",
+                  color: "rgba(232,213,196,0.8)",
                   letterSpacing: 1,
                   ...(msg.role === "user" ? { textAlign: "right", marginRight: 4 } : { marginLeft: 4 }),
                 }}>
@@ -508,9 +508,9 @@ function MyDrawer({ isLover, quota, onClose, onShowPaywall }: {
         {/* Header */}
         <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid rgba(201,169,110,0.06)" }}>
           <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#E8D5C4" }}>我的</div>
-          <button onClick={onClose} style={{ color: "rgba(232,213,196,0.3)", transition: "color 0.2s" }}
+          <button onClick={onClose} style={{ color: "rgba(232,213,196,0.7)", transition: "color 0.2s" }}
             onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.6)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.3)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.7)"; }}
           >
             <X style={{ width: 18, height: 18 }} />
           </button>
@@ -524,7 +524,7 @@ function MyDrawer({ isLover, quota, onClose, onShowPaywall }: {
             </div>
             <div>
               <div className="text-sm font-medium" style={{ color: "#E8D5C4" }}>会员状态</div>
-              <div className="text-xs mt-0.5" style={{ color: quota?.isMember ? accent : "rgba(232,213,196,0.3)" }}>
+              <div className="text-xs mt-0.5" style={{ color: quota?.isMember ? accent : "rgba(232,213,196,0.7)" }}>
                 {membershipLabel()}
               </div>
             </div>
@@ -545,7 +545,7 @@ function MyDrawer({ isLover, quota, onClose, onShowPaywall }: {
         {/* 菜单项 */}
         <div className="px-4 space-y-1">
           {!quota?.isMember && (
-            <button onClick={onShowPaywall} className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition" style={{ color: "rgba(232,213,196,0.5)", letterSpacing: 1 }}
+            <button onClick={onShowPaywall} className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition" style={{ color: "rgba(232,213,196,0.85)", letterSpacing: 1 }}
               onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             >
@@ -556,7 +556,7 @@ function MyDrawer({ isLover, quota, onClose, onShowPaywall }: {
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition"
-            style={{ color: "rgba(232,213,196,0.4)", letterSpacing: 1 }}
+            style={{ color: "rgba(232,213,196,0.8)", letterSpacing: 1 }}
             onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
           >
@@ -567,7 +567,7 @@ function MyDrawer({ isLover, quota, onClose, onShowPaywall }: {
 
         {/* 底部信息 */}
         <div className="mt-auto p-4 text-center">
-          <p className="text-xs font-light" style={{ color: "rgba(232,213,196,0.15)", letterSpacing: 1 }}>
+          <p className="text-xs font-light" style={{ color: "rgba(232,213,196,0.8)", letterSpacing: 1 }}>
             更多功能即将开放
           </p>
         </div>
@@ -603,7 +603,7 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(14,12,10,0.85)", backdropFilter: "blur(12px)" }} onClick={onClose}>
       <div className="rounded-3xl p-7 max-w-md w-full relative" style={{ background: "#151210", border: `1px solid rgba(${accentRgb}, 0.2)`, animation: "paywallIn 0.4s cubic-bezier(0.22, 1, 0.36, 1)" }} onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-sm" style={{ color: "rgba(232,213,196,0.3)" }}>&times;</button>
+        <button onClick={onClose} className="absolute top-4 right-4 text-sm" style={{ color: "rgba(232,213,196,0.7)" }}>&times;</button>
 
         <div className="text-center mb-6">
           <div className="w-10 h-10 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: `rgba(${accentRgb}, 0.15)`, border: `1px solid rgba(${accentRgb}, 0.3)` }}>
@@ -612,7 +612,7 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
           <h3 className="text-lg font-medium text-white leading-relaxed">
             {isLover ? "想让 TA 一直陪着你吗？" : "想让这段陪伴继续吗？"}
           </h3>
-          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line" style={{ color: "rgba(232,213,196,0.4)" }}>
+          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line" style={{ color: "rgba(232,213,196,0.8)" }}>
             {isLover
               ? "聊到现在，TA 已经开始记得你了。\n开通后，TA 会记住你说过的每件事——\n你的习惯、你的心事、你随口提过的小事。"
               : "聊了这么久，TA 已经有点懂你了。\n开通后，TA 会真正记住你们聊过的一切，\n随时找 TA 说话，不限次数。"}
@@ -634,21 +634,21 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-white text-sm">{p.name}</span>
                     {p.popular && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: accent, color: "#0E0C0A" }}>推荐</span>}
-                    <span className="text-xs" style={{ color: "rgba(232,213,196,0.3)" }}>&middot; {p.hint}</span>
+                    <span className="text-xs" style={{ color: "rgba(232,213,196,0.7)" }}>&middot; {p.hint}</span>
                   </div>
-                  <span className="text-white font-semibold text-sm">&yen;{p.price}<span className="text-xs font-normal" style={{ color: "rgba(232,213,196,0.3)" }}>{p.period}</span></span>
+                  <span className="text-white font-semibold text-sm">&yen;{p.price}<span className="text-xs font-normal" style={{ color: "rgba(232,213,196,0.7)" }}>{p.period}</span></span>
                 </button>
               ))}
             </div>
 
             {selectedPlan ? (
               <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <p className="text-xs mb-3" style={{ color: "rgba(232,213,196,0.3)" }}>扫码支付后联系客服开通</p>
+                <p className="text-xs mb-3" style={{ color: "rgba(232,213,196,0.7)" }}>扫码支付后联系客服开通</p>
                 <div className="bg-white rounded-xl p-2 mx-auto w-36 h-36 flex items-center justify-center">
                   <div className="text-xs text-gray-500 text-center px-2">收款码</div>
                 </div>
                 <p className="mt-3 text-sm" style={{ color: accent }}>客服 QQ：3801434603</p>
-                <p className="mt-4 text-xs leading-relaxed" style={{ color: "rgba(232,213,196,0.25)" }}>
+                <p className="mt-4 text-xs leading-relaxed" style={{ color: "rgba(232,213,196,0.85)" }}>
                   支付后，TA 就会真正记住你
                 </p>
               </div>
@@ -668,7 +668,7 @@ export default function ChatPage() {
   return (
     <Suspense fallback={
       <div className="h-screen flex items-center justify-center" style={{ background: "#0E0C0A" }}>
-        <div className="text-center" style={{ color: "rgba(232,213,196,0.3)" }}>
+        <div className="text-center" style={{ color: "rgba(232,213,196,0.7)" }}>
           <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-amber-400/30 animate-spin mx-auto mb-4" />
           <p className="text-sm" style={{ letterSpacing: 2 }}>正在靠近...</p>
         </div>

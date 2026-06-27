@@ -240,8 +240,8 @@ export default function HomePage() {
           transitionDelay: "1.4s",
         }}
       >
-        <p className="text-xs font-light" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.3)" }}>这不是永久的决定，你随时可以回到这里</p>
-        <p className="text-xs font-light mt-2" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.22)" }}>先让我们说说话。没有门槛，也没有承诺</p>
+        <p className="text-xs font-light" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.65)" }}>这不是永久的决定，你随时可以回到这里</p>
+        <p className="text-xs font-light mt-2" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.55)" }}>先让我们说说话。没有门槛，也没有承诺</p>
       </div>
 
       {/* 过渡动画 */}
