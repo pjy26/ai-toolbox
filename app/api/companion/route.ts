@@ -147,6 +147,7 @@ interface CompanionRow {
   companion_name: string | null;
   user_nickname: string | null;
   persona: PersonaType;
+  persona_locked_at?: string | null;
   relationship_stage: number;
   relationship_events?: any[];
   last_active_at?: string | null;
@@ -226,7 +227,7 @@ export async function POST(req: Request) {
   // 1. 验证 companion 归属 + 拉人格字段
   const { data: companion, error: compErr } = await supabase
     .from("companions")
-    .select("id, user_id, relationship_type, gender, companion_name, user_nickname, persona, relationship_stage, relationship_events, last_active_at")
+    .select("id, user_id, relationship_type, gender, companion_name, user_nickname, persona, persona_locked_at, relationship_stage, relationship_events, last_active_at")
     .eq("id", companion_id)
     .eq("user_id", user.id)
     .single<CompanionRow>();
@@ -369,6 +370,14 @@ export async function POST(req: Request) {
               content: assistantFull,
             });
             await supabase.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId);
+          }
+          // 恋人版：异步触发隐形性格匹配（用户无感，达到阈值后 LLM 判定并锁定）
+          if (companion.relationship_type === "lover" && !companion.persona_locked_at) {
+            fetch("/api/companion/match-persona", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ companion_id: companion.id }),
+            }).catch(() => {});
           }
         } catch (err) {
           controller.error(err);

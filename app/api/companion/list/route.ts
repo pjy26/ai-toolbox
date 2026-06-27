@@ -69,15 +69,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "角色类型无效" }, { status: 400 });
   }
 
+  // 恋人版统一叫 Amara；朋友版暂不取名（让对话自然出现）
+  const autoName = relationship_type === "lover" ? "Amara" : null;
+
   const { data, error } = await supabase
     .from("companions")
     .insert({
       user_id: user.id,
       relationship_type,
       gender: gender || null,
-      companion_name: companion_name || null,
+      companion_name: autoName,
       user_nickname: user_nickname || null,
-      persona: body.persona || "gentle",
+      persona: "gentle", // 默认过渡人格，后台 5-8 轮后自动锁定
       relationship_stage: 5,
       relationship_events: [],
       last_active_at: new Date().toISOString(),
