@@ -6,12 +6,12 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 const PLANS: Record<string, { amount: number; credits?: number; months?: number; weeks?: number; subject: string }> = {
-  credits_100: { amount: 6, credits: 100, subject: "AI工具箱 - 100积分" },
-  credits_300: { amount: 15, credits: 300, subject: "AI工具箱 - 300积分" },
-  credits_1000: { amount: 45, credits: 1000, subject: "AI工具箱 - 1000积分" },
-  weekly_intro: { amount: 9.9, weeks: 1, subject: "AI工具箱 - 新人周卡" },
-  monthly: { amount: 29, months: 1, subject: "AI工具箱 - 月度会员" },
-  yearly: { amount: 199, months: 12, subject: "AI工具箱 - 年度会员" },
+  credits_100: { amount: 6, credits: 100, subject: "Amara - 100积分" },
+  credits_300: { amount: 15, credits: 300, subject: "Amara - 300积分" },
+  credits_1000: { amount: 45, credits: 1000, subject: "Amara - 1000积分" },
+  weekly_intro: { amount: 9.9, weeks: 1, subject: "Amara - 新人周卡" },
+  monthly: { amount: 29, months: 1, subject: "Amara - 月度会员" },
+  yearly: { amount: 199, months: 12, subject: "Amara - 年度会员" },
 };
 
 export async function POST(req: Request) {

@@ -127,7 +127,7 @@ export default function HomePage() {
           <span>·</span>
           <Link href="/tools" className="hover:text-gray-300 transition">全部工具</Link>
         </div>
-        <p className="mt-3">AI 情感陪伴 &copy; {new Date().getFullYear()}</p>
+        <p className="mt-3">Amara &copy; {new Date().getFullYear()}</p>
       </footer>
     </div>
   );

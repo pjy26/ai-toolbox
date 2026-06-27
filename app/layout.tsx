@@ -4,8 +4,8 @@ import { Navbar } from "@/components/navbar";
 import { AuthProvider } from "@/components/auth-provider";
 
 export const metadata: Metadata = {
-  title: "AI 工具箱 - 智能创作助手",
-  description: "小红书文案、抖音脚本、周报生成、AI对话，一站搞定",
+  title: "Amara · AI 情感陪伴",
+  description: "TA 会记得你说的每句话，懂你的情绪，在你需要的时候，刚好都在。",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

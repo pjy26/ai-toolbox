@@ -11,16 +11,16 @@ export function Navbar() {
     <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-surface-dark/80 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-          <Sparkles className="w-5 h-5 text-brand" />
-          <span className="gradient-text">AI 工具箱</span>
+          <Heart className="w-5 h-5 text-rose-400" />
+          <span className="gradient-text">Amara</span>
         </Link>
 
         <div className="hidden md:flex items-center gap-6 text-sm text-gray-300">
-          <Link href="/tools" className="hover:text-white transition">工具</Link>
           <Link href="/tools/companion" className="hover:text-white transition flex items-center gap-1">
             <Heart className="w-3.5 h-3.5 text-rose-400" />
             情感陪伴
           </Link>
+          <Link href="/tools" className="hover:text-white transition">工具</Link>
           <Link href="/pricing" className="hover:text-white transition">定价</Link>
           <Link href="/contact" className="hover:text-white transition">联系</Link>
         </div>

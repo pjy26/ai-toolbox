@@ -32,7 +32,7 @@ export default function ContactPage() {
               </button>
             </div>
             <p className="mt-3 text-xs text-gray-500">
-              添加时备注「AI工具箱」会更快通过
+              添加时备注「Amara」会更快通过
             </p>
           </div>
         </div>
