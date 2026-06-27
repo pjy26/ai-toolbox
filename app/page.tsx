@@ -4,10 +4,16 @@ import { useState, useEffect, useRef } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 
 export default function HomePage() {
-  const { session, isLoading: authLoading } = useSessionContext();
+  const { session } = useSessionContext();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
   const [transitioning, setTransitioning] = useState<"friend" | "lover" | null>(null);
+  const [showHome, setShowHome] = useState(false);
+
+  // 等 Supabase 确认登录状态后，再决定显示首页还是选择页
+  useEffect(() => {
+    if (session) setShowHome(true);
+  }, [session]);
 
   /* ── 粒子 ── */
   useEffect(() => {
@@ -82,17 +88,8 @@ export default function HomePage() {
     }, 900);
   };
 
-  /* ── 认证加载中 ── */
-  if (authLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center" style={{ background: "#08080F" }}>
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-amber-400/30 animate-spin" />
-      </div>
-    );
-  }
-
   /* ── 老用户首页 ── */
-  if (session) {
+  if (showHome) {
     return (
       <div className="h-screen flex flex-col items-center justify-center relative" style={{ background: "#08080F", overflow: "hidden" }}>
         <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />
