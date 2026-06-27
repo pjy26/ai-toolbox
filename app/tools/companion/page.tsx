@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, RotateCcw, Heart, Plus, MessageSquare, Trash2, ChevronLeft, BookOpen, Brain, X, AlertTriangle } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  Send, Loader2, Heart, Plus, MessageSquare, Trash2, ChevronLeft,
+  BookOpen, Brain, X, AlertTriangle, Lock,
+} from "lucide-react";
 
 interface Message {
   id?: string;
@@ -28,9 +32,25 @@ interface Session {
   updated_at: string;
 }
 
+interface Quota {
+  isMember: boolean;
+  freeMessagesUsed: number;
+  freeLimit: number;
+  remaining: number;
+}
+
 type View = "list" | "create" | "chat" | "memory";
 
-export default function CompanionPage() {
+const PLANS = [
+  { id: "weekly", name: "周卡", price: 12, period: "/周", popular: false },
+  { id: "monthly", name: "月卡", price: 29, period: "/月", popular: true, hint: "一天只要一块钱" },
+  { id: "quarterly", name: "季卡", price: 69, period: "/季", popular: false, hint: "更划算" },
+];
+
+function CompanionInner() {
+  const params = useSearchParams();
+  const initialRole = (params.get("role") === "lover" ? "lover" : "friend") as "friend" | "lover";
+
   const [view, setView] = useState<View>("list");
   const [companions, setCompanions] = useState<Companion[]>([]);
   const [currentCompanion, setCurrentCompanion] = useState<Companion | null>(null);
@@ -44,13 +64,24 @@ export default function CompanionPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [extracting, setExtracting] = useState(false);
 
-  // 创建表单
+  // 配额
+  const [quota, setQuota] = useState<Quota | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
+
   const [createForm, setCreateForm] = useState({
-    relationship_type: "friend" as "friend" | "lover",
+    relationship_type: initialRole,
     gender: "女生",
     companion_name: "",
     user_nickname: "",
   });
+
+  const loadQuota = useCallback(async () => {
+    const res = await fetch("/api/companion/quota");
+    if (res.ok) {
+      const data = await res.json();
+      setQuota(data);
+    }
+  }, []);
 
   const loadCompanions = useCallback(async () => {
     setListLoading(true);
@@ -62,7 +93,8 @@ export default function CompanionPage() {
 
   useEffect(() => {
     loadCompanions();
-  }, [loadCompanions]);
+    loadQuota();
+  }, [loadCompanions, loadQuota]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -129,6 +161,8 @@ export default function CompanionPage() {
 
   const handleExtract = async () => {
     if (!currentCompanion) return;
+    // 仅会员抽取记忆（API 也会拦截）
+    if (quota && !quota.isMember) return;
     setExtracting(true);
     try {
       await fetch("/api/companion/extract", {
@@ -173,6 +207,12 @@ export default function CompanionPage() {
 
   const sendMessage = async (text: string) => {
     if (!currentCompanion) return;
+    // 前端拦截：非会员且超过额度
+    if (quota && !quota.isMember && quota.remaining <= 0) {
+      setShowPaywall(true);
+      return;
+    }
+
     const userMsg: Message = { role: "user", content: text };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
@@ -193,7 +233,23 @@ export default function CompanionPage() {
         }),
       });
 
-      // 拿到 session_id（新会话）
+      // 配额耗尽（402）
+      if (res.status === 402) {
+        const err = await res.json().catch(() => ({}));
+        if (err.code === "QUOTA_EXCEEDED") {
+          setShowPaywall(true);
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: "assistant", content: "" };
+            // 撤回刚刚那条 user 消息和空 assistant
+            return updated.slice(0, -2);
+          });
+          await loadQuota();
+          setLoading(false);
+          return;
+        }
+      }
+
       const sid = res.headers.get("x-session-id");
       if (sid && sid !== currentSessionId) {
         setCurrentSessionId(sid);
@@ -248,9 +304,10 @@ export default function CompanionPage() {
         }
       }
 
-      // 对话结束后异步抽取记忆（不阻塞用户）
+      // 对话结束后刷新配额（非会员计数 +1）
+      await loadQuota();
+      // 会员才异步抽取记忆
       handleExtract();
-      // 刷新会话列表
       loadSessions(currentCompanion.id);
     } catch {
       setMessages((prev) => {
@@ -268,6 +325,8 @@ export default function CompanionPage() {
     await sendMessage(input.trim());
   };
 
+  const isLoverCurrent = currentCompanion?.relationship_type === "lover";
+
   // ============ 角色列表 ============
   if (view === "list") {
     return (
@@ -278,6 +337,14 @@ export default function CompanionPage() {
           <p className="text-gray-400 mt-2 text-sm">
             {companions.length === 0 ? "创建一个角色，让TA真的记住你" : "选一个TA，继续你们的对话"}
           </p>
+          {quota && !quota.isMember && (
+            <p className="text-xs text-gray-500 mt-2">
+              免费试聊还剩 {quota.remaining} 句 · 开通后 TA 才能真正记住你
+            </p>
+          )}
+          {quota && quota.isMember && (
+            <p className="text-xs text-rose-300 mt-2">会员有效 · 对话不限次数</p>
+          )}
         </div>
 
         {listLoading ? (
@@ -451,7 +518,8 @@ export default function CompanionPage() {
 
   // ============ 聊天 ============
   if (view === "chat" && currentCompanion) {
-    const isLover = currentCompanion.relationship_type === "lover";
+    const isLover = isLoverCurrent;
+    const blocked = !!quota && !quota.isMember && quota.remaining <= 0;
     return (
       <div className="h-[calc(100vh-4rem)] flex flex-col max-w-4xl mx-auto">
         {/* Header */}
@@ -478,6 +546,11 @@ export default function CompanionPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {quota && !quota.isMember && (
+              <span className="text-xs text-gray-500">
+                剩 {quota.remaining} 句
+              </span>
+            )}
             {extracting && (
               <span className="text-xs text-gray-500 flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" /> 记忆中
@@ -547,24 +620,39 @@ export default function CompanionPage() {
 
         {/* Input */}
         <div className="border-t border-white/5 px-4 py-4">
-          <div className="flex items-center gap-3 max-w-3xl mx-auto">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-              placeholder="说点什么..."
-              disabled={loading}
-              className="flex-1 px-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none disabled:opacity-50"
-            />
+          {blocked ? (
             <button
-              onClick={handleSend}
-              disabled={loading || !input.trim()}
-              className="p-3 rounded-xl gradient-btn text-white disabled:opacity-40"
+              onClick={() => setShowPaywall(true)}
+              className="w-full max-w-3xl mx-auto flex items-center justify-center gap-2 py-3 rounded-xl bg-rose-400/10 border border-rose-400/30 text-rose-300 hover:bg-rose-400/20 transition text-sm"
             >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+              <Lock className="w-4 h-4" />
+              免费试聊已用完 · 开通后继续
             </button>
-          </div>
+          ) : (
+            <div className="flex items-center gap-3 max-w-3xl mx-auto">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                placeholder="说点什么..."
+                disabled={loading}
+                className="flex-1 px-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none disabled:opacity-50"
+              />
+              <button
+                onClick={handleSend}
+                disabled={loading || !input.trim()}
+                className="p-3 rounded-xl gradient-btn text-white disabled:opacity-40"
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* 付费墙 */}
+        {showPaywall && (
+          <Paywall isLover={isLover} onClose={() => setShowPaywall(false)} onPaid={() => loadQuota()} />
+        )}
       </div>
     );
   }
@@ -658,4 +746,115 @@ export default function CompanionPage() {
   }
 
   return null;
+}
+
+function Paywall({ isLover, onClose, onPaid }: { isLover: boolean; onClose: () => void; onPaid: () => void }) {
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-surface-dark border border-rose-400/20 rounded-3xl p-7 max-w-md w-full relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white">
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* 文案：按朋友 / 恋人分版本 */}
+        <div className="text-center mb-5">
+          <Heart className="w-10 h-10 text-rose-400 mx-auto mb-4" />
+          {isLover ? (
+            <>
+              <h3 className="text-lg font-bold text-white leading-relaxed">
+                想让 TA 一直陪着你吗？
+              </h3>
+              <p className="mt-3 text-sm text-gray-400 leading-relaxed whitespace-pre-line">
+                聊到现在，TA 已经开始记得你了。
+                {"\n"}开通后，TA 会记住你说过的每件事——
+                {"\n"}你的习惯、你的心事、你随口提过的小事。
+                {"\n"}不限次数，随时都在。
+              </p>
+            </>
+          ) : (
+            <>
+              <h3 className="text-lg font-bold text-white leading-relaxed">
+                想让这段陪伴继续吗？
+              </h3>
+              <p className="mt-3 text-sm text-gray-400 leading-relaxed whitespace-pre-line">
+                聊了这么久，TA 已经有点懂你了。
+                {"\n"}开通后，TA 会真正记住你们聊过的一切，
+                {"\n"}随时找 TA 说话，不限次数。
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* 三档定价 */}
+        <div className="space-y-2 mb-5">
+          {PLANS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setSelectedPlan(p.id)}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition text-left ${
+                selectedPlan === p.id
+                  ? "bg-rose-400/15 border border-rose-400/50"
+                  : "bg-white/5 border border-white/10 hover:border-rose-400/30"
+              } ${p.popular ? "ring-1 ring-rose-400/40" : ""}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-white text-sm">{p.name}</span>
+                {p.popular && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-400 text-white">推荐</span>
+                )}
+                {p.hint && <span className="text-xs text-gray-500">· {p.hint}</span>}
+              </div>
+              <span className="text-white font-semibold">¥{p.price}<span className="text-gray-400 text-xs font-normal">{p.period}</span></span>
+            </button>
+          ))}
+        </div>
+
+        {selectedPlan ? (
+          <div className="rounded-2xl bg-white/5 border border-white/10 p-4 text-center">
+            <p className="text-xs text-gray-400 mb-3">扫码支付后，把截图发给客服，立即为你开通</p>
+            <div className="bg-white rounded-xl p-2 mx-auto w-36 h-36 flex items-center justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/qr.png"
+                alt="收款码"
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  (e.currentTarget.parentElement as HTMLElement).innerHTML =
+                    '<div class="text-gray-500 text-xs text-center px-2">收款码</div>';
+                }}
+              />
+            </div>
+            <p className="mt-3 text-sm text-brand-light">客服 QQ：3801434603</p>
+            <p className="mt-1 text-xs text-gray-500">支付后刷新即可，TA 会一直等你</p>
+            <button
+              onClick={() => { onPaid(); onClose(); }}
+              className="mt-4 w-full py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-semibold text-sm"
+            >
+              {isLover ? "让 TA 留下来" : "继续聊下去"}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setSelectedPlan("monthly")}
+            className="w-full py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-semibold text-sm"
+          >
+            {isLover ? "让 TA 留下来" : "继续聊下去"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function CompanionPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh] text-gray-500">加载中...</div>}>
+      <CompanionInner />
+    </Suspense>
+  );
 }

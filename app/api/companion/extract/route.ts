@@ -1,15 +1,22 @@
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import OpenAI from "openai";
 
 // 从最近对话中抽取记忆要点（更新 profile + 写入 memory_summaries）
+// 仅会员可调用：长期记忆是会员特权
 // 调用时机：前端在每轮对话结束后异步触发，不阻塞用户
 
 export async function POST(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+
+  // 会员校验
+  const status = await getMembershipStatus(user.id);
+  if (!status.isMember) {
+    return NextResponse.json({ error: "需要会员", code: "MEMBER_ONLY" }, { status: 403 });
+  }
 
   const supabase = createRouteHandlerClient({ cookies });
   const { companion_id, session_id } = await req.json();

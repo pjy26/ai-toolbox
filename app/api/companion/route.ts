@@ -1,10 +1,12 @@
-import { getAuthUser, checkCredits, deductCredits, logUsage } from "@/lib/auth";
+import {
+  getAuthUser,
+  checkCompanionQuota,
+  incFreeMessageCount,
+} from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import OpenAI from "openai";
-
-const COMPANION_COST = 2;
 
 function buildSystemPrompt(config: {
   role: string;
@@ -181,7 +183,6 @@ interface SummaryRow {
   importance: number;
 }
 
-// 把 jsonb profile 渲染成给 prompt 用的简短文本
 function profileToText(profile: Record<string, any> | null): string {
   if (!profile || Object.keys(profile).length === 0) return "";
   const lines: string[] = [];
@@ -213,11 +214,15 @@ export async function POST(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const credit = await checkCredits(user.id, COMPANION_COST);
-  if (!credit.ok) {
-    return NextResponse.json({ error: "积分不足", code: "INSUFFICIENT_CREDITS" }, { status: 402 });
+  // 订阅制配额校验
+  const quota = await checkCompanionQuota(user.id);
+  if (!quota.ok) {
+    return NextResponse.json(
+      { error: "免费额度已用完", code: "QUOTA_EXCEEDED", isMember: false },
+      { status: 402 }
+    );
   }
-  const isMember = credit.isMember;
+  const isMember = quota.isMember;
 
   const supabase = createRouteHandlerClient({ cookies });
   const { message, history, companion_id, session_id } = await req.json();
@@ -240,22 +245,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "陪伴角色不存在" }, { status: 404 });
   }
 
-  // 2. 拉 profile + 最近 memory_summaries（按 importance desc, 取前 20 条）
-  const [{ data: profileRow }, { data: summaries }] = await Promise.all([
-    supabase.from("user_profiles").select("profile").eq("companion_id", companion_id).maybeSingle<ProfileRow>(),
-    supabase
-      .from("memory_summaries")
-      .select("summary, importance")
-      .eq("companion_id", companion_id)
-      .order("importance", { ascending: false })
-      .order("updated_at", { ascending: false })
-      .limit(20),
-  ]);
-
-  const profileText = profileToText(profileRow?.profile || null);
-  const memText = (summaries as SummaryRow[] || [])
-    .map((s) => `- ${s.summary}`)
-    .join("\n");
+  // 2. 长期记忆 = 会员特权。非会员不注入 profile / summaries
+  let profileText = "";
+  let memText = "";
+  if (isMember) {
+    const [{ data: profileRow }, { data: summaries }] = await Promise.all([
+      supabase.from("user_profiles").select("profile").eq("companion_id", companion_id).maybeSingle<ProfileRow>(),
+      supabase
+        .from("memory_summaries")
+        .select("summary, importance")
+        .eq("companion_id", companion_id)
+        .order("importance", { ascending: false })
+        .order("updated_at", { ascending: false })
+        .limit(20),
+    ]);
+    profileText = profileToText(profileRow?.profile || null);
+    memText = (summaries as SummaryRow[] || []).map((s) => `- ${s.summary}`).join("\n");
+  }
 
   // 3. 获取/创建会话
   let sessionId = session_id;
@@ -271,7 +277,7 @@ export async function POST(req: Request) {
     sessionId = newSession.id;
   }
 
-  // 4. 拉取最近历史消息（短期记忆）
+  // 4. 拉取最近历史消息（短期记忆，会员非会员都用）
   const { data: dbHistory } = await supabase
     .from("chat_messages")
     .select("role, content, created_at")
@@ -286,7 +292,10 @@ export async function POST(req: Request) {
     content: message,
   });
 
-  // 6. 组装 messages
+  // 6. 非会员累计免费消息计数
+  await incFreeMessageCount(user.id);
+
+  // 7. 组装 messages
   const systemPrompt = buildSystemPrompt({
     role: companion.relationship_type,
     companion_gender: companion.gender || "不限",
@@ -310,7 +319,6 @@ export async function POST(req: Request) {
     }
   }
   if (Array.isArray(history)) {
-    // 兜底：如果前端额外传了未落库的 history，追加
     for (const h of history.slice(-10)) {
       if (h?.role === "user" || h?.role === "assistant") {
         messages.push({ role: h.role, content: h.content });
@@ -339,18 +347,14 @@ export async function POST(req: Request) {
           }
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
-          // 落库 assistant 回复
           if (assistantFull) {
             await supabase.from("chat_messages").insert({
               session_id: sessionId,
               role: "assistant",
               content: assistantFull,
             });
-            // 更新会话时间
             await supabase.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId);
           }
-          await deductCredits(user.id, isMember ? 0 : COMPANION_COST);
-          await logUsage(user.id, "companion", isMember ? 0 : COMPANION_COST);
         } catch (err) {
           controller.error(err);
         }
@@ -363,6 +367,7 @@ export async function POST(req: Request) {
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
         "x-session-id": sessionId as string,
+        "x-is-member": isMember ? "1" : "0",
       },
     });
   } catch (error) {
