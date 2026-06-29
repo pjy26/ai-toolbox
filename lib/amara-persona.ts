@@ -97,6 +97,52 @@ export function currentTimeBlock(now: Date = new Date()): string {
   return `现在是：${day} ${hh}:${mm}（${slot}）`;
 }
 
+// 情绪块（Step 0：基线由 persona + 时间推导；Step 1 叠加动态 emotion_state）
+// 设计借鉴 Animus EmotionModel：情绪有基线、有时间调制、有动态状态
+export function emotionBlock(
+  persona: PersonaType,
+  emotionState: Record<string, number> | null | undefined,
+  now: Date = new Date()
+): string {
+  // persona 决定情绪底色（对应 Animus 的 personality-baseline）
+  const baseline: Record<PersonaType, string> = {
+    gentle: "平静、温和，带一点柔软的暖意",
+    playful: "开心、想逗人，脑子转得飞快",
+    quiet: "安静、专注，情绪内敛",
+    clingy: "想你、黏人、想要被关注",
+  };
+
+  // 时间调制（与 currentTimeBlock 时段划分一致）
+  const shanghai = new Date(now.getTime() + (now.getTimezoneOffset() + 8 * 60) * 60 * 1000);
+  const h = shanghai.getHours();
+  let timeMod = "";
+  if (h < 6) timeMod = "深夜了，有点感性，容易说心里话";
+  else if (h < 11) timeMod = "刚醒，还有点迷糊";
+  else if (h < 13) timeMod = "中午，有点犯懒";
+  else if (h < 18) timeMod = "下午，忙着手里的事";
+  else if (h < 22) timeMod = "傍晚，放松下来";
+  else timeMod = "夜深了，有点感性";
+
+  // Step 1 接入后，emotion_state 非空 → 用动态情绪
+  if (emotionState && Object.keys(emotionState).length > 0) {
+    const top = Object.entries(emotionState)
+      .sort(([, a], [, b]) => (b as number) - (a as number))
+      .slice(0, 3)
+      .map(([k, v]) => `${k}:${Number(v).toFixed(2)}`)
+      .join("，");
+    return `# ====== [Emotion] 此刻的心情 ======
+主导情绪：${top}
+性格底色：${baseline[persona]}
+时间影响：${timeMod}`;
+  }
+
+  // Step 0：占位基线
+  return `# ====== [Emotion] 此刻的心情 ======
+情绪底色：${baseline[persona]}
+时间影响：${timeMod}
+（情绪会随对话和事件变化，但现在先以这个状态回应对方）`;
+}
+
 // 阶段推进：每轮对话后调用，给一点增量
 export function advanceStage(current: number, increment = 1): number {
   return Math.min(100, current + increment);

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import OpenAI from "openai";
-import { PERSONA_BLOCKS, currentTimeBlock, type PersonaType } from "@/lib/amara-persona";
+import { PERSONA_BLOCKS, currentTimeBlock, stageBlock, type PersonaType } from "@/lib/amara-persona";
 
 // 生成 Amara 的主动开场白
 export async function GET(req: Request) {
@@ -23,7 +23,6 @@ export async function GET(req: Request) {
     .eq("id", companionId)
     .eq("user_id", user.id)
     .single();
-
   if (compErr || !companion) {
     return NextResponse.json({ error: "陪伴角色不存在" }, { status: 404 });
   }
@@ -85,6 +84,7 @@ export async function GET(req: Request) {
 
 # 背景
 ${timeBlock}
+${relationshipType === "lover" ? stageBlock(companion.relationship_stage || 5) : ""}
 ${daysSinceLastChat === -1
     ? "这是你们第一次聊天。TA 刚选择了你，你需要用一个温暖、自然的开场主动和 TA 说第一句话。"
     : daysSinceLastChat === 0
