@@ -1,3 +1,5 @@
+export const maxDuration = 30; // seconds, Vercel Pro required for >15
+
 import {
   getAuthUser,
   checkCompanionQuota,
@@ -391,11 +393,6 @@ export async function POST(req: Request) {
     });
   }
 
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: process.env.OPENAI_BASE_URL || "https://api.deepseek.com",
-  });
-
   const mergedHistory = (dbHistory as { role: string; content: string }[] | null) || [];
 
   const messages: OpenAI.ChatCompletionMessageParam[] = [
@@ -415,63 +412,75 @@ export async function POST(req: Request) {
   }
   messages.push({ role: "user", content: message });
 
-  try {
-    const stream = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "deepseek-chat",
-      messages,
-      stream: true,
-      temperature: 0.7,
-      max_tokens: 200,
-    });
+  const encoder = new TextEncoder();
+  const model = process.env.OPENAI_MODEL || "deepseek-chat";
+  const baseURL = process.env.OPENAI_BASE_URL || "https://api.deepseek.com";
+  const apiKey = process.env.OPENAI_API_KEY;
 
-    const encoder = new TextEncoder();
-    let assistantFull = "";
-    const readable = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of stream) {
-            const delta = chunk.choices?.[0]?.delta?.content || "";
-            if (delta) assistantFull += delta;
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
-          }
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-          controller.close();
-          if (assistantFull) {
-            // 称呼兜底：用 DB 里的 nickname 替换 AI 自创的称呼
-            const nicknameFix = companion.user_nickname || "";
-            const fixedContent = fixNickname(assistantFull, nicknameFix);
-            await supabase.from("chat_messages").insert({
-              session_id: sessionId,
-              role: "assistant",
-              content: fixedContent,
-            });
-            await supabase.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId);
-          }
-          // 恋人版：异步触发隐形性格匹配（用户无感，达到阈值后 LLM 判定并锁定）
-          if (companion.relationship_type === "lover" && !companion.persona_locked_at) {
-            fetch("/api/companion/match-persona", {
+  // Return streaming response immediately so Vercel extends the timeout,
+  // then lazily create the OpenAI stream inside the ReadableStream.
+  const readable = new ReadableStream({
+    async start(controller) {
+      // Send heartbeat immediately to confirm connection is alive
+      controller.enqueue(encoder.encode(": heartbeat\n\n"));
+
+      let assistantFull = "";
+      try {
+        const lazyOpenai = new OpenAI({ apiKey, baseURL });
+        const stream = await lazyOpenai.chat.completions.create({
+          model,
+          messages,
+          stream: true,
+          temperature: 0.7,
+          max_tokens: 200,
+        });
+
+        for await (const chunk of stream) {
+          const delta = chunk.choices?.[0]?.delta?.content || "";
+          if (delta) assistantFull += delta;
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+        }
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+
+        if (assistantFull) {
+          const nicknameFix = companion.user_nickname || "";
+          const fixedContent = fixNickname(assistantFull, nicknameFix);
+          await supabase.from("chat_messages").insert({
+            session_id: sessionId,
+            role: "assistant",
+            content: fixedContent,
+          });
+          await supabase.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId);
+        }
+
+        // 恋人版：异步触发隐形性格匹配
+        if (companion.relationship_type === "lover" && !companion.persona_locked_at) {
+          try {
+            const absUrl = new URL("/api/companion/match-persona", process.env.NEXT_PUBLIC_SITE_URL || "https://pjytoolbox.xyz");
+            fetch(absUrl.toString(), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ companion_id: companion.id }),
             }).catch(() => {});
-          }
-        } catch (err) {
-          controller.error(err);
+          } catch {}
         }
-      },
-    });
 
-    return new Response(readable, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-        "x-session-id": sessionId as string,
-        "x-is-member": isMember ? "1" : "0",
-      },
-    });
-  } catch (error) {
-    console.error("Companion API error:", error);
-    return NextResponse.json({ error: "AI 服务暂时不可用" }, { status: 503 });
-  }
+        controller.close();
+      } catch (err) {
+        console.error("Stream error:", err);
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "AI 服务暂时不可用" })}\n\n`));
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(readable, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "x-session-id": sessionId as string,
+      "x-is-member": isMember ? "1" : "0",
+    },
+  });
 }

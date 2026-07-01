@@ -183,16 +183,44 @@ function ChatInner() {
     const assistantMsg: Message = { role: "assistant", content: "" };
     setMessages((prev) => [...prev, assistantMsg]);
 
-    const res = await fetch("/api/companion", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, companion_id: companion.id, session_id: sessionId }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 35000);
+
+    let res: Response;
+    try {
+      res = await fetch("/api/companion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, companion_id: companion.id, session_id: sessionId }),
+        signal: controller.signal,
+      });
+    } catch {
+      clearTimeout(timeout);
+      setMessages((prev) => prev.slice(0, -2));
+      const errMsg: Message = { role: "assistant", content: "网络超时，请检查连接后重试" };
+      setMessages((prev) => [...prev, errMsg]);
+      setLoading(false);
+      return;
+    }
+    clearTimeout(timeout);
 
     if (res.status === 402) {
       setShowPaywall(true);
       setMessages((prev) => prev.slice(0, -2));
       await loadQuota();
+      setLoading(false);
+      return;
+    }
+
+    if (!res.ok || !res.body) {
+      let errText = "出了点问题，稍后再试";
+      try {
+        const errData = await res.json();
+        if (errData.error) errText = errData.error;
+      } catch {}
+      setMessages((prev) => prev.slice(0, -2));
+      const errMsg: Message = { role: "assistant", content: errText };
+      setMessages((prev) => [...prev, errMsg]);
       setLoading(false);
       return;
     }

@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       amount: plan.amount,
       subject: plan.subject,
     });
-    return NextResponse.json({ orderNo, payUrl });
+    return NextResponse.json({ orderNo, payUrl: payUrl as string });
   } catch (error) {
     console.error("支付宝创建订单失败:", error);
     return NextResponse.json({ error: "支付系统暂时不可用" }, { status: 503 });

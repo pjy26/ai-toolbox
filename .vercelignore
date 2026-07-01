@@ -1,0 +1,7 @@
+node_modules
+.next
+deploy.tar.gz
+temp_*.cjs
+temp_*.js
+*.tar.gz
+.netlify
