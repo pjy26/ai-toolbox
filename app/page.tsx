@@ -138,15 +138,6 @@ export default function HomePage() {
     }
   };
 
-  // 加载中
-  if (authLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center" style={{ background: "#08080F" }}>
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-amber-400/30 animate-spin" />
-      </div>
-    );
-  }
-
   // 卡片状态计算
   const getCardState = (mode: "friend" | "lover") => ({
     isHovered: hovered === mode && !selected,
@@ -178,6 +169,13 @@ export default function HomePage() {
   return (
     <div className="h-screen flex flex-col items-center justify-center relative" style={{ background: "#08080F", overflow: "hidden" }}>
       <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />
+
+      {/* 加载中：spinner 覆盖在 canvas 之上，不阻断 canvas 挂载 */}
+      {authLoading && (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: "#08080F", zIndex: 40 }}>
+          <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-amber-400/30 animate-spin" />
+        </div>
+      )}
 
       {/* 顶部标识 */}
       <div
