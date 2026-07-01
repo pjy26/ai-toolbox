@@ -2,7 +2,7 @@
 
 ## 技术栈
 - Next.js 14 (App Router)
-- Netlify 部署（@netlify/plugin-nextjs）
+- Vercel 部署
 - Supabase 认证
 - Tailwind CSS
 - 支付宝沙箱支付
@@ -11,7 +11,7 @@
 ```
 npm run build
 ```
-Netlify 构建时执行此命令，任何语法/类型/导入错误都会导致部署失败。
+Vercel 构建时执行此命令，任何语法/类型/导入错误都会导致部署失败。
 
 ## 严禁事项
 
@@ -41,7 +41,7 @@ export default function ClientForm() { ... }
 ### 2. 禁止在模块顶层初始化支付宝 SDK 而不检查环境变量
 `lib/alipay.ts` 在模块顶层 `new AlipaySdk(...)`，如果缺少 `ALIPAY_APP_ID` 环境变量会导致构建崩溃。**不要修改这个文件的初始化方式**，确保环境变量已配置。
 
-## 需要的环境变量（Netlify 后台已配置）
+## 需要的环境变量（Vercel 后台已配置）
 - ALIPAY_APP_ID
 - ALIPAY_PRIVATE_KEY
 - ALIPAY_PUBLIC_KEY
