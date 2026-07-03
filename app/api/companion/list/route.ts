@@ -8,7 +8,7 @@ export async function GET() {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const supabase = createRouteHandlerClient({ cookies: cookies() });
+  const supabase = createRouteHandlerClient({ cookies });
   const { data: companions, error } = await supabase
     .from("companions")
     .select(`
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const supabase = createRouteHandlerClient({ cookies: cookies() });
+  const supabase = createRouteHandlerClient({ cookies });
 
   // 检查是否已有关系：一个用户终身只有一段关系
   const { count } = await supabase
