@@ -303,7 +303,11 @@ export async function POST(req: Request) {
     .single<CompanionRow>();
 
   if (compErr || !companion) {
-    return NextResponse.json({ error: "陪伴角色不存在" }, { status: 404 });
+    console.error("[companion POST] 查询失败", { companion_id, userId: user.id, compErr: compErr?.message, compErrCode: (compErr as any)?.code });
+    return NextResponse.json({
+      error: "陪伴角色不存在",
+      debug: { companion_id_query: companion_id, user_id_auth: user.id, db_error: compErr?.message || null }
+    }, { status: 404 });
   }
 
   // 2. 长期记忆 = 会员特权
