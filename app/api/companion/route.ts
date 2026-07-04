@@ -1,11 +1,11 @@
-export const maxDuration = 30; // seconds, Vercel Pro required for >15
-
 import {
   getAuthUser,
   checkCompanionQuota,
   incFreeMessageCount,
 } from "@/lib/auth";
 import { NextResponse } from "next/server";
+
+export const maxDuration = 30; // seconds, Vercel Pro required for >15
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import OpenAI from "openai";
