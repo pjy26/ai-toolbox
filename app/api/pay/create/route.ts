@@ -10,7 +10,9 @@ const PLANS: Record<string, { amount: number; credits?: number; months?: number;
   credits_300: { amount: 15, credits: 300, subject: "Amara - 300积分" },
   credits_1000: { amount: 45, credits: 1000, subject: "Amara - 1000积分" },
   weekly_intro: { amount: 9.9, weeks: 1, subject: "Amara - 新人周卡" },
+  weekly: { amount: 12, weeks: 1, subject: "Amara - 周卡会员" },
   monthly: { amount: 29, months: 1, subject: "Amara - 月度会员" },
+  quarterly: { amount: 69, months: 3, subject: "Amara - 季度会员" },
   yearly: { amount: 199, months: 12, subject: "Amara - 年度会员" },
 };
 

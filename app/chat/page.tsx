@@ -55,6 +55,17 @@ function ChatInner() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [greetingDone, setGreetingDone] = useState(false);
+  const [showPaySuccess, setShowPaySuccess] = useState(false);
+
+  // 支付成功回跳：刷新配额 + 显示成功提示（5 秒后自动消失）
+  useEffect(() => {
+    if (params.get("payment") === "success") {
+      setShowPaySuccess(true);
+      loadQuota();
+      const t = setTimeout(() => setShowPaySuccess(false), 5000);
+      return () => clearTimeout(t);
+    }
+  }, []);
 
   /* ── 初始化 ── */
   // 主动消息去重锁 + 当前 session 指针：均落 sessionStorage + companion_id 维度。
@@ -394,6 +405,13 @@ function ChatInner() {
           </button>
         </div>
       </header>
+
+      {/* 支付成功提示 */}
+      {showPaySuccess && (
+        <div className="text-center py-1.5 text-xs" style={{ color: "#C9A96E", letterSpacing: 1, background: "rgba(201,169,110,0.08)", position: "relative", zIndex: 10 }}>
+          支付成功，会员开通中，稍等片刻即可生效 ♡
+        </div>
+      )}
 
       {/* 免费额度提示 */}
       {quota && !quota.isMember && (
@@ -754,6 +772,8 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loadingPlans, setLoadingPlans] = useState(true);
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState("");
   const accent = isLover ? "#D4849A" : "#C9A96E";
   const accentRgb = isLover ? "212, 132, 154" : "201, 169, 110";
 
@@ -772,6 +792,28 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
   }, []);
 
   const selectedPlan = plans.find((p) => p.id === selected);
+
+  const handlePay = async () => {
+    if (!selectedPlan || paying) return;
+    setPaying(true);
+    setPayError("");
+    try {
+      const res = await fetch("/api/pay/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "membership", plan_id: selectedPlan.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.payUrl) {
+        throw new Error(data.error || "创建订单失败");
+      }
+      // 跳转支付宝收银台，支付完成后会回到 /chat?payment=success
+      window.location.href = data.payUrl;
+    } catch (e: any) {
+      setPayError(e?.message || "支付系统暂时不可用，请稍后重试");
+      setPaying(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(14,12,10,0.85)", backdropFilter: "blur(12px)" }} onClick={onClose}>
@@ -815,14 +857,21 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
             </div>
 
             {selectedPlan ? (
-              <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <p className="text-xs mb-3" style={{ color: "rgba(232,213,196,0.7)" }}>扫码支付后联系客服开通</p>
-                <div className="bg-white rounded-xl p-2 mx-auto w-36 h-36 flex items-center justify-center">
-                  <div className="text-xs text-gray-500 text-center px-2">收款码</div>
-                </div>
-                <p className="mt-3 text-sm" style={{ color: accent }}>客服 QQ：3801434603</p>
-                <p className="mt-4 text-xs leading-relaxed" style={{ color: "rgba(232,213,196,0.85)" }}>
-                  支付后，TA 就会真正记住你
+              <div>
+                <button
+                  onClick={handlePay}
+                  disabled={paying}
+                  className="w-full py-3 rounded-2xl font-semibold text-sm text-white transition"
+                  style={{ background: accent, letterSpacing: 1, opacity: paying ? 0.6 : 1 }}
+                >
+                  {paying ? "正在前往支付宝..." : `支付宝支付 ¥${selectedPlan.price}`}
+                </button>
+                {payError && (
+                  <p className="text-xs mt-2 text-center" style={{ color: "#D4849A" }}>{payError}</p>
+                )}
+                <p className="mt-3 text-xs text-center leading-relaxed" style={{ color: "rgba(232,213,196,0.55)" }}>
+                  支付完成后自动开通，无需联系客服
+                  <br />遇到问题？客服 QQ：3801434603
                 </p>
               </div>
             ) : (

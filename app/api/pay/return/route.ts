@@ -8,5 +8,5 @@ import { NextRequest } from "next/server";
 export async function GET(req: NextRequest) {
   // User is redirected here after payment on Alipay page
   // The actual fulfillment is handled by the async notify callback
-  redirect("/dashboard?payment=success");
+  redirect("/chat?payment=success");
 }
