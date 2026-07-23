@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   // 1. 获取 companion
   const { data: companion, error: compErr } = await supabase
     .from("companions")
-    .select("id, user_id, relationship_type, gender, companion_name, user_nickname, persona, persona_locked_at, relationship_stage, last_active_at")
+    .select("id, user_id, relationship_type, gender, companion_name, user_nickname, persona, persona_locked_at, relationship_stage, live_state, last_active_at")
     .eq("id", companionId)
     .eq("user_id", user.id)
     .single();
@@ -34,7 +34,17 @@ export async function GET(req: Request) {
     ? Math.max(0, Math.floor((now.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24)))
     : -1; // -1 表示从未聊过（新创建）
 
-  const timeBlock = currentTimeBlock();
+  const timeBlock = currentTimeBlock(new Date(), companion.gender);
+
+  // 上次对话结束时的实时状态（extract 异步写入）：让开场白"接着上次"，并防止行为公式化
+  const liveState = companion.live_state as { current_activity?: string; mood?: string; last_topic?: string } | null;
+  const liveStateText = liveState && (liveState.current_activity || liveState.last_topic)
+    ? `\n上次见面时：${[
+        liveState.current_activity ? `你在做「${liveState.current_activity}」` : "",
+        liveState.mood ? `心情「${liveState.mood}」` : "",
+        liveState.last_topic ? `你们聊到「${liveState.last_topic}」` : "",
+      ].filter(Boolean).join("，")}。`
+    : "";
 
   // 3. 会员：加载长期记忆
   const membership = await getMembershipStatus(user.id);
@@ -84,6 +94,7 @@ export async function GET(req: Request) {
 
 # 背景
 ${timeBlock}
+${liveStateText}
 ${relationshipType === "lover" ? stageBlock(companion.relationship_stage || 5) : ""}
 ${daysSinceLastChat === -1
     ? "这是你们第一次聊天。TA 刚选择了你，你需要用一个温暖、自然的开场主动和 TA 说第一句话。"
@@ -99,7 +110,9 @@ ${daysSinceLastChat === -1
 # TA 的事（你记得的）
 ${memText}
 ${profileText}
-你可以自然地提起 TA 最近在忙的事或你们聊过的事，但别生硬——要像真的记得、真的在意。`;
+你可以自然地提起 TA 的事，但要有时效感：
+- 几天前说"在忙"的事，现在很可能已经结束——用"后来怎么样了"的问法，别默认 TA 还在做
+- 同一件旧事不要每次见面都提，挑和此刻最相关的一件就够`;
   } else if (!isMember) {
     prompt += `
 # 注意
@@ -114,6 +127,7 @@ ${PERSONA_BLOCKS[persona].slice(0, 200)}
 - 只说【一句话】，不许发两条或更多
 - 短、口语、自然，像真人发的一条微信消息
 - ${relationshipType === "lover" ? "恋人间的亲昵和温度，但不过火" : "朋友间的关心和轻松"}
+- 你在做的事要随机多变，不要总是喝茶/倒水/泡茶——每次见面都该有点不一样
 - 不要提任何功能、不要解释任何规则、不要用 emoji 堆砌
 
 # 严禁
@@ -132,7 +146,7 @@ ${PERSONA_BLOCKS[persona].slice(0, 200)}
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || "deepseek-chat",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.6,
+      temperature: 0.85,
       max_tokens: 60,
     });
 

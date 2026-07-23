@@ -9,6 +9,7 @@ create table public.profiles (
   credits integer default 50,
   membership_type text default 'free' check (membership_type in ('free', 'monthly', 'yearly')),
   membership_expires_at timestamptz,
+  free_messages_used integer default 0,
   created_at timestamptz default now()
 );
 
@@ -39,6 +40,7 @@ create table public.usage_logs (
 create table public.chat_sessions (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references public.profiles on delete cascade not null,
+  companion_id uuid references public.companions on delete cascade not null,
   title text not null default '新对话',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -86,6 +88,9 @@ alter table public.orders enable row level security;
 alter table public.usage_logs enable row level security;
 alter table public.chat_sessions enable row level security;
 alter table public.chat_messages enable row level security;
+alter table public.companions enable row level security;
+alter table public.user_profiles enable row level security;
+alter table public.memory_summaries enable row level security;
 
 create policy "Users can view own profile" on public.profiles for select using (auth.uid() = id);
 create policy "Users can update own profile" on public.profiles for update using (auth.uid() = id);
@@ -96,3 +101,57 @@ create policy "Users can insert own usage" on public.usage_logs for insert with 
 create policy "Users manage own sessions" on public.chat_sessions for all using (auth.uid() = user_id);
 create policy "Users manage own messages" on public.chat_messages for all
   using (auth.uid() in (select user_id from public.chat_sessions where id = chat_messages.session_id));
+create policy "Users manage own companions" on public.companions for all using (auth.uid() = user_id);
+create policy "Users manage own profiles" on public.user_profiles for all using (auth.uid() = (select user_id from public.companions where id = companion_id));
+create policy "Users manage own memories" on public.memory_summaries for all using (auth.uid() = (select user_id from public.companions where id = companion_id));
+
+-- 13. 自动创建 user_profiles 触发器
+create or replace function public.handle_new_companion()
+returns trigger as $$
+begin
+  insert into public.user_profiles (companion_id, profile)
+  values (new.id, '{}'::jsonb);
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger on_companion_created
+  after insert on public.companions
+  for each row execute procedure public.handle_new_companion();
+
+-- 9. companions 表（陪伴角色）
+create table public.companions (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles on delete cascade not null,
+  relationship_type text not null check (relationship_type in ('friend', 'lover')),
+  gender text,
+  companion_name text,
+  user_nickname text,
+  persona text default 'gentle' check (persona in ('gentle', 'playful', 'quiet', 'clingy')),
+  persona_locked_at timestamptz,
+  relationship_stage integer default 5,
+  relationship_events jsonb default '[]',
+  last_active_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- 10. user_profiles 表（用户档案）
+create table public.user_profiles (
+  companion_id uuid references public.companions on delete cascade primary key,
+  profile jsonb default '{}',
+  updated_at timestamptz default now()
+);
+
+-- 11. memory_summaries 表（记忆摘要）
+create table public.memory_summaries (
+  id uuid default gen_random_uuid() primary key,
+  companion_id uuid references public.companions on delete cascade not null,
+  summary text not null,
+  importance integer default 3 check (importance between 1 and 5),
+  source_session_id uuid references public.chat_sessions on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+

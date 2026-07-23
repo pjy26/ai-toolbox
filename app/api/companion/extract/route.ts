@@ -101,12 +101,19 @@ ${recentText}
   },
   "new_summaries": [
     { "summary": "一句话", "importance": 3 }
-  ]
+  ],
+  "amara_state": {
+    "current_activity": "对话结尾时陪伴角色正在做的事（具体、生活化，5-15字，如'窝在沙发追剧''刚跑完步喝水'）",
+    "mood": "陪伴角色此刻的心情（2-6字，如'有点开心''小委屈''困困的'）",
+    "last_topic": "你们最后在聊的话题（5-15字）"
+  }
 }
 
 规则：
 - profile_updates 只包含这次对话里"新发现"或"需要更新"的字段，没有就留空对象/空数组。已有的档案字段不重复。
+- ongoing_matters 是【覆盖式】字段：输出"截至此刻仍在进行的事"的完整列表。已经结束、解决、翻篇的事（如已改完的 bug、已结束的考试）不要再包含进去——它会整体替换旧列表。
 - new_summaries 只写"值得长期带着"的事件/情绪节点，1-3 句，importance 1-5。没有就空数组。
+- amara_state 必填：以陪伴角色的视角描述对话结束那一刻的状态，用于下次对话的连续性。活动要具体、每次不同，不要总是"喝茶"。
 - 一句话能讲清的别拆两条。
 - 严格输出 JSON，不要 markdown 代码块，不要解释。`;
 
@@ -131,6 +138,12 @@ ${recentText}
       const merged = JSON.parse(JSON.stringify(currentProfile));
       for (const key of Object.keys(parsed.profile_updates)) {
         const newVal = parsed.profile_updates[key];
+        // ongoing_matters 覆盖式更新：模型输出的是"此刻仍在进行的事"全量列表，
+        // 空数组也生效（表示手头的事都了结了），防止旧事（如已改完的 bug）永久残留
+        if (key === "ongoing_matters" && Array.isArray(newVal)) {
+          merged[key] = newVal;
+          continue;
+        }
         if (Array.isArray(newVal) && newVal.length > 0) {
           const oldArr = Array.isArray(merged[key]) ? merged[key] : [];
           const set = new Set<string>();
@@ -164,6 +177,20 @@ ${recentText}
         }));
       if (rows.length > 0) {
         await supabase.from("memory_summaries").insert(rows);
+      }
+    }
+
+    // 写入实时状态：下次对话/开场白据此"接着上次"，并防止行为公式化
+    if (parsed.amara_state && typeof parsed.amara_state === "object") {
+      const s = parsed.amara_state;
+      const liveState = {
+        current_activity: typeof s.current_activity === "string" ? s.current_activity.slice(0, 50) : "",
+        mood: typeof s.mood === "string" ? s.mood.slice(0, 20) : "",
+        last_topic: typeof s.last_topic === "string" ? s.last_topic.slice(0, 50) : "",
+        updated_at: new Date().toISOString(),
+      };
+      if (liveState.current_activity || liveState.last_topic) {
+        await supabase.from("companions").update({ live_state: liveState }).eq("id", companion_id);
       }
     }
 

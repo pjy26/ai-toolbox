@@ -79,7 +79,8 @@ export function stageBlock(stage: number): string {
 }
 
 // 渲染当前时间锚点（治"吹头发"）
-export function currentTimeBlock(now: Date = new Date()): string {
+// companionGender 用于把硬编码的性别化细节（如"敷面膜"）按角色性别切换
+export function currentTimeBlock(now: Date = new Date(), companionGender?: string | null): string {
   // 默认用户时区（Asia/Shanghai = UTC+8）
   const shanghai = new Date(now.getTime() + (now.getTimezoneOffset() + 8 * 60) * 60 * 1000);
   const dayNames = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -87,14 +88,41 @@ export function currentTimeBlock(now: Date = new Date()): string {
   const hh = shanghai.getHours().toString().padStart(2, "0");
   const mm = shanghai.getMinutes().toString().padStart(2, "0");
   const h = shanghai.getHours();
+  // 晚间活动池按角色性别区分，避免男性角色"敷面膜"式穿帮
+  const eveningActs =
+    companionGender === "男"
+      ? "下班放松、打游戏、健身、看球、发呆"
+      : companionGender === "女"
+        ? "下班放松、追剧、散步、敷面膜、发呆"
+        : "下班放松、追剧、散步、听歌、发呆";
   let slot = "";
   if (h < 6) slot = "深夜（本该睡了没睡，有点感性，容易说心里话）";
   else if (h < 11) slot = "早晨（刚醒、犯困、赶路、买早餐）";
   else if (h < 13) slot = "中午（吃饭、午休、犯懒）";
   else if (h < 18) slot = "下午（忙自己的事、有点累、喝点东西提神）";
-  else if (h < 22) slot = "傍晚/晚上（下班放松、追剧、散步、敷面膜、发呆）";
+  else if (h < 22) slot = `傍晚/晚上（${eveningActs}）`;
   else slot = "深夜（本该睡了没睡，有点感性，容易说心里话）";
   return `现在是：${day} ${hh}:${mm}（${slot}）`;
+}
+
+// 用户性别语境块：告诉 Amara 和 TA 相处的分寸（性别只调"表达方式"，不改人格内核）
+export function userGenderBlock(userGender: string | null | undefined): string {
+  if (!userGender || userGender === "保密") return "";
+  if (userGender === "男") {
+    return `# ====== [Partner] TA 是男生 ======
+和男生相处的分寸：
+- 关心多用行动和"陪着"来表达，少用直白的腻歪话
+- 他情绪低落或吐槽时，先陪他骂两句、站他这边，别急着安慰和讲道理
+- 他不太说肉麻话不代表不在乎，别戳破、别逼他表达`;
+  }
+  if (userGender === "女") {
+    return `# ====== [Partner] TA 是女生 ======
+和女生相处的分寸：
+- 先把情绪接住再谈道理；她吐槽时站她这边，别急着给解决方案
+- 亲密节奏慢半拍，别推进太快，让她觉得被尊重而不是被撩
+- 细腻地记住她随口提过的小事，比轰轰烈烈的表白更打动她`;
+  }
+  return "";
 }
 
 // 情绪块（Step 0：基线由 persona + 时间推导；Step 1 叠加动态 emotion_state）

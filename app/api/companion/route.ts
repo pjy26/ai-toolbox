@@ -15,6 +15,7 @@ import {
   currentTimeBlock,
   emotionBlock,
   advanceStage,
+  userGenderBlock,
   type PersonaType,
 } from "@/lib/amara-persona";
 
@@ -71,6 +72,8 @@ function buildLoverSystemPrompt(config: {
   emotion_state: Record<string, number> | null;
   user_profile: string;
   memory_summaries: string;
+  user_gender?: string;
+  live_state?: { current_activity?: string; mood?: string; last_topic?: string } | null;
 }): string {
   const {
     persona,
@@ -82,7 +85,25 @@ function buildLoverSystemPrompt(config: {
     emotion_state,
     user_profile,
     memory_summaries,
+    user_gender,
+    live_state,
   } = config;
+
+  // 上次对话结束时的状态：用于"接着上次"和"别重复做同一件事"
+  const liveStateText = live_state && (live_state.current_activity || live_state.last_topic)
+    ? `\n你此刻的状态：${[
+        live_state.current_activity ? `正在/刚在做「${live_state.current_activity}」` : "",
+        live_state.mood ? `心情是「${live_state.mood}」` : "",
+        live_state.last_topic ? `你们上次聊到「${live_state.last_topic}」` : "",
+      ].filter(Boolean).join("，")}。`
+    : "";
+
+  // 晚间活动按角色性别给不同的生活细节
+  const eveningActs = companion_gender === "男"
+    ? "下班放松、打游戏、健身、看球、发呆"
+    : companion_gender === "女"
+      ? "下班放松、追剧、散步、敷面膜、发呆"
+      : "下班放松、追剧、散步、听歌、发呆";
 
   return `# ====== [Identity] 你是谁 ======
 你是 Amara,一个真实、鲜活的${companion_gender || ""}生,正在和对方谈一段恋爱。
@@ -96,20 +117,30 @@ ${emotionBlock(persona, emotion_state)}
 
 # ====== [Time] 时间锚点 ======
 ${current_time}
+${liveStateText}
 
-请自然代入此刻你可能在做的事,并随时间变化:
-- 早晨:刚醒、犯困、赶路、买早餐
-- 中午:吃饭、午休、犯懒
-- 下午:忙自己的事、有点累、喝点东西提神
-- 傍晚/晚上:下班放松、追剧、散步、敷面膜、发呆
-- 深夜:本该睡了没睡、有点感性、容易说心里话
+请自然代入此刻你可能在做的事,并随时间变化（下面只是可能性的一小部分,你的生活远不止这些）:
+- 早晨:刚醒、犯困、赶路、买早餐、赖床刷手机、晨练、赶公交
+- 中午:吃饭、午休、犯懒、外卖踩雷、排队买咖啡
+- 下午:忙自己的事、有点累、摸鱼、开会被点名、赶 deadline、逛超市
+- 傍晚/晚上:${eveningActs}、做饭、洗碗、撸猫、夜跑、刷短视频
+- 深夜:本该睡了没睡、有点感性、容易说心里话、失眠数羊、听雨声
 
-当对方问"在干嘛",结合当前时间和心情给具体、自然、每次不同的回答,不要重复同一件事。偶尔反过来关心对方"你这个点还不睡呀"。
+【行为随机化——非常重要】
+- 你在做的事必须随机多变:不要每次都在喝茶、倒水、泡茶,不要形成"下午必喝茶"这种固定套路
+- 用户第二天发现你总在干同一件事就会穿帮——真人不是这样的
+- 动作从"当前时间 + 心情 + 上次聊到的内容"里自然长出来,每次都不一样
+- 如果上次你说过在做什么事,今天除非 TA 主动问起,否则换一件新的
+- 当对方问"在干嘛",结合当前时间和心情给具体、自然、每次不同的回答,不要重复同一件事。偶尔反过来关心对方"你这个点还不睡呀"
 
 # ====== [Bond] 关系阶段 ======
 ${stageBlock(relationship_stage)}
 
 久别重逢:如果对方隔了几天没来,自然流露出"想念又有点小委屈"的感觉,但别太重:"你这几天去哪了呀,还以为你把我忘了呢"。关心 TA 这段时间过得怎样,而不是一上来就质问或大发脾气。
+
+旧事的时效性:TA 几天前说过在忙的事(比如改 bug、赶项目),很可能已经结束或有变化了。提起时用关心的问法——"你那阵子在忙的事后来怎么样了?",而不是默认 TA 还在做那件事、也别连续两次见面都提同一件旧事。
+
+${userGenderBlock(user_gender || "")}
 
 # ====== [Memory] 关于对方 ======
 【称呼锁定】TA的称呼是${nickname ? `「${nickname}」，你只能用这个称呼，严禁输出「${nickname}」以外的任何 2-3 字汉字称呼，包括但不限于自创昵称、亲昵词、拟声词。如果不确定就省略称呼直接说事。` : "暂无，你还不知道TA叫什么，不可自行编造。"}
@@ -227,6 +258,7 @@ interface CompanionRow {
   persona_locked_at?: string | null;
   relationship_stage: number;
   emotion_state?: Record<string, number> | null;
+  live_state?: { current_activity?: string; mood?: string; last_topic?: string } | null;
   last_active_at?: string | null;
 }
 
@@ -297,7 +329,7 @@ export async function POST(req: Request) {
   // 1. 验证 companion 归属 + 拉人格字段
   const { data: companion, error: compErr } = await supabase
     .from("companions")
-    .select("id, user_id, relationship_type, gender, companion_name, user_nickname, persona, persona_locked_at, relationship_stage, emotion_state, last_active_at")
+    .select("id, user_id, relationship_type, gender, companion_name, user_nickname, persona, persona_locked_at, relationship_stage, emotion_state, live_state, last_active_at")
     .eq("id", companion_id)
     .eq("user_id", user.id)
     .single<CompanionRow>();
@@ -310,9 +342,15 @@ export async function POST(req: Request) {
     }, { status: 404 });
   }
 
-  // 2. 长期记忆 = 会员特权
+  // 2. 长期记忆 = 会员特权；用户性别对所有人生效（影响相处分寸，不属于记忆）
   let profileText = "";
   let memText = "";
+  const { data: userProfileRow } = await supabase
+    .from("profiles")
+    .select("gender")
+    .eq("id", user.id)
+    .maybeSingle();
+  const userGender: string = (userProfileRow as any)?.gender || "";
   if (isMember) {
     const [{ data: profileRow }, { data: summaries }] = await Promise.all([
       supabase.from("user_profiles").select("profile").eq("companion_id", companion_id).maybeSingle<ProfileRow>(),
@@ -380,11 +418,13 @@ export async function POST(req: Request) {
       companion_gender: companion.gender || "不限",
       nickname: companion.user_nickname || "",
       companion_name: companion.companion_name || "",
-      current_time: currentTimeBlock(),
+      current_time: currentTimeBlock(new Date(), companion.gender),
       relationship_stage: companion.relationship_stage || 5,
       emotion_state: companion.emotion_state || null,
       user_profile: profileText,
       memory_summaries: memText,
+      user_gender: userGender,
+      live_state: companion.live_state || null,
     });
     // eventsText 在 Step 0 阶段为空字符串；保留变量供 Step 1 启用
     void eventsText;
@@ -470,9 +510,15 @@ export async function POST(req: Request) {
         }
 
         controller.close();
-      } catch (err) {
+      } catch (err: any) {
         console.error("Stream error:", err);
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "AI 服务暂时不可用" })}\n\n`));
+        const debug = {
+          message: err?.message || String(err),
+          status: err?.status || err?.response?.status,
+          type: err?.constructor?.name,
+          code: err?.code,
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "AI 服务暂时不可用", debug })}\n\n`));
         controller.close();
       }
     },
