@@ -2,10 +2,14 @@
 import AlipaySdk from "alipay-sdk";
 import AlipayFormData from "alipay-sdk/lib/form";
 
+// Vercel 等平台的 env 粘贴多行 PEM 密钥时，换行常被存成字面量 "\n"，
+// Node crypto 解析会报 DECODER routines::unsupported——统一归一化为真实换行
+const normalizeKey = (k?: string) => (k || "").replace(/\\n/g, "\n");
+
 const alipaySdk = new AlipaySdk({
   appId: process.env.ALIPAY_APP_ID!,
-  privateKey: process.env.ALIPAY_PRIVATE_KEY!,
-  alipayPublicKey: process.env.ALIPAY_PUBLIC_KEY!,
+  privateKey: normalizeKey(process.env.ALIPAY_PRIVATE_KEY),
+  alipayPublicKey: normalizeKey(process.env.ALIPAY_PUBLIC_KEY),
   gateway: process.env.ALIPAY_GATEWAY || "https://openapi-sandbox.dl.alipaydev.com/gateway.do",
 });
 
