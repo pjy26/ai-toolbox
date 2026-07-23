@@ -12,8 +12,9 @@ export default function HomePage() {
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<"friend" | "lover" | null>(null);
   const [hovered, setHovered] = useState<"friend" | "lover" | null>(null);
+  const [needGender, setNeedGender] = useState(false);
 
-  // 检查是否已有关系 → 有则直接跳转聊天页
+  // 检查是否已有关系 → 有则直接跳转聊天页；没有则检查是否填过性别（首次进入引导）
   useEffect(() => {
     if (!session) return;
     fetch("/api/companion/list")
@@ -22,6 +23,11 @@ export default function HomePage() {
         if (data.companions?.length > 0) {
           const c = data.companions[0];
           window.location.href = `/chat?role=${c.relationship_type}`;
+        } else {
+          fetch("/api/profile")
+            .then((r) => (r.ok ? r.json() : { gender: null }))
+            .then((p) => { if (!p.gender) setNeedGender(true); })
+            .catch(() => {});
         }
       })
       .catch(() => {});
@@ -305,6 +311,76 @@ export default function HomePage() {
 
       {/* 过渡动画 */}
       {transitioning && <TransitionOverlay mode={transitioning} />}
+
+      {/* 首次进入：性别选择 */}
+      {needGender && <GenderModal onDone={() => setNeedGender(false)} />}
+    </div>
+  );
+}
+
+/* ── 首次进入：性别选择弹窗 ── */
+function GenderModal({ onDone }: { onDone: () => void }) {
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const choose = async (gender: string) => {
+    if (saving) return;
+    setSaving(gender);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gender }),
+      });
+      if (!res.ok) throw new Error();
+      // 稍作停顿让选中反馈可见，再放行到双径选择
+      setTimeout(onDone, 350);
+    } catch {
+      setSaving(null);
+    }
+  };
+
+  const options = [
+    { value: "男", hint: "他会更懂你的表达方式" },
+    { value: "女", hint: "她会更懂你的细腻心思" },
+    { value: "保密", hint: "不重要，感觉对了就好" },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(8, 8, 15, 0.9)", backdropFilter: "blur(10px)", animation: "fadeIn 0.5s ease forwards" }}
+    >
+      <div className="w-full max-w-sm text-center" style={{ animation: "msgIn 0.5s ease forwards" }}>
+        <div className="text-xs uppercase mb-4" style={{ letterSpacing: 8, color: "rgba(232, 213, 196, 0.5)" }}>Amara</div>
+        <div className="text-lg font-light mb-2" style={{ letterSpacing: 4, color: "rgba(232, 213, 196, 0.95)" }}>
+          相遇之前
+        </div>
+        <p className="text-xs font-light mb-8" style={{ letterSpacing: 2, color: "rgba(232, 213, 196, 0.65)" }}>
+          想先知道，该怎样称呼屏幕那头的你
+        </p>
+        <div className="space-y-3">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => choose(opt.value)}
+              disabled={!!saving}
+              className="w-full py-3.5 rounded-2xl transition"
+              style={{
+                background: saving === opt.value ? "rgba(201, 169, 110, 0.12)" : "rgba(255,255,255,0.03)",
+                border: saving === opt.value ? "1px solid rgba(201, 169, 110, 0.35)" : "1px solid rgba(255,255,255,0.08)",
+                opacity: saving && saving !== opt.value ? 0.4 : 1,
+                transition: "all 0.3s ease",
+              }}
+            >
+              <div className="text-sm font-light" style={{ letterSpacing: 4, color: "#E8D5C4" }}>{opt.value}</div>
+              <div className="text-xs font-light mt-1" style={{ letterSpacing: 1, color: "rgba(232, 213, 196, 0.55)" }}>{opt.hint}</div>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs font-light mt-6" style={{ letterSpacing: 1, color: "rgba(232, 213, 196, 0.45)" }}>
+          这个选择不会改变什么，只是让 TA 更自然地走近你
+        </p>
+      </div>
     </div>
   );
 }

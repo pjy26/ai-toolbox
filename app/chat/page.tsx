@@ -538,6 +538,8 @@ function ChatInner() {
         <MyDrawer
           isLover={isLover}
           quota={quota}
+          companion={companion}
+          onNicknameSaved={(nick) => setCompanion((prev) => (prev ? { ...prev, user_nickname: nick } : prev))}
           onClose={() => setShowMyDrawer(false)}
           onShowPaywall={() => { setShowMyDrawer(false); setShowPaywall(true); }}
         />
@@ -547,15 +549,52 @@ function ChatInner() {
 }
 
 /* ── "我的" 抽屉 ── */
-function MyDrawer({ isLover, quota, onClose, onShowPaywall }: {
+function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowPaywall }: {
   isLover: boolean;
   quota: Quota | null;
+  companion: Companion | null;
+  onNicknameSaved: (nick: string) => void;
   onClose: () => void;
   onShowPaywall: () => void;
 }) {
   const { supabaseClient } = useSessionContext();
   const accent = isLover ? "#D4849A" : "#C9A96E";
   const accentRgb = isLover ? "212, 132, 154" : "201, 169, 110";
+  const [editingNick, setEditingNick] = useState(false);
+  const [nickInput, setNickInput] = useState("");
+  const [savingNick, setSavingNick] = useState(false);
+  const [nickError, setNickError] = useState("");
+
+  const startEditNick = () => {
+    setNickInput(companion?.user_nickname || "");
+    setNickError("");
+    setEditingNick(true);
+  };
+
+  const saveNick = async () => {
+    const nick = nickInput.trim();
+    if (!companion || savingNick) return;
+    if (nick.length < 1 || nick.length > 12) {
+      setNickError("昵称需要 1-12 个字符");
+      return;
+    }
+    setSavingNick(true);
+    setNickError("");
+    try {
+      const res = await fetch("/api/companion/manage", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companion_id: companion.id, user_nickname: nick }),
+      });
+      if (!res.ok) throw new Error();
+      onNicknameSaved(nick);
+      setEditingNick(false);
+    } catch {
+      setNickError("保存失败，请稍后重试");
+    } finally {
+      setSavingNick(false);
+    }
+  };
 
   const handleLogout = async () => {
     // 清理 amara_* sessionStorage：现在里面存的是真实 session 指针（用户作用域数据），
@@ -622,6 +661,56 @@ function MyDrawer({ isLover, quota, onClose, onShowPaywall }: {
               onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
             >
               {isLover ? "让 TA 记住你" : "开通会员"}
+            </button>
+          )}
+        </div>
+
+        {/* 昵称卡片 */}
+        <div className="mx-4 mb-4 p-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="text-xs mb-2" style={{ letterSpacing: 2, color: "rgba(232,213,196,0.6)" }}>TA 怎么称呼你</div>
+          {editingNick ? (
+            <div>
+              <div className="flex gap-2">
+                <input
+                  value={nickInput}
+                  onChange={(e) => setNickInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveNick(); }}
+                  maxLength={12}
+                  autoFocus
+                  placeholder="输入昵称"
+                  className="flex-1 rounded-xl text-sm font-light"
+                  style={{
+                    background: "#1A1716",
+                    border: "1px solid #2A2018",
+                    padding: "8px 12px",
+                    color: "#E8D5C4",
+                    outline: "none",
+                  }}
+                />
+                <button
+                  onClick={saveNick}
+                  disabled={savingNick}
+                  className="px-4 rounded-xl text-sm text-white"
+                  style={{ background: accent, opacity: savingNick ? 0.6 : 1, letterSpacing: 1 }}
+                >
+                  {savingNick ? "..." : "保存"}
+                </button>
+                <button
+                  onClick={() => setEditingNick(false)}
+                  className="px-3 rounded-xl text-sm"
+                  style={{ color: "rgba(232,213,196,0.7)", border: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                  取消
+                </button>
+              </div>
+              {nickError && <div className="text-xs mt-2" style={{ color: "#D4849A" }}>{nickError}</div>}
+            </div>
+          ) : (
+            <button onClick={startEditNick} className="w-full flex items-center justify-between text-left">
+              <span className="text-sm font-light" style={{ letterSpacing: 1, color: "#E8D5C4" }}>
+                {companion?.user_nickname || "未设置"}
+              </span>
+              <span className="text-xs" style={{ color: accent, letterSpacing: 1 }}>修改</span>
             </button>
           )}
         </div>
