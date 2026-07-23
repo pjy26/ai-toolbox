@@ -13,6 +13,17 @@ const alipaySdk = new AlipaySdk({
   gateway: process.env.ALIPAY_GATEWAY || "https://openapi-sandbox.dl.alipaydev.com/gateway.do",
 });
 
+// 临时调试：只输出密钥的格式特征（不含密钥本体），排查 env 存储格式问题
+console.error(
+  "[alipay debug]",
+  "appId:", (process.env.ALIPAY_APP_ID || "").slice(0, 6),
+  "privHead:", JSON.stringify((process.env.ALIPAY_PRIVATE_KEY || "").slice(0, 35)),
+  "privTail:", JSON.stringify((process.env.ALIPAY_PRIVATE_KEY || "").slice(-25)),
+  "privLen:", (process.env.ALIPAY_PRIVATE_KEY || "").length,
+  "pubHead:", JSON.stringify((process.env.ALIPAY_PUBLIC_KEY || "").slice(0, 35)),
+  "pubLen:", (process.env.ALIPAY_PUBLIC_KEY || "").length
+);
+
 export async function createAlipayOrder(params: {
   orderNo: string;
   amount: number;
