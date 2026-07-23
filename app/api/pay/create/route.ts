@@ -58,6 +58,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ orderNo, payUrl: payUrl as string });
   } catch (error) {
     console.error("支付宝创建订单失败:", error);
-    return NextResponse.json({ error: "支付系统暂时不可用" }, { status: 503 });
+    // 临时调试：返回脱敏后的密钥格式特征，排查 env 存储格式问题（修复后移除）
+    const k = process.env.ALIPAY_PRIVATE_KEY || "";
+    return NextResponse.json({
+      error: "支付系统暂时不可用",
+      debug: {
+        err: String(error).slice(0, 200),
+        appId: (process.env.ALIPAY_APP_ID || "").slice(0, 8),
+        keyHead: k.slice(0, 35),
+        keyTail: k.slice(-25),
+        keyLen: k.length,
+        pubLen: (process.env.ALIPAY_PUBLIC_KEY || "").length,
+      },
+    }, { status: 503 });
   }
 }
