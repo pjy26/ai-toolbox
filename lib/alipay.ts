@@ -6,12 +6,20 @@ import AlipayFormData from "alipay-sdk/lib/form";
 // Node crypto 解析会报 DECODER routines::unsupported——统一归一化为真实换行
 const normalizeKey = (k?: string) => (k || "").replace(/\\n/g, "\n");
 
-const alipaySdk = new AlipaySdk({
-  appId: process.env.ALIPAY_APP_ID!,
-  privateKey: normalizeKey(process.env.ALIPAY_PRIVATE_KEY),
-  alipayPublicKey: normalizeKey(process.env.ALIPAY_PUBLIC_KEY),
-  gateway: process.env.ALIPAY_GATEWAY || "https://openapi-sandbox.dl.alipaydev.com/gateway.do",
-});
+// 懒加载：Next.js 构建期（collect page data）会 import 路由模块，
+// 此时环境变量未必就绪，模块顶层直接 new 会导致构建失败
+let _sdk: InstanceType<typeof AlipaySdk> | null = null;
+function getSdk(): InstanceType<typeof AlipaySdk> {
+  if (!_sdk) {
+    _sdk = new AlipaySdk({
+      appId: process.env.ALIPAY_APP_ID!,
+      privateKey: normalizeKey(process.env.ALIPAY_PRIVATE_KEY),
+      alipayPublicKey: normalizeKey(process.env.ALIPAY_PUBLIC_KEY),
+      gateway: process.env.ALIPAY_GATEWAY || "https://openapi-sandbox.dl.alipaydev.com/gateway.do",
+    });
+  }
+  return _sdk;
+}
 
 export async function createAlipayOrder(params: {
   orderNo: string;
@@ -29,12 +37,12 @@ export async function createAlipayOrder(params: {
     product_code: "FAST_INSTANT_TRADE_PAY",
   });
 
-  const result = await alipaySdk.exec("alipay.trade.page.pay", {}, { formData });
+  const result = await getSdk().exec("alipay.trade.page.pay", {}, { formData });
   return result as string; // Returns payment URL
 }
 
 export function verifyAlipayNotify(params: Record<string, string>) {
-  return alipaySdk.checkNotifySign(params);
+  return getSdk().checkNotifySign(params);
 }
 
 /**
@@ -44,7 +52,7 @@ export function verifyAlipayNotify(params: Record<string, string>) {
  */
 export async function queryAlipayTradeStatus(orderNo: string): Promise<string | null> {
   try {
-    const result = (await alipaySdk.exec("alipay.trade.query", {
+    const result = (await getSdk().exec("alipay.trade.query", {
       bizContent: { out_trade_no: orderNo },
     })) as { tradeStatus?: string; trade_status?: string; code?: string };
     return result.tradeStatus || result.trade_status || null;

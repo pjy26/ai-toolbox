@@ -1,45 +1,27 @@
-# ai-toolbox 项目构建规则
+# Amara (ai-toolbox) — Claude Code 协作备忘
 
-## 技术栈
-- Next.js 14 (App Router)
-- Vercel 部署
-- Supabase 认证
-- Tailwind CSS
-- 支付宝沙箱支付
+> 本文档记录 Claude 在此仓库中必须遵守的规则。
+> **每次完成代码改动后，必须同步更新本文档，使其始终反映最新状态。**
 
-## 构建命令
-```
-npm run build
-```
-Vercel 构建时执行此命令，任何语法/类型/导入错误都会导致部署失败。
+## 架构说明
+- `app/` — Next.js 14 App Router 页面与 API 路由
+- `components/` — React 组件
+- `lib/` — 工具库（supabase、alipay、deepseek、orders）
+- `lib/deepseek.ts` — 人设系统提示词定义（Amara 设定）
+- `supabase/schema.sql` — 数据库结构
 
-## 严禁事项
+## 构建约束（硬性规则）
 
-### 1. 禁止在页面组件顶层使用客户端 Hook
-`useSearchParams()`、`usePathname()`、`useRouter()` 等 Next.js 客户端 Hook **必须**放在标记了 `"use client"` 的组件中，且包含 `useSearchParams()` 的组件必须用 `<Suspense>` 包裹。
-
-正确写法：
+### 1. 使用 `useSearchParams()` 的组件必须包 Suspense
+Next.js 14 静态导出时 `useSearchParams()` 会导致构建崩溃。凡是用了它的页面/组件，必须用 `<Suspense>` 包裹，且页面加 `export const dynamic = "force-dynamic"`。参考写法：
 ```tsx
-// page.tsx（服务端组件）
-import { Suspense } from "react";
-import ClientForm from "./ClientForm";
-
-export default function Page() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <ClientForm />
-    </Suspense>
-  );
-}
-
-// ClientForm.tsx（客户端组件）
 "use client";
 import { useSearchParams } from "next/navigation";
 export default function ClientForm() { ... }
 ```
 
-### 2. 禁止在模块顶层初始化支付宝 SDK 而不检查环境变量
-`lib/alipay.ts` 在模块顶层 `new AlipaySdk(...)`，如果缺少 `ALIPAY_APP_ID` 环境变量会导致构建崩溃。**不要修改这个文件的初始化方式**，确保环境变量已配置。
+### 2. 支付宝 SDK 必须懒加载，禁止在模块顶层初始化
+`lib/alipay.ts` 通过 `getSdk()` 懒加载 AlipaySdk。Next.js 构建期（collect page data）会 import 路由模块，此时环境变量未必就绪，模块顶层 `new AlipaySdk(...)` 会导致构建崩溃（Error: config.appId is required）。**不要把初始化挪回模块顶层**。
 
 ## 需要的环境变量（Vercel 后台已配置）
 - ALIPAY_APP_ID
@@ -47,11 +29,10 @@ export default function ClientForm() { ... }
 - ALIPAY_PUBLIC_KEY
 - ALIPAY_NOTIFY_URL
 - ALIPAY_RETURN_URL
-- NEXT_PUBLIC_SITE_URL
 - NEXT_PUBLIC_SUPABASE_URL
 - NEXT_PUBLIC_SUPABASE_ANON_KEY
-- OPENAI_BASE_URL
-- OPENAI_MODEL
+- SUPABASE_SERVICE_ROLE_KEY
+- OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL
 
-## 修改代码后验证
-修改完推送前，建议本地跑一次 `npm run build` 确认无报错。
+## 本次改动记录
+- 2026-07-25 懒加载支付宝 SDK 修复 redeploy 构建崩溃（config.appId is required）
