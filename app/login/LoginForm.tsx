@@ -18,10 +18,22 @@ export default function LoginForm() {
   const searchParams = useSearchParams();
   const supabase = createClientComponentClient();
 
+  // 手机号 + 密码登录：内部把 11 位手机号转成伪邮箱走标准邮箱认证，
+  // 用户无感知。手机号是否有效无法核验（无短信验证），属可接受取舍
+  const isPhone = (v: string) => /^1[3-9]\d{9}$/.test(v.trim());
+  const toAuthEmail = (v: string) => {
+    const t = v.trim();
+    return isPhone(t) ? `${t}@phone.pjytoolbox.xyz` : t;
+  };
+
   const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
       setError("请输入注册时用的邮箱");
+      return;
+    }
+    if (isPhone(email)) {
+      setError("手机号注册的账号没有绑定邮箱，无法邮件找回，请联系客服重置");
       return;
     }
     setLoading(true);
@@ -43,12 +55,13 @@ export default function LoginForm() {
     setError("");
 
     if (isSignUp) {
+      const authEmail = toAuthEmail(email);
       // 注册：传 nickname 到 user_metadata，触发器会写入 profiles.username
       const { data, error: authError } = await supabase.auth.signUp({
-        email,
+        email: authEmail,
         password,
         options: {
-          data: { username: nickname.trim() || email.split("@")[0] },
+          data: { username: nickname.trim() || authEmail.split("@")[0] },
         },
       });
 
@@ -72,21 +85,22 @@ export default function LoginForm() {
       return;
     }
 
-    // 登录：必须严格校验邮箱+密码
+    // 登录：必须严格校验账号+密码（手机号自动转伪邮箱）
+    const authEmail = toAuthEmail(email);
     const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email,
+      email: authEmail,
       password,
     });
 
     if (authError || !data?.session) {
       // 任何错误都一律拒绝，不区分"用户不存在"和"密码错误"，避免被探测
-      setError("邮箱或密码错误");
+      setError("账号或密码错误");
       setLoading(false);
       return;
     }
 
     // 二次确认：从服务端拿到的 user.email 必须和输入一致
-    if (data.user?.email?.toLowerCase() !== email.toLowerCase()) {
+    if (data.user?.email?.toLowerCase() !== authEmail.toLowerCase()) {
       await supabase.auth.signOut();
       setError("登录异常，请重试");
       setLoading(false);
@@ -199,12 +213,12 @@ export default function LoginForm() {
           <div className="relative">
             <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
             <input
-              type="email"
-              placeholder="邮箱地址"
+              type="text"
+              placeholder="邮箱或手机号"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              autoComplete="email"
+              autoComplete="username"
               className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
             />
           </div>
@@ -262,7 +276,7 @@ export default function LoginForm() {
 
 function translateError(msg: string): string {
   const m = msg.toLowerCase();
-  if (m.includes("already registered") || m.includes("already been registered")) return "该邮箱已注册，请直接登录";
+  if (m.includes("already registered") || m.includes("already been registered")) return "该账号已注册，请直接登录";
   if (m.includes("rate limit")) return "操作太频繁，请稍后再试";
   if (m.includes("password")) return "密码不符合要求（至少 6 位）";
   if (m.includes("email")) return "邮箱格式不正确";
