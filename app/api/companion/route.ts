@@ -457,7 +457,7 @@ export async function POST(req: Request) {
   messages.push({ role: "user", content: message });
 
   const encoder = new TextEncoder();
-  const model = process.env.OPENAI_MODEL || "deepseek-v4-flash";
+  const model = process.env.OPENAI_MODEL || "deepseek-v4-pro";
   const baseURL = process.env.OPENAI_BASE_URL || "https://api.deepseek.com";
   const apiKey = process.env.OPENAI_API_KEY;
 

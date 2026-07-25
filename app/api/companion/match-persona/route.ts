@@ -103,7 +103,7 @@ ${samples.map((s: string, i: number) => `${i + 1}. ${s}`).join("\n")}
 
   try {
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "deepseek-v4-flash",
+      model: process.env.OPENAI_MODEL || "deepseek-v4-pro",
       messages: [{ role: "user", content: judgePrompt }],
       temperature: 0.2,
       response_format: { type: "json_object" },

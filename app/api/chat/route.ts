@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
   try {
     const stream = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "deepseek-v4-flash",
+      model: process.env.OPENAI_MODEL || "deepseek-v4-pro",
       messages,
       stream: true,
       temperature: 0.7,

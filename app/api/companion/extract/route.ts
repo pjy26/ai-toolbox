@@ -119,7 +119,7 @@ ${recentText}
 
   try {
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "deepseek-v4-flash",
+      model: process.env.OPENAI_MODEL || "deepseek-v4-pro",
       messages: [{ role: "user", content: extractPrompt }],
       temperature: 0.3,
       response_format: { type: "json_object" },

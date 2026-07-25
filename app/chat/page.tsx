@@ -262,7 +262,7 @@ function ChatInner() {
         try {
           const p = JSON.parse(data);
           if (p.error) {
-            content = String(p.error);
+            content = String(p.error) + (p.debug?.message ? "（" + p.debug.message + "）" : "");
             setMessages((prev) => {
               const arr = [...prev];
               arr[arr.length - 1] = { role: "assistant", content };
