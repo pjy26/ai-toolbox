@@ -36,3 +36,20 @@ export async function createAlipayOrder(params: {
 export function verifyAlipayNotify(params: Record<string, string>) {
   return alipaySdk.checkNotifySign(params);
 }
+
+/**
+ * 主动向支付宝查询交易状态（服务器到服务器）
+ * 用于回跳时兜底履约，不依赖可能延迟/丢失的异步通知
+ * 返回 trade_status（TRADE_SUCCESS / WAIT_BUYER_PAY 等），查询失败返回 null
+ */
+export async function queryAlipayTradeStatus(orderNo: string): Promise<string | null> {
+  try {
+    const result = (await alipaySdk.exec("alipay.trade.query", {
+      bizContent: { out_trade_no: orderNo },
+    })) as { tradeStatus?: string; trade_status?: string; code?: string };
+    return result.tradeStatus || result.trade_status || null;
+  } catch (error) {
+    console.error("支付宝主动查单失败:", error);
+    return null;
+  }
+}

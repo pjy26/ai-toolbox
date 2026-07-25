@@ -1,5 +1,5 @@
 import { verifyAlipayNotify } from "@/lib/alipay";
-import { createServerAdminClient } from "@/lib/supabase";
+import { fulfillOrder } from "@/lib/fulfill";
 
 /**
  * Alipay async notification callback (server-to-server)
@@ -20,74 +20,12 @@ export async function POST(req: Request) {
     const orderNo = params["out_trade_no"];
     const tradeStatus = params["trade_status"];
 
-    if (!orderNo || tradeStatus !== "TRADE_SUCCESS") {
+    if (!orderNo || (tradeStatus !== "TRADE_SUCCESS" && tradeStatus !== "TRADE_FINISHED")) {
       return new Response("success"); // Acknowledge but don't process
     }
 
-    // Step 2: Use admin client (service role) since this is a public callback
-    const supabase = createServerAdminClient();
-
-    const { data: order } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("order_no", orderNo)
-      .single();
-
-    if (!order || order.status !== "pending") {
-      return new Response("success"); // Already processed or not found
-    }
-
-    // Step 3: Update order status
-    await supabase
-      .from("orders")
-      .update({ status: "paid", paid_at: new Date().toISOString() })
-      .eq("id", order.id);
-
-    // Step 4: Fulfill the order
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("credits, membership_type, membership_expires_at")
-      .eq("id", order.user_id)
-      .single();
-
-    if (!profile) return new Response("success");
-
-    if (order.type === "credits" && order.credits_amount) {
-      await supabase
-        .from("profiles")
-        .update({ credits: profile.credits + order.credits_amount })
-        .eq("id", order.user_id);
-    } else if (order.type === "membership" && (order.membership_months || order.membership_weeks)) {
-      // Extend from current expiry if still active
-      const base =
-        profile.membership_expires_at && new Date(profile.membership_expires_at) > new Date()
-          ? new Date(profile.membership_expires_at)
-          : new Date();
-
-      if (order.membership_weeks) {
-        // 新人周卡
-        base.setDate(base.getDate() + 7 * order.membership_weeks);
-        await supabase
-          .from("profiles")
-          .update({
-            membership_type: "weekly",
-            membership_expires_at: base.toISOString(),
-          })
-          .eq("id", order.user_id);
-      } else if (order.membership_months) {
-        base.setMonth(base.getMonth() + order.membership_months);
-        const membershipType = order.membership_months >= 12 ? "yearly" : "monthly";
-        const bonusCredits = membershipType === "yearly" ? 800 : 500;
-        await supabase
-          .from("profiles")
-          .update({
-            membership_type: membershipType,
-            membership_expires_at: base.toISOString(),
-            credits: profile.credits + bonusCredits,
-          })
-          .eq("id", order.user_id);
-      }
-    }
+    // Step 2: Fulfill (idempotent — 与回跳主动查单共用)
+    await fulfillOrder(orderNo);
 
     return new Response("success");
   } catch (error) {
