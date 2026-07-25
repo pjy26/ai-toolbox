@@ -261,6 +261,15 @@ function ChatInner() {
         if (data === "[DONE]") continue;
         try {
           const p = JSON.parse(data);
+          if (p.error) {
+            content = String(p.error);
+            setMessages((prev) => {
+              const arr = [...prev];
+              arr[arr.length - 1] = { role: "assistant", content };
+              return arr;
+            });
+            continue;
+          }
           const delta = p.choices?.[0]?.delta?.content || "";
           if (delta) {
             content += delta;

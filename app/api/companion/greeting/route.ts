@@ -144,10 +144,10 @@ ${PERSONA_BLOCKS[persona].slice(0, 200)}
     });
 
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "deepseek-chat",
+      model: process.env.OPENAI_MODEL || "deepseek-v4-flash",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.85,
-      max_tokens: 60,
+      max_tokens: 200,
     });
 
     const greeting = completion.choices?.[0]?.message?.content?.trim() || getFallbackGreeting(daysSinceLastChat, relationshipType);

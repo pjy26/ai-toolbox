@@ -457,7 +457,7 @@ export async function POST(req: Request) {
   messages.push({ role: "user", content: message });
 
   const encoder = new TextEncoder();
-  const model = process.env.OPENAI_MODEL || "deepseek-chat";
+  const model = process.env.OPENAI_MODEL || "deepseek-v4-flash";
   const baseURL = process.env.OPENAI_BASE_URL || "https://api.deepseek.com";
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -476,7 +476,7 @@ export async function POST(req: Request) {
           messages,
           stream: true,
           temperature: 0.7,
-          max_tokens: 200,
+          max_tokens: 500,
         });
 
         for await (const chunk of stream) {
