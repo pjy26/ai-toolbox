@@ -17,8 +17,12 @@ export async function GET(req: NextRequest) {
     try {
       const tradeStatus = await queryAlipayTradeStatus(orderNo);
       if (tradeStatus === "TRADE_SUCCESS" || tradeStatus === "TRADE_FINISHED") {
-        await fulfillOrder(orderNo);
-        target = "/chat?payment=success";
+        const result = await fulfillOrder(orderNo);
+        if (result === "paid" || result === "already") {
+          target = "/chat?payment=success";
+        } else {
+          console.error("回跳履约未命中订单:", orderNo, result);
+        }
       }
     } catch (error) {
       // 查单失败不阻塞用户，异步通知到达后仍会开通

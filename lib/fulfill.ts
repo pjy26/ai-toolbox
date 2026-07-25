@@ -9,19 +9,22 @@ import { createServerAdminClient } from "@/lib/supabase";
 export async function fulfillOrder(orderNo: string): Promise<"paid" | "already" | "notfound"> {
   const supabase = createServerAdminClient();
 
-  const { data: order } = await supabase
+  const { data: order, error: orderErr } = await supabase
     .from("orders")
     .select("*")
     .eq("order_no", orderNo)
     .single();
 
+  if (orderErr) console.error("履约查单失败:", orderNo, orderErr);
   if (!order) return "notfound";
   if (order.status !== "pending") return "already";
 
-  await supabase
+  const { error: upErr } = await supabase
     .from("orders")
     .update({ status: "paid", paid_at: new Date().toISOString() })
     .eq("id", order.id);
+
+  if (upErr) console.error("履约更新订单失败:", orderNo, upErr);
 
   const { data: profile } = await supabase
     .from("profiles")
