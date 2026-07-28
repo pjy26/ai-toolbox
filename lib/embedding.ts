@@ -6,9 +6,18 @@
 const DEFAULT_BASE_URL = "https://api.siliconflow.cn/v1";
 const DEFAULT_MODEL = "Qwen/Qwen3-Embedding-0.6B";
 
+// 诊断用：记录最近一次失败原因（回填/排查时读取，不影响主链路）
+let lastError: string | null = null;
+export function getLastEmbeddingError(): string | null {
+  return lastError;
+}
+
 export async function embedText(text: string, timeoutMs = 2000): Promise<number[] | null> {
   const apiKey = process.env.EMBEDDING_API_KEY;
-  if (!apiKey || !text?.trim()) return null;
+  if (!apiKey || !text?.trim()) {
+    lastError = !apiKey ? "EMBEDDING_API_KEY 未配置" : "空文本";
+    return null;
+  }
 
   const baseURL = (process.env.EMBEDDING_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
   const model = process.env.EMBEDDING_MODEL || DEFAULT_MODEL;
@@ -26,14 +35,21 @@ export async function embedText(text: string, timeoutMs = 2000): Promise<number[
       signal: controller.signal,
     });
     if (!res.ok) {
-      console.error("embedding 调用失败:", res.status, await res.text().catch(() => ""));
+      lastError = `HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`;
+      console.error("embedding 调用失败:", lastError);
       return null;
     }
     const json = await res.json();
     const vec = json?.data?.[0]?.embedding;
-    return Array.isArray(vec) && vec.length > 0 ? vec : null;
+    if (Array.isArray(vec) && vec.length > 0) {
+      lastError = null;
+      return vec;
+    }
+    lastError = "响应无 embedding 数据: " + JSON.stringify(json).slice(0, 200);
+    return null;
   } catch (err: any) {
     // 超时（AbortError）或网络错误都静默降级
+    lastError = err?.name === "AbortError" ? `超时(${timeoutMs}ms)` : `网络错误: ${err?.message || err}`;
     if (err?.name !== "AbortError") console.error("embedding 异常:", err?.message || err);
     return null;
   } finally {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerAdminClient } from "@/lib/supabase";
-import { embedText } from "@/lib/embedding";
+import { embedText, getLastEmbeddingError } from "@/lib/embedding";
 
 // 一次性回填脚本（部署在 Vercel 上跑——本地网络可能到不了 embedding 端点）
 // 遍历 memory_summaries / relationship_events 中 embedding 为 NULL 的行，逐条补 embedding
@@ -66,5 +66,10 @@ export async function POST(req: Request) {
     await backfillTable(supabase, "relationship_events", "description"),
   ];
 
-  return NextResponse.json({ ok: true, memory_summaries: summaries, relationship_events: events });
+  return NextResponse.json({
+    ok: true,
+    memory_summaries: summaries,
+    relationship_events: events,
+    lastEmbeddingError: getLastEmbeddingError(),
+  });
 }
