@@ -130,7 +130,6 @@ create table public.companions (
   persona text default 'gentle' check (persona in ('gentle', 'playful', 'quiet', 'clingy')),
   persona_locked_at timestamptz,
   relationship_stage integer default 5,
-  relationship_events jsonb default '[]',
   last_active_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()

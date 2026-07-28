@@ -4,6 +4,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import OpenAI from "openai";
 import { PERSONA_BLOCKS, currentTimeBlock, stageBlock, type PersonaType } from "@/lib/amara-persona";
+import { semanticRecall } from "@/lib/memory-retrieval";
 
 // 生成 Amara 的主动开场白
 export async function GET(req: Request) {
@@ -46,23 +47,26 @@ export async function GET(req: Request) {
       ].filter(Boolean).join("，")}。`
     : "";
 
-  // 3. 会员：加载长期记忆
+  // 3. 会员：加载长期记忆（语义检索：以最近一条用户消息为 query；失败/无消息退回 importance 排序）
   const membership = await getMembershipStatus(user.id);
   const isMember = membership.isMember;
 
   let profileText = "";
   let memText = "";
+  let evText = "";
   if (isMember) {
-    const [{ data: profileRow }, { data: summaries }] = await Promise.all([
-      supabase.from("user_profiles").select("profile").eq("companion_id", companionId).maybeSingle(),
-      supabase
-        .from("memory_summaries")
-        .select("summary, importance")
-        .eq("companion_id", companionId)
-        .order("importance", { ascending: false })
-        .order("updated_at", { ascending: false })
-        .limit(10),
-    ]);
+    const { data: lastUserMsgs } = await supabase
+      .from("chat_messages")
+      .select("content, chat_sessions!inner(companion_id)")
+      .eq("chat_sessions.companion_id", companionId)
+      .eq("role", "user")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const recallQuery: string = (lastUserMsgs as any[])?.[0]?.content || "";
+    const recall = recallQuery ? await semanticRecall(supabase, companionId, recallQuery) : null;
+
+    const { data: profileRow } = await supabase
+      .from("user_profiles").select("profile").eq("companion_id", companionId).maybeSingle();
 
     if (profileRow?.profile) {
       const p = profileRow.profile as Record<string, any>;
@@ -75,11 +79,23 @@ export async function GET(req: Request) {
       profileText = parts.join("。");
     }
 
-    if (summaries && Array.isArray(summaries) && summaries.length > 0) {
-      memText = (summaries as any[])
-        .slice(0, 5)
-        .map((s: any) => `- ${s.summary}`)
-        .join("\n");
+    if (recall) {
+      memText = recall.memories.slice(0, 5).map((s) => `- ${s.summary}`).join("\n");
+      evText = recall.events.map((e) => `- ${e.description}`).join("\n");
+    } else {
+      const { data: summaries } = await supabase
+        .from("memory_summaries")
+        .select("summary, importance")
+        .eq("companion_id", companionId)
+        .order("importance", { ascending: false })
+        .order("updated_at", { ascending: false })
+        .limit(10);
+      if (summaries && Array.isArray(summaries) && summaries.length > 0) {
+        memText = (summaries as any[])
+          .slice(0, 5)
+          .map((s: any) => `- ${s.summary}`)
+          .join("\n");
+      }
     }
   }
 
@@ -105,11 +121,12 @@ ${daysSinceLastChat === -1
         : `TA 已经 ${daysSinceLastChat} 天没来了。有点想 TA 了。`
 }`;
 
-  if (isMember && memText) {
+  if (isMember && (memText || evText)) {
     prompt += `
 # TA 的事（你记得的）
 ${memText}
 ${profileText}
+${evText ? `# 你们一起经历过\n${evText}` : ""}
 你可以自然地提起 TA 的事，但要有时效感：
 - 几天前说"在忙"的事，现在很可能已经结束——用"后来怎么样了"的问法，别默认 TA 还在做
 - 同一件旧事不要每次见面都提，挑和此刻最相关的一件就够`;
@@ -143,11 +160,13 @@ ${PERSONA_BLOCKS[persona].slice(0, 200)}
       baseURL: process.env.OPENAI_BASE_URL || "https://api.deepseek.com",
     });
 
+    // max_tokens=1000：v4 思考 token 与正文共享额度，思考本身要吃掉一两百，
+    // 上限给低了正文会被挤成空字符串（开场白是第一眼体验，绝不能空白）
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || "deepseek-v4-pro",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.85,
-      max_tokens: 200,
+      max_tokens: 1000,
     });
 
     const greeting = completion.choices?.[0]?.message?.content?.trim() || getFallbackGreeting(daysSinceLastChat, relationshipType);

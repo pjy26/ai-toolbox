@@ -127,9 +127,11 @@ export function userGenderBlock(userGender: string | null | undefined): string {
 
 // 情绪块（Step 0：基线由 persona + 时间推导；Step 1 叠加动态 emotion_state）
 // 设计借鉴 Animus EmotionModel：情绪有基线、有时间调制、有动态状态
+// emotion_state 新结构（extract 写入）：{ valence: -1~1, arousal: 0~1, tags: string[] }
+// 兼容旧结构 Record<string, number>（历史数据，按 top3 展示）
 export function emotionBlock(
   persona: PersonaType,
-  emotionState: Record<string, number> | null | undefined,
+  emotionState: Record<string, any> | null | undefined,
   now: Date = new Date()
 ): string {
   // persona 决定情绪底色（对应 Animus 的 personality-baseline）
@@ -151,17 +153,37 @@ export function emotionBlock(
   else if (h < 22) timeMod = "傍晚，放松下来";
   else timeMod = "夜深了，有点感性";
 
-  // Step 1 接入后，emotion_state 非空 → 用动态情绪
+  // Step 1：新结构 { valence, arousal, tags }
+  if (emotionState && typeof emotionState === "object" &&
+      (typeof emotionState.valence === "number" || Array.isArray(emotionState.tags))) {
+    const valence = typeof emotionState.valence === "number" ? emotionState.valence : 0;
+    const arousal = typeof emotionState.arousal === "number" ? emotionState.arousal : 0.5;
+    const tags = Array.isArray(emotionState.tags)
+      ? emotionState.tags.filter((t: any) => typeof t === "string" && t.trim()).slice(0, 4)
+      : [];
+    const valenceText = valence > 0.3 ? "偏开心" : valence < -0.3 ? "偏低落" : "平稳";
+    const arousalText = arousal > 0.7 ? "情绪浓度高" : arousal < 0.3 ? "情绪淡淡的" : "情绪适中";
+    return `# ====== [Emotion] 此刻的心情 ======
+主导情绪：${tags.length > 0 ? tags.join("、") : "（无明显标签）"}
+情绪基调：${valenceText}，${arousalText}
+性格底色：${baseline[persona]}
+时间影响：${timeMod}`;
+  }
+
+  // 旧结构兼容：Record<string, number> 按 top3 展示
   if (emotionState && Object.keys(emotionState).length > 0) {
     const top = Object.entries(emotionState)
+      .filter(([, v]) => typeof v === "number")
       .sort(([, a], [, b]) => (b as number) - (a as number))
       .slice(0, 3)
       .map(([k, v]) => `${k}:${Number(v).toFixed(2)}`)
       .join("，");
-    return `# ====== [Emotion] 此刻的心情 ======
+    if (top) {
+      return `# ====== [Emotion] 此刻的心情 ======
 主导情绪：${top}
 性格底色：${baseline[persona]}
 时间影响：${timeMod}`;
+    }
   }
 
   // Step 0：占位基线

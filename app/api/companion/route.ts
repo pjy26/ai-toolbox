@@ -18,6 +18,7 @@ import {
   userGenderBlock,
   type PersonaType,
 } from "@/lib/amara-persona";
+import { semanticRecall } from "@/lib/memory-retrieval";
 
 // ====== 称呼兜底：AI 输出后扫描替换自创昵称（保守策略，宁可漏过不误伤）======
 function fixNickname(assistantFull: string, dbNickname: string): string {
@@ -74,6 +75,7 @@ function buildLoverSystemPrompt(config: {
   memory_summaries: string;
   user_gender?: string;
   live_state?: { current_activity?: string; mood?: string; last_topic?: string } | null;
+  events_text?: string;
 }): string {
   const {
     persona,
@@ -87,6 +89,7 @@ function buildLoverSystemPrompt(config: {
     memory_summaries,
     user_gender,
     live_state,
+    events_text,
   } = config;
 
   // 上次对话结束时的状态：用于"接着上次"和"别重复做同一件事"
@@ -135,6 +138,7 @@ ${liveStateText}
 
 # ====== [Bond] 关系阶段 ======
 ${stageBlock(relationship_stage)}
+${events_text ? `\n你们一起经历过的事（可自然提起，别一次性抖完）：\n${events_text}\n` : ""}
 
 久别重逢:如果对方隔了几天没来,自然流露出"想念又有点小委屈"的感觉,但别太重:"你这几天去哪了呀,还以为你把我忘了呢"。关心 TA 这段时间过得怎样,而不是一上来就质问或大发脾气。
 
@@ -298,10 +302,9 @@ function profileToText(profile: Record<string, any> | null): string {
   return lines.join("\n");
 }
 
-function eventsToText(_events: any[] | undefined): string {
-  // Step 0：relationship_events 暂未生成，返回空字符串避免 prompt 空占位
-  // Step 1 接入事件抽取后恢复
-  return "";
+function eventsToText(events: { description: string; event_type?: string | null }[] | undefined): string {
+  if (!events || events.length === 0) return "";
+  return events.map((e) => `- ${e.description}`).join("\n");
 }
 
 export async function POST(req: Request) {
@@ -345,6 +348,7 @@ export async function POST(req: Request) {
   // 2. 长期记忆 = 会员特权；用户性别对所有人生效（影响相处分寸，不属于记忆）
   let profileText = "";
   let memText = "";
+  let eventsText = "";
   const { data: userProfileRow } = await supabase
     .from("profiles")
     .select("gender")
@@ -352,23 +356,30 @@ export async function POST(req: Request) {
     .maybeSingle();
   const userGender: string = (userProfileRow as any)?.gender || "";
   if (isMember) {
-    const [{ data: profileRow }, { data: summaries }] = await Promise.all([
-      supabase.from("user_profiles").select("profile").eq("companion_id", companion_id).maybeSingle<ProfileRow>(),
-      supabase
+    // 语义检索：用户消息 embedding → 事实型 top6 + 经历型 top3（混合排序）
+    // 返回 null = 短消息/超时/失败 → 退回原来的 importance 排序降级路径
+    const recall = await semanticRecall(supabase, companion_id, message);
+
+    const { data: profileRow } = await supabase
+      .from("user_profiles").select("profile").eq("companion_id", companion_id).maybeSingle<ProfileRow>();
+    profileText = profileToText(profileRow?.profile || null);
+
+    if (recall) {
+      memText = recall.memories.map((s) => `- ${s.summary}`).join("\n");
+      eventsText = eventsToText(recall.events);
+    } else {
+      const { data: summaries } = await supabase
         .from("memory_summaries")
         .select("summary, importance")
         .eq("companion_id", companion_id)
         .order("importance", { ascending: false })
         .order("updated_at", { ascending: false })
-        .limit(20),
-    ]);
-    profileText = profileToText(profileRow?.profile || null);
-    memText = (summaries as SummaryRow[] || []).map((s) => `- ${s.summary}`).join("\n");
+        .limit(20);
+      memText = (summaries as SummaryRow[] || []).map((s) => `- ${s.summary}`).join("\n");
+    }
   }
 
-  // 3. relationship_events —— Step 0 暂未生成，保留接口；Step 1 接入后启用
-  // 非会员不注入（一致性）
-  const eventsText = isMember ? eventsToText(undefined) : "";
+  // 3. relationship_events —— Step 1 已接入：eventsText 在上方语义检索/降级路径中赋值
 
   // 4. 获取/创建会话
   let sessionId = session_id;
@@ -425,9 +436,8 @@ export async function POST(req: Request) {
       memory_summaries: memText,
       user_gender: userGender,
       live_state: companion.live_state || null,
+      events_text: eventsText,
     });
-    // eventsText 在 Step 0 阶段为空字符串；保留变量供 Step 1 启用
-    void eventsText;
   } else {
     systemPrompt = buildFriendSystemPrompt({
       companion_gender: companion.gender || "不限",
@@ -471,12 +481,13 @@ export async function POST(req: Request) {
       let assistantFull = "";
       try {
         const lazyOpenai = new OpenAI({ apiKey, baseURL });
+        // max_tokens=1000：v4 思考 token 与正文共享额度，上限给足防止正文被思考挤空
         const stream = await lazyOpenai.chat.completions.create({
           model,
           messages,
           stream: true,
           temperature: 0.7,
-          max_tokens: 500,
+          max_tokens: 1000,
         });
 
         for await (const chunk of stream) {

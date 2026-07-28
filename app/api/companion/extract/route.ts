@@ -3,6 +3,12 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import OpenAI from "openai";
+import { embedText } from "@/lib/embedding";
+
+// 语义去重阈值：cosine 相似度 > 0.9 视为重复，跳过写入（初始值，可调）
+const DEDUP_THRESHOLD = 0.9;
+// extract 是异步后台链路，embedding 超时放宽到 5 秒
+const EMBED_TIMEOUT_MS = 5000;
 
 // 从最近对话中抽取记忆要点（更新 profile + 写入 memory_summaries）
 // 仅会员可调用：长期记忆是会员特权
@@ -102,9 +108,16 @@ ${recentText}
   "new_summaries": [
     { "summary": "一句话", "importance": 3 }
   ],
+  "emotion_state": {
+    "valence": 0.5,
+    "arousal": 0.5,
+    "tags": ["开心"]
+  },
+  "new_events": [
+    { "description": "一句话描述共同经历", "event_type": "milestone", "importance": 4 }
+  ],
   "amara_state": {
     "current_activity": "对话结尾时陪伴角色正在做的事（具体、生活化，5-15字，如'窝在沙发追剧''刚跑完步喝水'）",
-    "mood": "陪伴角色此刻的心情（2-6字，如'有点开心''小委屈''困困的'）",
     "last_topic": "你们最后在聊的话题（5-15字）"
   }
 }
@@ -113,7 +126,9 @@ ${recentText}
 - profile_updates 只包含这次对话里"新发现"或"需要更新"的字段，没有就留空对象/空数组。已有的档案字段不重复。
 - ongoing_matters 是【覆盖式】字段：输出"截至此刻仍在进行的事"的完整列表。已经结束、解决、翻篇的事（如已改完的 bug、已结束的考试）不要再包含进去——它会整体替换旧列表。
 - new_summaries 只写"值得长期带着"的事件/情绪节点，1-3 句，importance 1-5。没有就空数组。
-- amara_state 必填：以陪伴角色的视角描述对话结束那一刻的状态，用于下次对话的连续性。活动要具体、每次不同，不要总是"喝茶"。
+- emotion_state 必填：以陪伴角色视角，对话结束那一刻的情绪。valence 愉悦度 -1（很难受）~1（很开心），arousal 激动程度 0（平静）~1（强烈），tags 1-4 个情绪词（如"开心""想念""小委屈""安心"）。
+- new_events：判断这轮有没有"值得记的共同经历"，判定标准五类：①第一次类里程碑（第一次说喜欢、第一次互道晚安等）②吵架与和好 ③共同完成的事 ④生病或困难时的陪伴 ⑤对方表达深层情感的时刻。符合才写，不符合就空数组，宁缺毋滥。event_type 用 milestone/conflict_together/achievement/support/deep_feeling 之一。importance 1-5。
+- amara_state 必填：以陪伴角色的视角描述对话结束那一刻的场景快照（只管"在干嘛/聊到哪"，情绪一律走 emotion_state，不要在这里表达情绪）。活动要具体、每次不同，不要总是"喝茶"。
 - 一句话能讲清的别拆两条。
 - 严格输出 JSON，不要 markdown 代码块，不要解释。`;
 
@@ -165,27 +180,83 @@ ${recentText}
       );
     }
 
-    // 写入新 summaries
+    // 写入新 summaries（先 embedding 去重，> 0.9 视为重复跳过；embedding 复用去重时算的那个）
     if (Array.isArray(parsed.new_summaries) && parsed.new_summaries.length > 0) {
-      const rows = parsed.new_summaries
-        .filter((s: any) => s?.summary && typeof s.summary === "string")
-        .map((s: any) => ({
+      const rows: any[] = [];
+      for (const s of parsed.new_summaries) {
+        if (!s?.summary || typeof s.summary !== "string") continue;
+        const embedding = await embedText(s.summary, EMBED_TIMEOUT_MS);
+        if (embedding) {
+          const { data: maxSim } = await supabase.rpc("memory_max_similarity", {
+            p_companion_id: companion_id,
+            p_embedding: embedding,
+          });
+          if (typeof maxSim === "number" && maxSim > DEDUP_THRESHOLD) continue; // 重复，跳过
+        }
+        rows.push({
           companion_id,
           summary: s.summary,
           importance: Math.min(5, Math.max(1, Number(s.importance) || 1)),
           source_session_id: session_id || null,
-        }));
+          embedding: embedding || null,
+        });
+      }
       if (rows.length > 0) {
         await supabase.from("memory_summaries").insert(rows);
       }
     }
 
+    // 写入共同经历（同 summaries：embedding 去重 > 0.9 跳过）
+    if (Array.isArray(parsed.new_events) && parsed.new_events.length > 0) {
+      const eventRows: any[] = [];
+      for (const e of parsed.new_events) {
+        if (!e?.description || typeof e.description !== "string") continue;
+        const embedding = await embedText(e.description, EMBED_TIMEOUT_MS);
+        if (embedding) {
+          const { data: maxSim } = await supabase.rpc("event_max_similarity", {
+            p_companion_id: companion_id,
+            p_embedding: embedding,
+          });
+          if (typeof maxSim === "number" && maxSim > DEDUP_THRESHOLD) continue; // 重复，跳过
+        }
+        eventRows.push({
+          companion_id,
+          description: e.description,
+          event_type: typeof e.event_type === "string" ? e.event_type : null,
+          importance: Math.min(5, Math.max(1, Number(e.importance) || 3)),
+          embedding: embedding || null,
+        });
+      }
+      if (eventRows.length > 0) {
+        await supabase.from("relationship_events").insert(eventRows);
+      }
+    }
+
+    // 写入情绪状态（情绪一律走 emotion_state，live_state 只留场景快照）
+    if (parsed.emotion_state && typeof parsed.emotion_state === "object") {
+      const es = parsed.emotion_state;
+      const clamp = (v: any, min: number, max: number, dflt: number) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt;
+      };
+      const emotionState = {
+        valence: clamp(es.valence, -1, 1, 0),
+        arousal: clamp(es.arousal, 0, 1, 0.5),
+        tags: Array.isArray(es.tags)
+          ? es.tags.filter((t: any) => typeof t === "string" && t.trim()).slice(0, 4)
+          : [],
+        updated_at: new Date().toISOString(),
+      };
+      await supabase.from("companions").update({ emotion_state: emotionState }).eq("id", companion_id);
+    }
+
     // 写入实时状态：下次对话/开场白据此"接着上次"，并防止行为公式化
+    // 注意：mood 已从 live_state 移除（弱化语义，情绪统一走 emotion_state）
     if (parsed.amara_state && typeof parsed.amara_state === "object") {
       const s = parsed.amara_state;
       const liveState = {
         current_activity: typeof s.current_activity === "string" ? s.current_activity.slice(0, 50) : "",
-        mood: typeof s.mood === "string" ? s.mood.slice(0, 20) : "",
+        mood: "",
         last_topic: typeof s.last_topic === "string" ? s.last_topic.slice(0, 50) : "",
         updated_at: new Date().toISOString(),
       };

@@ -94,7 +94,6 @@ export async function POST(req: Request) {
       user_nickname: user_nickname || null,
       persona: "gentle", // 默认过渡人格，后台 5-8 轮后自动锁定
       relationship_stage: 5,
-      relationship_events: [],
       last_active_at: new Date().toISOString(),
     })
     .select()
