@@ -4,7 +4,16 @@
 // embedding 是增强能力，绝不能拖垮聊天主链路
 
 const DEFAULT_BASE_URL = "https://api.siliconflow.cn/v1";
-const DEFAULT_MODEL = "Qwen/Qwen3-Embedding-0.6B";
+// bge-large-zh-v1.5：硅基流动官方无条件免费模型（千问 0.6B 的免费额度按区域给，海外 IP 会 402）
+// 1024 维，与数据库 vector(1024) 绑定——换模型必须同维度，否则向量空间混乱、检索全废
+const DEFAULT_MODEL = "BAAI/bge-large-zh-v1.5";
+
+export function getEmbeddingConfig(): { baseURL: string; model: string } {
+  return {
+    baseURL: (process.env.EMBEDDING_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, ""),
+    model: process.env.EMBEDDING_MODEL || DEFAULT_MODEL,
+  };
+}
 
 // 诊断用：记录最近一次失败原因（回填/排查时读取，不影响主链路）
 let lastError: string | null = null;
