@@ -44,8 +44,8 @@ export default function ClientForm() { ... }
 ### 3. DeepSeek v4 是推理模型：思考 token 计入 max_tokens，上限给足
 v4-pro/v4-flash 的思考（reasoning）token 与正文共享 max_tokens 额度：实测 max_tokens=200 时额度可被思考全部吃光，正文返回空（用户看到"没有回应"）。**不要关掉 thinking**（思考是 Amara 情绪细腻的核心），正确做法是给足 max_tokens——companion 和 greeting 目前都是 1000。任何调低 max_tokens 的改动都要先想清楚这条。
 
-### 4. Embedding 走独立环境变量，失败必须静默降级
-语义检索用 `lib/embedding.ts`（OpenAI 兼容端点，默认硅基流动 SiliconFlow 的 Qwen/Qwen3-Embedding-0.6B，免费、1024 维），环境变量是 EMBEDDING_API_KEY / EMBEDDING_BASE_URL / EMBEDDING_MODEL，**不要复用 OPENAI_BASE_URL**（那个指向 DeepSeek，没有 embedding 能力）。embedding 失败/超时一律返回 null 走降级路径（importance 排序），不能让记忆检索拖垮聊天。注意：向量维度 1024 与数据库 vector(1024) 绑定，换模型时必须同步改维度。
+### 4. Embedding 走独立环境变量，失败必须静默降级；模型在代码里锁死
+语义检索用 `lib/embedding.ts`（OpenAI 兼容端点，默认硅基流动 SiliconFlow 的 BAAI/bge-large-zh-v1.5，官方无条件免费、1024 维），环境变量是 EMBEDDING_API_KEY / EMBEDDING_BASE_URL，**不要复用 OPENAI_BASE_URL**（那个指向 DeepSeek，没有 embedding 能力）。**embedding 模型不写进环境变量，在代码里锁死**：不同模型的向量空间不同，混进同一列检索就报废，换模型必须连数据库 vector 维度一起换并全量回填。embedding 失败/超时一律返回 null 走降级路径（importance 排序），不能让记忆检索拖垮聊天。
 
 ## 需要的环境变量（Vercel 后台已配置）
 - ALIPAY_APP_ID

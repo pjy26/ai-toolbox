@@ -11,7 +11,9 @@ const DEFAULT_MODEL = "BAAI/bge-large-zh-v1.5";
 export function getEmbeddingConfig(): { baseURL: string; model: string } {
   return {
     baseURL: (process.env.EMBEDDING_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, ""),
-    model: process.env.EMBEDDING_MODEL || DEFAULT_MODEL,
+    // 模型在代码里锁死，不走环境变量：向量空间一致性是硬约束，
+    // env 改模型容易把不同模型的向量混进同一列，检索直接报废
+    model: DEFAULT_MODEL,
   };
 }
 
@@ -29,7 +31,7 @@ export async function embedText(text: string, timeoutMs = 2000): Promise<number[
   }
 
   const baseURL = (process.env.EMBEDDING_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
-  const model = process.env.EMBEDDING_MODEL || DEFAULT_MODEL;
+  const model = DEFAULT_MODEL; // 模型锁死（见 getEmbeddingConfig 注释）
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
