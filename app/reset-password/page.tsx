@@ -90,7 +90,10 @@ export default function ResetPasswordPage() {
         ) : !ready ? (
           <div className="space-y-4 text-center">
             <p className="text-sm text-gray-300">
-              链接无效或已过期，请重新发起找回密码。
+              链接无效或已过期。找回密码的链接是一次性的——邮箱的安全扫描可能会提前“偷点”链接把它用掉，或者你点的是旧邮件。
+            </p>
+            <p className="text-sm text-gray-400">
+              重新发起一次，收到新邮件后立刻点、只点一次即可。
             </p>
             <button
               onClick={() => router.push("/login")}
