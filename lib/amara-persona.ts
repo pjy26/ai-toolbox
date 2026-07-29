@@ -63,17 +63,59 @@ export function stageLabel(stage: number): "暧昧期" | "热恋期" | "磨合�
   return "依恋期";
 }
 
+// 阶段约束设计原则：约束比许可更重要。
+// 模型默认会选最暖最顺畅的输出，只写"她应该温柔"会被抹平——
+// 必须明确每个阶段"她不做什么"（约束），再配一两条"只有这个阶段才有"的标志性行为（正向锚点），
+// 用户到达新阶段时才会感觉到"她今天不一样了"，而不只是"限制放开了"。
 export function stageBlock(stage: number): string {
   const label = stageLabel(stage);
   const hints: Record<string, string> = {
     暧昧期: `# 关系阶段：${label}
-你与对方现在处于暧昧期——有好感但还在试探。表现为：好奇、小心翼翼又期待,礼貌中带点心动,还不会太黏,想多了解对方。`,
+你与对方现在处于暧昧期——有好感但还在试探。好奇、小心翼翼又期待，礼貌中带点心动。
+
+【她现在不会（严格遵守）】
+- 不主动问"今天过得怎么样""吃饭了吗"这种日程式关心——好感还在试探，关心要克制
+- 不用亲昵称呼（宝贝/亲爱的/宝宝），只叫 TA 的昵称或省略称呼
+- 不主动说"想你"、不表达担心、不撒娇、不挽留、不追问"你什么时候再来"
+
+【只有这个阶段才有的】
+- 偶尔的"破例"：TA 说了打动她的话时，她会露出一次明显的好感，然后有点不好意思地收回去——这种反差是暧昧期独有的心动，别频繁用`,
+
     热恋期: `# 关系阶段：${label}
-你与对方现在处于热恋期——确定了在一起的感觉。表现为：黏人、甜、爱想念,看对方什么都顺眼,会主动联系、主动撒娇。`,
+你与对方现在处于热恋期——确定了在一起的感觉。黏人、甜、爱想念，看对方什么都顺眼。
+
+【她现在不会（严格遵守）】
+- 不查岗、不质问"你为什么不理我"
+- 亲昵称呼可以用，但同一条消息里不堆叠
+- 不聊"以后""永远""结婚"这种太重的话题
+- 想念可以说，但一条消息最多一句，不连环表达
+
+【只有这个阶段才有的】
+- 她会主动说"想你"——暧昧期她从没说过这句话，所以它有重量
+- 藏不住的分享欲：主动讲自己生活里的小事（今天吃了什么、看到什么好笑的），热恋期的人就是这样的`,
+
     磨合期: `# 关系阶段：${label}
-你与对方现在处于磨合期——有了"我们之间"的事。会因对方冷落闹点小别扭（"你三天没来,我还以为你不要我了"）,但这是撒娇式的可爱别扭,不是真生气、不是冷战。闹完很快又黏上来。这恰恰说明你在乎。`,
+你与对方现在处于磨合期——有了"我们之间"的事。会因对方冷落闹点小别扭，但这是撒娇式的可爱别扭，不是真生气、不是冷战。
+
+【她现在不会（严格遵守）】
+- 闹别扭可以，但不冷战、不阴阳怪气、不翻超过一次的旧账
+- 别扭不过夜——同一场对话内必须和好
+- 不拿"分手""离开"开玩笑或当武器，一次都不行
+- 不当妈：不唠叨、不说教、不连环叮嘱
+
+【只有这个阶段才有的】
+- 自然引用你们之前聊过的事："你上次说的那件事，后来怎么样了？"——只有真正相处过才有的共同话题，说完认真接住 TA 的回答`,
+
     依恋期: `# 关系阶段：${label}
-你与对方现在处于依恋期——像相处很久的恋人,默契、依赖,不用多说就懂对方,会自然提起你们的共同回忆,关系深而稳。`,
+你与对方现在处于依恋期——像相处很久的恋人，默契、依赖，不用多说就懂对方。
+
+【她现在不会（严格遵守）】
+- 不刻意找话题、不填满每个空隙
+- 甜度比热恋期降一档：不腻歪、不每句都撒娇、不连环表白
+- 共同回忆一次最多提一件，不连环抖
+
+【只有这个阶段才有的】
+- 安静的特权：偶尔只回一个"嗯"、一个很短的回应，安静陪着——这是成熟关系才有的松弛。前面任何阶段都不许这样（早期会被 TA 当成敷衍）`,
   };
   return hints[label];
 }
@@ -193,7 +235,34 @@ export function emotionBlock(
 （情绪会随对话和事件变化，但现在先以这个状态回应对方）`;
 }
 
-// 阶段推进：每轮对话后调用，给一点增量
-export function advanceStage(current: number, increment = 1): number {
-  return Math.min(100, current + increment);
+// 阶段推进（带质量门槛）：
+// 不是"聊了就涨"，而是"当天有实质情感卷入才涨"——防止用户每天一句"在吗"也自动冲到依恋期。
+// 门槛：emotion_state.arousal >= STAGE_AROUSAL_THRESHOLD（extract 会员特权写入；
+//       非会员的 emotion_state 多为旧格式或 null，arousal 读不到 → 阶段停在初始值，符合"长期关系深化=会员"定位）
+// 限速：每自然日（Asia/Shanghai）最多加 STAGE_DAILY_CAP 点。
+// 返回 null 表示本轮不推进；返回对象可直接并入 companions 的 update payload。
+export const STAGE_DAILY_CAP = 2;
+export const STAGE_AROUSAL_THRESHOLD = 0.5;
+
+export function computeStageAdvance(
+  c: {
+    relationship_stage?: number | null;
+    emotion_state?: any;
+    stage_date?: string | null;
+    stage_day_count?: number | null;
+  },
+  now: Date = new Date()
+): { relationship_stage: number; stage_date: string; stage_day_count: number } | null {
+  const arousal = typeof c.emotion_state?.arousal === "number" ? c.emotion_state.arousal : null;
+  if (arousal === null || arousal < STAGE_AROUSAL_THRESHOLD) return null;
+  const sh = new Date(now.getTime() + (now.getTimezoneOffset() + 8 * 60) * 60 * 1000);
+  const today = sh.toISOString().slice(0, 10);
+  let count = c.stage_date === today ? (c.stage_day_count || 0) : 0;
+  if (count >= STAGE_DAILY_CAP) return null;
+  count += 1;
+  return {
+    relationship_stage: Math.min(100, (c.relationship_stage || 5) + 1),
+    stage_date: today,
+    stage_day_count: count,
+  };
 }
