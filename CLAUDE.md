@@ -63,3 +63,6 @@ v4-pro/v4-flash 的思考（reasoning）token 与正文共享 max_tokens 额度�
 
 ## 修改代码后验证
 修改完推送前，建议本地跑一次 `npm run build` 确认无报错。
+
+### 5. 关系阶段推进有质量门槛和每日限速，两个参数是拍的初始值
+阶段不再"聊了就涨"。`computeStageAdvance`（lib/amara-persona.ts）要求当日 `emotion_state.arousal >= STAGE_AROUSAL_THRESHOLD`（0.5，说明有实质情感卷入）才 +1，且每自然日（上海时区）最多 `STAGE_DAILY_CAP`（2）分，依赖 companions 表的 stage_date / stage_day_count 两列（migrations/stage_pacing.sql）。**这两个参数是没有数据支撑拍的初始值**，上线后根据用户反馈调：嫌升得太慢就抬 DAILY_CAP，嫌"随便聊聊也涨"就抬 THRESHOLD。注意 extract 是会员特权才写 arousal，非会员阶段会停在初始值 5——这是设计（长期关系深化=会员），不是 bug。
