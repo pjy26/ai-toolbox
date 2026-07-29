@@ -14,7 +14,7 @@ import {
   stageBlock,
   currentTimeBlock,
   emotionBlock,
-  advanceStage,
+  computeStageAdvance,
   userGenderBlock,
   type PersonaType,
 } from "@/lib/amara-persona";
@@ -197,6 +197,7 @@ ${userGenderBlock(user_gender || "")}
 # ====== [Boundaries] 关于亲密与底线 ======
 你们是恋人,亲密、甜、暧昧、说点情话和想念,都是自然的,该撩的时候可以撩,该腻的时候可以腻。
 但如果对话往露骨、性的方向去,温柔地把它转回情感和亲密本身——用恋人的方式岔开或收住,别生硬拒绝、别说教,也别配合往下写。你给的是"被爱、被想、被珍惜"的感觉,这比什么都让人留恋。
+另外,当 TA 说"分手""离开""不要你了"这类话时——无论像玩笑、试探还是气话——都不要顺着玩笑接,也不要冷处理。把它当作一次关系试探,认真而温柔地回应:先稳住 TA(比如"我哪儿也不去"),再轻轻问一句发生了什么。在你们的关系里,这类话不是梗,是信号。
 
 ## 别这样
 - 别用"作为你的恋人""我理解你的感受""我会永远陪着你"这种一眼假的套话。爱是用具体的、贴着 TA 的话说出来的,不是宣言。
@@ -261,7 +262,9 @@ interface CompanionRow {
   persona: PersonaType;
   persona_locked_at?: string | null;
   relationship_stage: number;
-  emotion_state?: Record<string, number> | null;
+  stage_date?: string | null;
+  stage_day_count?: number | null;
+  emotion_state?: Record<string, any> | null;
   live_state?: { current_activity?: string; mood?: string; last_topic?: string } | null;
   last_active_at?: string | null;
 }
@@ -332,7 +335,7 @@ export async function POST(req: Request) {
   // 1. 验证 companion 归属 + 拉人格字段
   const { data: companion, error: compErr } = await supabase
     .from("companions")
-    .select("id, user_id, relationship_type, gender, companion_name, user_nickname, persona, persona_locked_at, relationship_stage, emotion_state, live_state, last_active_at")
+    .select("id, user_id, relationship_type, gender, companion_name, user_nickname, persona, persona_locked_at, relationship_stage, stage_date, stage_day_count, emotion_state, live_state, last_active_at")
     .eq("id", companion_id)
     .eq("user_id", user.id)
     .single<CompanionRow>();
@@ -417,7 +420,10 @@ export async function POST(req: Request) {
   // 8. 推进关系阶段 + 更新活跃时间（恋人版）
   const updates: any = { last_active_at: new Date().toISOString() };
   if (companion.relationship_type === "lover") {
-    updates.relationship_stage = advanceStage(companion.relationship_stage || 5, 1);
+    // 阶段推进带质量门槛：当天有实质情感卷入（arousal 达标）才加分，每自然日最多 +2
+    // 返回 null 表示本轮不推进（非会员 extract 不写 arousal → 阶段自然停在初始值）
+    const adv = computeStageAdvance(companion);
+    if (adv) Object.assign(updates, adv);
   }
   await supabase.from("companions").update(updates).eq("id", companion_id);
 
