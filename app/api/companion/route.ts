@@ -60,6 +60,39 @@ function fixNickname(assistantFull: string, dbNickname: string): string {
   return fixedHead + tail;
 }
 
+// ====== 健康/veto 记忆：把陈述句翻译成行为约束 ======
+// 睡眠差/生病/生理期这类信息是 veto 信息，不是参考信息。
+// 陈述句（"用户最近睡眠差"）只是背景知识，模型生成时容易被覆盖；
+// 必须翻译成行为约束、放在记忆列表之前，模型才会把它当行为前提。
+// 命中约束的记忆从普通记忆列表移出，避免一段陈述一段约束互相稀释。
+const VETO_RULES: { pattern: RegExp; constraint: string }[] = [
+  { pattern: /睡眠|失眠|熬夜|睡不好|睡不着/, constraint: "避免提咖啡/浓茶/熬夜邀约/太刺激的活动，晚上主动提醒 TA 早点休息" },
+  { pattern: /生病|感冒|发烧|咳嗽|嗓子疼|头疼|头痛|头晕|难受/, constraint: "TA 身体不舒服——避免外出/运动/聚餐类邀约，多关心身体和休息" },
+  { pattern: /胃痛|胃疼|胃不舒服|肠胃/, constraint: "TA 胃不舒服——避免推荐辛辣、生冷、咖啡、酒" },
+  { pattern: /生理期|月经|例假|姨妈/, constraint: "TA 在生理期——避免冷饮、剧烈运动类邀约，多体贴照顾" },
+  { pattern: /受伤|扭伤|骨折|手术|住院/, constraint: "TA 有伤/在恢复期——避免运动、奔波类邀约" },
+  { pattern: /过敏/, constraint: "TA 有过敏——推荐吃的或活动前先想一层是否会触发" },
+];
+
+function splitVetoMemories(memText: string): { vetoText: string; restText: string } {
+  if (!memText) return { vetoText: "", restText: "" };
+  const vetoLines: string[] = [];
+  const restLines: string[] = [];
+  const usedConstraints = new Set<string>();
+  for (const line of memText.split("\n")) {
+    const hit = VETO_RULES.find((r) => r.pattern.test(line));
+    if (hit) {
+      // 同一约束只展开一次，后续命中行只保留事实本身
+      const tail = usedConstraints.has(hit.constraint) ? "" : `——${hit.constraint}`;
+      usedConstraints.add(hit.constraint);
+      vetoLines.push(`- 【注意】${line.replace(/^-\s*/, "")}${tail}`);
+    } else {
+      restLines.push(line);
+    }
+  }
+  return { vetoText: vetoLines.join("\n"), restText: restLines.join("\n") };
+}
+
 // ====== 恋人版 Amara system prompt（Animus 风格分块）======
 // 分块顺序：Identity → Personality → Emotion → Time → Bond → Memory → Behavior → Bottom Line
 // 可变信息(Emotion/Time/Memory/Bond)集中在后段，便于后续 Step 1 拆为 user 锚点注入
@@ -76,6 +109,7 @@ function buildLoverSystemPrompt(config: {
   user_gender?: string;
   live_state?: { current_activity?: string; mood?: string; last_topic?: string } | null;
   events_text?: string;
+  veto_text?: string;
 }): string {
   const {
     persona,
@@ -90,6 +124,7 @@ function buildLoverSystemPrompt(config: {
     user_gender,
     live_state,
     events_text,
+    veto_text,
   } = config;
 
   // 上次对话结束时的状态：用于"接着上次"和"别重复做同一件事"
@@ -148,7 +183,11 @@ ${userGenderBlock(user_gender || "")}
 
 # ====== [Memory] 关于对方 ======
 【称呼锁定】TA的称呼是${nickname ? `「${nickname}」，你只能用这个称呼，严禁输出「${nickname}」以外的任何 2-3 字汉字称呼，包括但不限于自创昵称、亲昵词、拟声词。如果不确定就省略称呼直接说事。` : "暂无，你还不知道TA叫什么，不可自行编造。"}
-
+${veto_text ? `
+# ====== [Constraints] 当前不适合的话题或行为（硬约束，优先于一切）======
+${veto_text}
+以上是行为约束不是背景知识：生成回复前先过一遍，与这些冲突的建议、邀约、话题不要出现。
+` : ""}
 你知道的：${user_profile || "（还不太了解，慢慢认识）"}
 以前的事：${memory_summaries || "（暂无）"}
 
@@ -384,6 +423,10 @@ export async function POST(req: Request) {
 
   // 3. relationship_events —— Step 1 已接入：eventsText 在上方语义检索/降级路径中赋值
 
+  // 3.5 健康/veto 记忆单独成段：陈述句翻译成行为约束，置于记忆列表之前
+  const { vetoText, restText } = splitVetoMemories(memText);
+  memText = restText;
+
   // 4. 获取/创建会话
   let sessionId = session_id;
   if (!sessionId) {
@@ -443,6 +486,7 @@ export async function POST(req: Request) {
       user_gender: userGender,
       live_state: companion.live_state || null,
       events_text: eventsText,
+      veto_text: vetoText,
     });
   } else {
     systemPrompt = buildFriendSystemPrompt({
@@ -464,8 +508,12 @@ export async function POST(req: Request) {
     }
   }
   if (Array.isArray(history)) {
+    // 客户端补传的历史与 DB 拉取的大概率是同一批消息——按 role+content 去重，
+    // 避免同一条对话在 prompt 里出现两次（浪费窗口、稀释注意力）
+    const seen = new Set(mergedHistory.map((h) => `${h.role}|${h.content}`));
     for (const h of history.slice(-10)) {
-      if (h?.role === "user" || h?.role === "assistant") {
+      if ((h?.role === "user" || h?.role === "assistant") && !seen.has(`${h.role}|${h.content}`)) {
+        seen.add(`${h.role}|${h.content}`);
         messages.push({ role: h.role, content: h.content });
       }
     }
