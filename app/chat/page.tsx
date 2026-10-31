@@ -39,6 +39,7 @@ interface Plan {
 
 function ChatInner() {
   const { session, supabaseClient } = useSessionContext();
+  const userId = session?.user.id || null;
   const params = useSearchParams();
   const role = (params.get("role") as "friend" | "lover") || "lover";
   const isLover = role === "lover";
@@ -56,6 +57,10 @@ function ChatInner() {
   const [extracting, setExtracting] = useState(false);
   const [greetingDone, setGreetingDone] = useState(false);
   const [showPaySuccess, setShowPaySuccess] = useState(false);
+  const initRunRef = useRef(0);
+  const typeWriterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const extractionQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingExtractionsRef = useRef(0);
 
   // 支付成功回跳：刷新配额 + 显示成功提示（5 秒后自动消失）
   useEffect(() => {
@@ -79,95 +84,126 @@ function ChatInner() {
   const GREETING_KEY = (cid: string) => `amara_greeting_sent:${cid}`;
   const SESSION_KEY = (cid: string) => `amara_session:${cid}`;
   const init = useCallback(async () => {
-    // 治本：早 return 必须先放 initLoading，否则任何无 session 访问 /chat
-    // 都会卡在 initLoading=true 的黑屏（登出弹回、直接访问 URL 等）
-    if (!session) {
-      setInitLoading(false);
+    // 只允许最新一轮初始化更新界面。旧请求即使在新的会话之后才返回，
+    // 也不能把旧消息铺进来，更不能让打字机继续写入新状态。
+    const runId = ++initRunRef.current;
+    const isCurrent = () => initRunRef.current === runId;
+    if (typeWriterTimerRef.current) {
+      clearTimeout(typeWriterTimerRef.current);
+      typeWriterTimerRef.current = null;
+    }
+    setInitLoading(true);
+    setCompanion(null);
+    setMessages([]);
+    setSessionId(null);
+    setGreetingDone(false);
+
+    // 无 session 的直接访问/登出不能卡在加载页。
+    if (!userId) {
+      if (isCurrent()) setInitLoading(false);
       return;
     }
     try {
       // 配额
       const qRes = await fetch("/api/companion/quota");
-      if (qRes.ok) setQuota(await qRes.json());
+      if (!isCurrent()) return;
+      if (qRes.ok) {
+        const qData = await qRes.json();
+        if (!isCurrent()) return;
+        setQuota(qData);
+      }
 
       // 获取已有关系
       const listRes = await fetch("/api/companion/list");
+      if (!isCurrent()) return;
       const listData = await listRes.json();
+      if (!isCurrent()) return;
       let c: Companion | null = null;
-      if (listData.companions?.length > 0) {
-        c = listData.companions[0];
-      }
+      if (listData.companions?.length > 0) c = listData.companions[0];
 
-      // 没有关系 → 回首页选择
       if (!c) {
-        window.location.href = "/";
+        if (isCurrent()) window.location.href = "/";
         return;
       }
-
       setCompanion(c);
 
-      // 去重锁：命中则跳过 greeting，但恢复历史对话（重挂载后 messages 已清空，必须回填）
+      // 去重锁命中：恢复本 tab 指向的同一会话历史。
       if (sessionStorage.getItem(GREETING_KEY(c.id))) {
         try {
-          // 优先用本 tab 内持久化的 sessionId（避免取最近 session 串台）
           let lastSid = sessionStorage.getItem(SESSION_KEY(c.id));
           if (!lastSid) {
-            // 退路：本 tab 从未发过消息，取最近 session
             const sRes = await fetch(`/api/companion/sessions?companion_id=${c.id}`);
+            if (!isCurrent()) return;
             const sData = await sRes.json();
+            if (!isCurrent()) return;
             lastSid = sData.sessions?.[0]?.id || null;
           }
           if (lastSid) {
             setSessionId(lastSid);
             const mRes = await fetch(`/api/companion/messages?session_id=${lastSid}`);
+            if (!isCurrent()) return;
             if (mRes.ok) {
               const mData = await mRes.json();
+              if (!isCurrent()) return;
               if (Array.isArray(mData.messages) && mData.messages.length > 0) {
-                // 一次性铺出，不走打字机（历史是"已说过的话"，非"此刻在说"）
                 setMessages(mData.messages.map((m: any) => ({ role: m.role, content: m.content })));
               }
             }
           }
         } catch (e) {
-          console.error(e);
+          if (isCurrent()) console.error(e);
         }
-        setGreetingDone(true);
+        if (isCurrent()) setGreetingDone(true);
       } else {
         sessionStorage.setItem(GREETING_KEY(c.id), "1");
-        // 获取开场白
         const greetRes = await fetch(`/api/companion/greeting?companion_id=${c.id}`);
+        if (!isCurrent()) return;
         if (greetRes.ok) {
           const greetData = await greetRes.json();
-          // 开场白已在服务端入库；立即保存它所属的会话，首轮用户消息必须接续同一会话。
+          if (!isCurrent()) return;
           if (greetData.session_id) {
             setSessionId(greetData.session_id);
             sessionStorage.setItem(SESSION_KEY(c.id), greetData.session_id);
           }
-          typeWriter(greetData.greeting, () => setGreetingDone(true));
+          typeWriter(greetData.greeting, () => {
+            if (isCurrent()) setGreetingDone(true);
+          }, runId);
         } else {
           setGreetingDone(true);
         }
       }
     } catch (e) {
+      if (!isCurrent()) return;
       console.error(e);
       setGreetingDone(true);
     } finally {
-      setInitLoading(false);
+      if (isCurrent()) setInitLoading(false);
     }
-  }, [session]);
+  }, [userId]);
 
-  useEffect(() => { init(); }, [init]);
+  useEffect(() => {
+    void init();
+    return () => {
+      initRunRef.current += 1;
+      if (typeWriterTimerRef.current) {
+        clearTimeout(typeWriterTimerRef.current);
+        typeWriterTimerRef.current = null;
+      }
+    };
+  }, [init]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
   /* ── 打字机 ── */
-  function typeWriter(text: string, onDone?: () => void) {
+  function typeWriter(text: string, onDone?: () => void, runId = initRunRef.current) {
+    if (runId !== initRunRef.current) return;
     const msg: Message = { role: "assistant", content: "" };
     setMessages((prev) => [...prev, msg]);
     let i = 0;
     function step() {
+      if (runId !== initRunRef.current) return;
       if (i < text.length) {
         setMessages((prev) => {
           const arr = [...prev];
@@ -176,8 +212,9 @@ function ChatInner() {
         });
         i++;
         const d = ["，", "。", "？", "！", "…", "、"].includes(text.charAt(i - 1)) ? 75 : 45;
-        setTimeout(step, d + Math.random() * 15);
+        typeWriterTimerRef.current = setTimeout(step, d + Math.random() * 15);
       } else {
+        typeWriterTimerRef.current = null;
         onDone?.();
       }
     }
@@ -288,10 +325,12 @@ function ChatInner() {
       }
     }
 
-    const latestQuota = await loadQuota();
-    // 等本轮抽取完成再允许下一句，且直接使用响应返回的 sid，避免首轮闭包里仍是 null。
-    if (latestQuota?.isMember) await handleExtract(sid || sessionId);
+    // 回复结束后立即解锁输入。额度刷新和记忆抽取都在后台运行，
+    // 记忆仍按同一队列依次执行，避免并发抽取同一批消息造成重复写入。
     setLoading(false);
+    void loadQuota().then((latestQuota) => {
+      if (latestQuota?.isMember) queueExtract(sid || sessionId);
+    });
   }
 
   const loadQuota = useCallback(async (): Promise<Quota | null> => {
@@ -307,21 +346,36 @@ function ChatInner() {
     }
   }, []);
 
-  const handleExtract = async (targetSessionId: string | null) => {
-    if (!companion || !targetSessionId) return;
-    setExtracting(true);
+  const runExtract = async (targetSessionId: string) => {
+    if (!companion) return;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45000);
     try {
       const extractRes = await fetch("/api/companion/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companion_id: companion.id, session_id: targetSessionId }),
+        signal: controller.signal,
       });
       if (!extractRes.ok) console.error("记忆抽取失败:", extractRes.status);
     } catch (error) {
       console.error("记忆抽取请求失败:", error);
     } finally {
-      setExtracting(false);
+      clearTimeout(timeout);
     }
+  };
+
+  const queueExtract = (targetSessionId: string | null) => {
+    if (!companion || !targetSessionId) return;
+    pendingExtractionsRef.current += 1;
+    setExtracting(true);
+    extractionQueueRef.current = extractionQueueRef.current
+      .then(() => runExtract(targetSessionId))
+      .catch((error) => console.error("记忆抽取队列失败:", error))
+      .finally(() => {
+        pendingExtractionsRef.current = Math.max(0, pendingExtractionsRef.current - 1);
+        setExtracting(pendingExtractionsRef.current > 0);
+      });
   };
 
   /* ── 粒子背景 ── */

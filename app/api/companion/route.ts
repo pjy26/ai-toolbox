@@ -36,46 +36,6 @@ function getFreshState<T extends Record<string, any>>(
   return state;
 }
 
-// ====== 称呼兜底：AI 输出后扫描替换自创昵称（保守策略，宁可漏过不误伤）======
-function fixNickname(assistantFull: string, dbNickname: string): string {
-  if (!dbNickname || assistantFull.length === 0) return assistantFull;
-
-  // 只检查消息开头 40 字（称呼位置靠前）
-  const head = assistantFull.slice(0, 40);
-  const tail = assistantFull.slice(40);
-
-  // 常见虚词/时间词，永远不会是昵称
-  const stopWords = new Set([
-    "今天","明天","昨天","现在","刚才","等一下","一会儿","马上","已经",
-    "还是","或者","因为","所以","但是","不过","如果","虽然","然后",
-    "这个","那个","什么","怎么","哪里","为什么","可以","应该",
-  ]);
-
-  // 只有在这些上下文位置才认为是称呼（消息开头 / 逗号句号后 / 括号后）
-  const addrPattern = /(?:^|[，。！？…、,（(])[\u4e00-\u9fff]{2,3}(?=[，。！？…\s,，你我来去在]|$)/g;
-  let fixedHead = head;
-  let match: RegExpExecArray | null;
-  while ((match = addrPattern.exec(head)) !== null) {
-    const found = match[0].replace(/^[，。！？…、,（(]/, "");
-    if (found.length < 2 || found.length > 3) continue;
-    if (found === dbNickname) continue;
-    if (stopWords.has(found)) continue;
-
-    // 排除引号/书名号内
-    const pos = match.index + (match[0].length - found.length);
-    const before = head.slice(Math.max(0, pos - 1), pos);
-    if (["「","《","\u201c","\u2018"].includes(before)) continue;
-    const after = head.slice(pos + found.length, pos + found.length + 1);
-    if (["」","》","\u201d","\u2019"].includes(after)) continue;
-
-    // 高置信度称呼位置 → 替换，只换一次
-    fixedHead = fixedHead.slice(0, pos) + dbNickname + fixedHead.slice(pos + found.length);
-    break;
-  }
-
-  return fixedHead + tail;
-}
-
 // ====== 健康/veto 记忆：把陈述句翻译成行为约束 ======
 // 睡眠差/生病/生理期这类信息是 veto 信息，不是参考信息。
 // 陈述句（"用户最近睡眠差"）只是背景知识，模型生成时容易被覆盖；
@@ -598,12 +558,12 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
 
         if (assistantFull) {
-          const nicknameFix = companion.user_nickname || "";
-          const fixedContent = fixNickname(assistantFull, nicknameFix);
+          // 入库内容必须与已经流式展示的内容完全一致；不能事后再改称呼，
+          // 否则用户重新进入会话时会看到一条“变了”的历史消息。
           const { error: assistantMessageError } = await supabase.from("chat_messages").insert({
             session_id: sessionId,
             role: "assistant",
-            content: fixedContent,
+            content: assistantFull,
           });
           if (assistantMessageError) {
             console.error("[companion POST] 助手消息入库失败:", assistantMessageError.message);
