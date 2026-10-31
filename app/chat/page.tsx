@@ -138,6 +138,11 @@ function ChatInner() {
         const greetRes = await fetch(`/api/companion/greeting?companion_id=${c.id}`);
         if (greetRes.ok) {
           const greetData = await greetRes.json();
+          // 开场白已在服务端入库；立即保存它所属的会话，首轮用户消息必须接续同一会话。
+          if (greetData.session_id) {
+            setSessionId(greetData.session_id);
+            sessionStorage.setItem(SESSION_KEY(c.id), greetData.session_id);
+          }
           typeWriter(greetData.greeting, () => setGreetingDone(true));
         } else {
           setGreetingDone(true);
@@ -283,26 +288,40 @@ function ChatInner() {
       }
     }
 
-    await loadQuota();
-    if (quota?.isMember) handleExtract();
+    const latestQuota = await loadQuota();
+    // 等本轮抽取完成再允许下一句，且直接使用响应返回的 sid，避免首轮闭包里仍是 null。
+    if (latestQuota?.isMember) await handleExtract(sid || sessionId);
     setLoading(false);
   }
 
-  const loadQuota = useCallback(async () => {
-    const r = await fetch("/api/companion/quota");
-    if (r.ok) setQuota(await r.json());
+  const loadQuota = useCallback(async (): Promise<Quota | null> => {
+    try {
+      const r = await fetch("/api/companion/quota");
+      if (!r.ok) return null;
+      const data = await r.json() as Quota;
+      setQuota(data);
+      return data;
+    } catch (error) {
+      console.error("额度刷新失败:", error);
+      return null;
+    }
   }, []);
 
-  const handleExtract = async () => {
-    if (!companion || !quota?.isMember) return;
+  const handleExtract = async (targetSessionId: string | null) => {
+    if (!companion || !targetSessionId) return;
     setExtracting(true);
     try {
-      await fetch("/api/companion/extract", {
+      const extractRes = await fetch("/api/companion/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companion_id: companion.id, session_id: sessionId }),
+        body: JSON.stringify({ companion_id: companion.id, session_id: targetSessionId }),
       });
-    } finally { setExtracting(false); }
+      if (!extractRes.ok) console.error("记忆抽取失败:", extractRes.status);
+    } catch (error) {
+      console.error("记忆抽取请求失败:", error);
+    } finally {
+      setExtracting(false);
+    }
   };
 
   /* ── 粒子背景 ── */

@@ -51,10 +51,16 @@ export async function semanticRecall(
   companionId: string,
   queryText: string
 ): Promise<RecallResult | null> {
-  if (!queryText || queryText.trim().length < SHORT_MESSAGE_THRESHOLD) return null;
+  if (!queryText || queryText.trim().length < SHORT_MESSAGE_THRESHOLD) {
+    console.info("[memory-recall]", { companionId, path: "fallback", reason: "short_message" });
+    return null;
+  }
 
   const embedding = await embedText(queryText, MAIN_TIMEOUT_MS);
-  if (!embedding) return null;
+  if (!embedding) {
+    console.info("[memory-recall]", { companionId, path: "fallback", reason: "embedding_unavailable" });
+    return null;
+  }
 
   const common = {
     p_companion_id: companionId,
@@ -74,8 +80,16 @@ export async function semanticRecall(
   if (ev.error) console.error("match_relationship_events 检索失败:", ev.error.message);
   if (mem.error && ev.error) return null;
 
-  return {
-    memories: (mem.data as MemoryHit[]) || [],
-    events: (ev.data as EventHit[]) || [],
-  };
+  const memories = (mem.data as MemoryHit[]) || [];
+  const events = (ev.data as EventHit[]) || [];
+  // 只记录 ID、数量和分数，不把用户消息或记忆正文写入日志。
+  console.info("[memory-recall]", {
+    companionId,
+    path: "semantic",
+    queryLength: queryText.trim().length,
+    memories: memories.map((m) => ({ id: m.id, score: m.score })),
+    events: events.map((e) => ({ id: e.id, score: e.score })),
+  });
+
+  return { memories, events };
 }

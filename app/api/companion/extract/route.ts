@@ -37,6 +37,21 @@ export async function POST(req: Request) {
     .single();
   if (!companion) return NextResponse.json({ error: "角色不存在" }, { status: 404 });
 
+  // 会话必须同时属于当前用户和当前角色，避免把一个角色的对话抽取进另一个角色。
+  if (session_id) {
+    const { data: ownedSession, error: sessionError } = await supabase
+      .from("chat_sessions")
+      .select("id")
+      .eq("id", session_id)
+      .eq("user_id", user.id)
+      .eq("companion_id", companion_id)
+      .maybeSingle();
+    if (sessionError || !ownedSession) {
+      console.error("extract 会话归属校验失败:", sessionError?.message);
+      return NextResponse.json({ error: "会话不存在或与角色不匹配" }, { status: 404 });
+    }
+  }
+
   // 取最近 12 条消息作为抽取上下文
   let query = supabase
     .from("chat_messages")
@@ -123,6 +138,8 @@ ${recentText}
 }
 
 规则：
+- 【事实来源】profile_updates 和 new_summaries 中的用户事实，只能来自 user 明确陈述的信息。assistant 的猜测、安慰、比喻、角色扮演、虚构细节和未经用户确认的反问，一律不得写成用户事实。无法确认就不抽取。
+- new_events 只能记录对话中实际发生的双方互动，不得把 assistant 单方面设想的场景写成共同经历。
 - profile_updates 只包含这次对话里"新发现"或"需要更新"的字段，没有就留空对象/空数组。已有的档案字段不重复。
 - ongoing_matters 是【覆盖式】字段：输出"截至此刻仍在进行的事"的完整列表。已经结束、解决、翻篇的事（如已改完的 bug、已结束的考试）不要再包含进去——它会整体替换旧列表。
 - new_summaries 只写"值得长期带着"的事件/情绪节点，1-3 句，importance 1-5。没有就空数组。
@@ -174,10 +191,11 @@ ${recentText}
           merged[key] = newVal;
         }
       }
-      await supabase.from("user_profiles").upsert(
+      const { error: profileWriteError } = await supabase.from("user_profiles").upsert(
         { companion_id, profile: merged },
         { onConflict: "companion_id" }
       );
+      if (profileWriteError) throw new Error(`用户档案写入失败: ${profileWriteError.message}`);
     }
 
     // 写入新 summaries（先 embedding 去重，> 0.9 视为重复跳过；embedding 复用去重时算的那个）
@@ -202,7 +220,8 @@ ${recentText}
         });
       }
       if (rows.length > 0) {
-        await supabase.from("memory_summaries").insert(rows);
+        const { error: summaryWriteError } = await supabase.from("memory_summaries").insert(rows);
+        if (summaryWriteError) throw new Error(`记忆摘要写入失败: ${summaryWriteError.message}`);
       }
     }
 
@@ -228,7 +247,8 @@ ${recentText}
         });
       }
       if (eventRows.length > 0) {
-        await supabase.from("relationship_events").insert(eventRows);
+        const { error: eventWriteError } = await supabase.from("relationship_events").insert(eventRows);
+        if (eventWriteError) throw new Error(`共同经历写入失败: ${eventWriteError.message}`);
       }
     }
 
@@ -247,7 +267,11 @@ ${recentText}
           : [],
         updated_at: new Date().toISOString(),
       };
-      await supabase.from("companions").update({ emotion_state: emotionState }).eq("id", companion_id);
+      const { error: emotionWriteError } = await supabase
+        .from("companions")
+        .update({ emotion_state: emotionState })
+        .eq("id", companion_id);
+      if (emotionWriteError) throw new Error(`情绪状态写入失败: ${emotionWriteError.message}`);
     }
 
     // 写入实时状态：下次对话/开场白据此"接着上次"，并防止行为公式化
@@ -261,7 +285,11 @@ ${recentText}
         updated_at: new Date().toISOString(),
       };
       if (liveState.current_activity || liveState.last_topic) {
-        await supabase.from("companions").update({ live_state: liveState }).eq("id", companion_id);
+        const { error: liveStateWriteError } = await supabase
+          .from("companions")
+          .update({ live_state: liveState })
+          .eq("id", companion_id);
+        if (liveStateWriteError) throw new Error(`实时状态写入失败: ${liveStateWriteError.message}`);
       }
     }
 

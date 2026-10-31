@@ -20,6 +20,22 @@ import {
 } from "@/lib/amara-persona";
 import { semanticRecall } from "@/lib/memory-retrieval";
 
+// 即时状态不是长期事实。初版先使用保守 TTL，避免昨天/上周的状态被描述成“此刻”。
+const LIVE_STATE_TTL_MS = 6 * 60 * 60 * 1000;
+const EMOTION_STATE_TTL_MS = 12 * 60 * 60 * 1000;
+
+function getFreshState<T extends Record<string, any>>(
+  state: T | null | undefined,
+  ttlMs: number,
+  nowMs = Date.now()
+): T | null {
+  if (!state) return null;
+  const updatedAt = typeof state.updated_at === "string" ? Date.parse(state.updated_at) : NaN;
+  // 没有可信时间戳的旧状态同样不再当作当前状态使用。
+  if (!Number.isFinite(updatedAt) || nowMs - updatedAt > ttlMs) return null;
+  return state;
+}
+
 // ====== 称呼兜底：AI 输出后扫描替换自创昵称（保守策略，宁可漏过不误伤）======
 function fixNickname(assistantFull: string, dbNickname: string): string {
   if (!dbNickname || assistantFull.length === 0) return assistantFull;
@@ -410,13 +426,15 @@ export async function POST(req: Request) {
       memText = recall.memories.map((s) => `- ${s.summary}`).join("\n");
       eventsText = eventsToText(recall.events);
     } else {
-      const { data: summaries } = await supabase
+      // 短消息或 embedding 失败时只保留少量高重要性记忆，避免一次塞入大量无关内容。
+      const { data: summaries, error: fallbackError } = await supabase
         .from("memory_summaries")
         .select("summary, importance")
         .eq("companion_id", companion_id)
         .order("importance", { ascending: false })
         .order("updated_at", { ascending: false })
-        .limit(20);
+        .limit(5);
+      if (fallbackError) console.error("记忆降级检索失败:", fallbackError.message);
       memText = (summaries as SummaryRow[] || []).map((s) => `- ${s.summary}`).join("\n");
     }
   }
@@ -427,9 +445,21 @@ export async function POST(req: Request) {
   const { vetoText, restText } = splitVetoMemories(memText);
   memText = restText;
 
-  // 4. 获取/创建会话
+  // 4. 获取/创建会话；已有会话必须同时属于当前用户和当前角色，防止跨会话串台。
   let sessionId = session_id;
-  if (!sessionId) {
+  if (sessionId) {
+    const { data: ownedSession, error: sessionErr } = await supabase
+      .from("chat_sessions")
+      .select("id")
+      .eq("id", sessionId)
+      .eq("user_id", user.id)
+      .eq("companion_id", companion_id)
+      .maybeSingle();
+    if (sessionErr || !ownedSession) {
+      console.error("[companion POST] 会话归属校验失败", { sessionId, companion_id, error: sessionErr?.message });
+      return NextResponse.json({ error: "会话不存在或与角色不匹配" }, { status: 404 });
+    }
+  } else {
     const { data: newSession, error: sessionErr } = await supabase
       .from("chat_sessions")
       .insert({ user_id: user.id, companion_id, title: message.slice(0, 30) })
@@ -442,33 +472,49 @@ export async function POST(req: Request) {
   }
 
   // 5. 拉取最近 30 条历史消息（降序取最新 → 代码反转成正序）
-  const { data: dbHistoryRaw } = await supabase
+  const { data: dbHistoryRaw, error: historyError } = await supabase
     .from("chat_messages")
     .select("role, content, created_at")
     .eq("session_id", sessionId)
     .order("created_at", { ascending: false })
     .limit(30);
+  if (historyError) {
+    console.error("[companion POST] 历史消息读取失败:", historyError.message);
+    return NextResponse.json({ error: "读取对话历史失败" }, { status: 500 });
+  }
   const dbHistory = (dbHistoryRaw || []).reverse();
 
-  // 6. 落库用户消息
-  await supabase.from("chat_messages").insert({
+  // 6. 落库用户消息；写入失败时不能继续生成，否则会形成只显示、不记住的对话。
+  const { error: userMessageError } = await supabase.from("chat_messages").insert({
     session_id: sessionId,
     role: "user",
     content: message,
   });
+  if (userMessageError) {
+    console.error("[companion POST] 用户消息入库失败:", userMessageError.message);
+    return NextResponse.json({ error: "保存消息失败，请稍后重试" }, { status: 500 });
+  }
 
   // 7. 非会员计数
   await incFreeMessageCount(user.id);
 
+  const freshEmotionState = getFreshState(companion.emotion_state, EMOTION_STATE_TTL_MS);
+  const freshLiveState = getFreshState(companion.live_state, LIVE_STATE_TTL_MS);
+
   // 8. 推进关系阶段 + 更新活跃时间（恋人版）
   const updates: any = { last_active_at: new Date().toISOString() };
   if (companion.relationship_type === "lover") {
-    // 阶段推进带质量门槛：当天有实质情感卷入（arousal 达标）才加分，每自然日最多 +2
-    // 返回 null 表示本轮不推进（非会员 extract 不写 arousal → 阶段自然停在初始值）
-    const adv = computeStageAdvance(companion);
+    // 过期情绪既不进提示词，也不能继续推动关系阶段。
+    const adv = computeStageAdvance({ ...companion, emotion_state: freshEmotionState });
     if (adv) Object.assign(updates, adv);
   }
-  await supabase.from("companions").update(updates).eq("id", companion_id);
+  const { error: companionUpdateError } = await supabase
+    .from("companions")
+    .update(updates)
+    .eq("id", companion_id);
+  if (companionUpdateError) {
+    console.error("[companion POST] 角色状态更新失败:", companionUpdateError.message);
+  }
 
   // 9. 组装 messages
   let systemPrompt: string;
@@ -480,11 +526,11 @@ export async function POST(req: Request) {
       companion_name: companion.companion_name || "",
       current_time: currentTimeBlock(new Date(), companion.gender),
       relationship_stage: companion.relationship_stage || 5,
-      emotion_state: companion.emotion_state || null,
+      emotion_state: freshEmotionState,
       user_profile: profileText,
       memory_summaries: memText,
       user_gender: userGender,
-      live_state: companion.live_state || null,
+      live_state: freshLiveState,
       events_text: eventsText,
       veto_text: vetoText,
     });
@@ -554,12 +600,20 @@ export async function POST(req: Request) {
         if (assistantFull) {
           const nicknameFix = companion.user_nickname || "";
           const fixedContent = fixNickname(assistantFull, nicknameFix);
-          await supabase.from("chat_messages").insert({
+          const { error: assistantMessageError } = await supabase.from("chat_messages").insert({
             session_id: sessionId,
             role: "assistant",
             content: fixedContent,
           });
-          await supabase.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId);
+          if (assistantMessageError) {
+            console.error("[companion POST] 助手消息入库失败:", assistantMessageError.message);
+          } else {
+            const { error: sessionUpdateError } = await supabase
+              .from("chat_sessions")
+              .update({ updated_at: new Date().toISOString() })
+              .eq("id", sessionId);
+            if (sessionUpdateError) console.error("[companion POST] 会话时间更新失败:", sessionUpdateError.message);
+          }
         }
 
         // 恋人版：异步触发隐形性格匹配

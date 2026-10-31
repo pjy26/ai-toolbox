@@ -154,6 +154,7 @@ ${PERSONA_BLOCKS[persona].slice(0, 200)}
 
 现在，直接说出你的第一句话（只能一句）：`;
 
+  let greeting = getFallbackGreeting(daysSinceLastChat, relationshipType);
   try {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -169,23 +170,42 @@ ${PERSONA_BLOCKS[persona].slice(0, 200)}
       max_tokens: 1000,
     });
 
-    const greeting = completion.choices?.[0]?.message?.content?.trim() || getFallbackGreeting(daysSinceLastChat, relationshipType);
-
-    return NextResponse.json({
-      greeting,
-      context: {
-        daysSinceLastChat,
-        isMember,
-        timeOfDay: timeBlock,
-        hasMemories: isMember && !!memText,
-      },
-    });
-  } catch {
-    return NextResponse.json({
-      greeting: getFallbackGreeting(daysSinceLastChat, relationshipType),
-      context: { daysSinceLastChat, isMember, timeOfDay: timeBlock, hasMemories: false },
-    });
+    greeting = completion.choices?.[0]?.message?.content?.trim() || greeting;
+  } catch (error) {
+    console.error("greeting 生成失败，使用兜底文案:", error);
   }
+
+  // 开场白也是正式对话历史：创建会话并入库，下一轮才能读到 Amara 自己说过的话。
+  const { data: newSession, error: sessionError } = await supabase
+    .from("chat_sessions")
+    .insert({ user_id: user.id, companion_id: companionId, title: "新对话" })
+    .select("id")
+    .single();
+  if (sessionError || !newSession) {
+    console.error("greeting 会话创建失败:", sessionError?.message);
+    return NextResponse.json({ error: "创建会话失败" }, { status: 500 });
+  }
+
+  const { error: messageError } = await supabase.from("chat_messages").insert({
+    session_id: newSession.id,
+    role: "assistant",
+    content: greeting,
+  });
+  if (messageError) {
+    console.error("greeting 消息入库失败:", messageError.message);
+    return NextResponse.json({ error: "保存开场白失败" }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    greeting,
+    session_id: newSession.id,
+    context: {
+      daysSinceLastChat,
+      isMember,
+      timeOfDay: timeBlock,
+      hasMemories: isMember && !!memText,
+    },
+  });
 }
 
 function getFallbackGreeting(daysSinceLastChat: number, relationshipType: string): string {
