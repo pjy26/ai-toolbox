@@ -4,8 +4,8 @@ import { AuthProvider } from "@/components/auth-provider";
 import { LocaleProvider } from "@/components/locale-provider";
 
 export const metadata: Metadata = {
-  title: "Amara · A familiar presence in your day",
-  description: "Meet Amara, an AI companion for ongoing conversations and shared moments.",
+  title: "Amara · Your personal AI companion",
+  description: "Meet Amara, your personal AI companion for ongoing conversations, meaningful memories, and Dreams inspired by your shared story.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

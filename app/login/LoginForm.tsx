@@ -157,42 +157,43 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] relative flex items-center justify-center px-4 py-16">
-      <LocaleToggle className="absolute top-5 right-5" />
-      <div className="w-full max-w-sm">
+    <div className="relative flex min-h-screen items-center justify-center bg-[#f8f5ef] px-5 py-24 text-[#282621]">
+      <Link href="/" className="absolute left-5 top-6 font-serif text-[27px] tracking-[-0.04em] text-[#282621] sm:left-8" aria-label="Amara home">Amara</Link>
+      <LocaleToggle className="absolute right-5 top-4 !min-h-11 !px-2 !text-xs !font-medium !text-[#6e685f] hover:!text-[#a34f3d] sm:right-8" />
+      <div className="w-full max-w-md border border-[#d8cfc2] bg-[#fffdf8] p-6 shadow-[10px_10px_0_#e9e1d6] sm:p-8">
         {accountCreated ? (
           <div className="text-center">
-            <Mail className="w-10 h-10 text-rose-400 mx-auto mb-3" />
-            <h1 className="text-2xl font-bold">{t.login.confirmationTitle}</h1>
-            <p className="text-gray-300 text-sm mt-4 leading-relaxed">{t.login.confirmationMessage}</p>
-            <p className="text-brand-light text-sm mt-3 break-all">{email}</p>
+            <Mail className="mx-auto mb-4 h-10 w-10 text-[#a34f3d]" strokeWidth={1.5} />
+            <h1 className="font-serif text-3xl font-semibold">{t.login.confirmationTitle}</h1>
+            <p className="mt-4 text-sm leading-7 text-[#6e685f]">{t.login.confirmationMessage}</p>
+            <p className="mt-3 break-all text-sm font-medium text-[#923f30]">{email}</p>
             <button
               type="button"
               onClick={returnToSignIn}
-              className="mt-6 w-full py-3 rounded-xl gradient-btn text-white font-semibold"
+              className="mt-6 min-h-12 w-full bg-[#a34f3d] px-4 py-3 font-semibold text-white hover:bg-[#893f31]"
             >
               {t.login.backToSignIn}
             </button>
           </div>
         ) : forgotMode ? (
           <>
-            <div className="text-center mb-8">
-              <Heart className="w-10 h-10 text-rose-400 mx-auto mb-3" />
-              <h1 className="text-2xl font-bold">{forgotSent ? t.login.resetSentTitle : t.login.resetTitle}</h1>
-              {!forgotSent && <p className="text-gray-400 text-sm mt-2">{t.login.resetSubtitle}</p>}
+            <div className="mb-8 text-center">
+              <Heart className="mx-auto mb-4 h-10 w-10 text-[#a34f3d]" strokeWidth={1.5} />
+              <h1 className="font-serif text-3xl font-semibold">{forgotSent ? t.login.resetSentTitle : t.login.resetTitle}</h1>
+              {!forgotSent && <p className="mt-3 text-sm leading-6 text-[#6e685f]">{t.login.resetSubtitle}</p>}
             </div>
 
             {forgotSent ? (
               <div className="space-y-4">
-                <p className="text-sm text-gray-300 text-center leading-relaxed">
-                  {t.login.resetSent} <span className="text-brand-light break-all">{email}</span>.
+                <p className="text-center text-sm leading-7 text-[#6e685f]">
+                  {t.login.resetSent} <span className="break-all font-medium text-[#923f30]">{email}</span>.
                   <br />
                   {t.login.resetExpiry}
                 </p>
                 <button
                   type="button"
                   onClick={returnToSignIn}
-                  className="w-full py-3 rounded-xl gradient-btn text-white font-semibold"
+                  className="min-h-12 w-full bg-[#a34f3d] px-4 py-3 font-semibold text-white hover:bg-[#893f31]"
                 >
                   {t.login.backToSignIn}
                 </button>
@@ -200,7 +201,7 @@ export default function LoginForm() {
             ) : (
               <form onSubmit={handleForgot} className="space-y-4">
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                  <Mail className="absolute left-3 top-4 h-4 w-4 text-[#817a70]" />
                   <input
                     type="text"
                     aria-label={t.login.email}
@@ -209,24 +210,24 @@ export default function LoginForm() {
                     onChange={(event) => setEmail(event.target.value)}
                     required
                     autoComplete="email"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
+                    className="min-h-12 w-full border border-[#cfc5b7] bg-[#f8f5ef] py-3 pl-10 pr-4 text-[#282621] placeholder-[#817a70] focus:border-[#a34f3d] focus:outline-none focus:ring-2 focus:ring-[#a34f3d]/15"
                   />
                 </div>
 
-                {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
+                {error && <p role="alert" className="text-sm text-[#923f30]">{error}</p>}
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 rounded-xl gradient-btn text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="flex min-h-12 w-full items-center justify-center gap-2 bg-[#a34f3d] px-4 py-3 font-semibold text-white hover:bg-[#893f31] disabled:opacity-50"
                 >
                   {loading ? t.login.sending : t.login.sendReset}
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="h-4 w-4" />
                 </button>
 
-                <p className="text-center text-sm text-gray-400">
+                <p className="text-center text-sm text-[#6e685f]">
                   {t.login.rememberedPassword}
-                  <button type="button" onClick={returnToSignIn} className="text-brand-light hover:underline ml-1">
+                  <button type="button" onClick={returnToSignIn} className="ml-1 font-medium text-[#923f30] hover:underline">
                     {t.login.backToSignIn}
                   </button>
                 </p>
@@ -235,10 +236,11 @@ export default function LoginForm() {
           </>
         ) : (
           <>
-            <div className="text-center mb-8">
-              <Heart className="w-10 h-10 text-rose-400 mx-auto mb-3" />
-              <h1 className="text-2xl font-bold">{isSignUp ? t.login.createAccount : t.login.welcomeBack}</h1>
-              <p className="text-gray-400 text-sm mt-2">
+            <div className="mb-8 text-center">
+              <Heart className="mx-auto mb-4 h-10 w-10 text-[#a34f3d]" strokeWidth={1.5} />
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#a34f3d]">{t.login.companionTagline}</p>
+              <h1 className="font-serif text-3xl font-semibold tracking-[-0.02em]">{isSignUp ? t.login.createAccount : t.login.welcomeBack}</h1>
+              <p className="mt-3 text-sm leading-6 text-[#6e685f]">
                 {isSignUp ? t.login.signUpSubtitle : t.login.signInSubtitle}
               </p>
             </div>
@@ -246,7 +248,7 @@ export default function LoginForm() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {isSignUp && (
                 <div className="relative">
-                  <User className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                  <User className="absolute left-3 top-4 h-4 w-4 text-[#817a70]" />
                   <input
                     type="text"
                     aria-label={t.login.nickname}
@@ -255,13 +257,13 @@ export default function LoginForm() {
                     onChange={(event) => setNickname(event.target.value)}
                     maxLength={20}
                     autoComplete="nickname"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
+                    className="min-h-12 w-full border border-[#cfc5b7] bg-[#f8f5ef] py-3 pl-10 pr-4 text-[#282621] placeholder-[#817a70] focus:border-[#a34f3d] focus:outline-none focus:ring-2 focus:ring-[#a34f3d]/15"
                   />
                 </div>
               )}
               <div>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                  <Mail className="absolute left-3 top-4 h-4 w-4 text-[#817a70]" />
                   <input
                     type={isSignUp ? "email" : "text"}
                     aria-label={t.login.email}
@@ -270,13 +272,13 @@ export default function LoginForm() {
                     onChange={(event) => setEmail(event.target.value)}
                     required
                     autoComplete="username"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
+                    className="min-h-12 w-full border border-[#cfc5b7] bg-[#f8f5ef] py-3 pl-10 pr-4 text-[#282621] placeholder-[#817a70] focus:border-[#a34f3d] focus:outline-none focus:ring-2 focus:ring-[#a34f3d]/15"
                   />
                 </div>
-                {!isSignUp && <p className="mt-2 text-xs leading-relaxed text-gray-500">{t.login.legacyPhoneHint}</p>}
+                {!isSignUp && <p className="mt-2 text-xs leading-5 text-[#817a70]">{t.login.legacyPhoneHint}</p>}
               </div>
               <div className="relative">
-                <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                <Lock className="absolute left-3 top-4 h-4 w-4 text-[#817a70]" />
                 <input
                   type="password"
                   aria-label={t.login.password}
@@ -286,18 +288,18 @@ export default function LoginForm() {
                   required
                   minLength={6}
                   autoComplete={isSignUp ? "new-password" : "current-password"}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
+                  className="min-h-12 w-full border border-[#cfc5b7] bg-[#f8f5ef] py-3 pl-10 pr-4 text-[#282621] placeholder-[#817a70] focus:border-[#a34f3d] focus:outline-none focus:ring-2 focus:ring-[#a34f3d]/15"
                 />
               </div>
 
-              {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
+              {error && <p role="alert" className="text-sm text-[#923f30]">{error}</p>}
 
               {!isSignUp && (
                 <p className="text-right text-sm">
                   <button
                     type="button"
                     onClick={() => { setForgotMode(true); setError(""); }}
-                    className="text-gray-400 hover:text-brand-light"
+                    className="min-h-11 text-[#6e685f] hover:text-[#923f30]"
                   >
                     {t.login.forgotPassword}
                   </button>
@@ -307,32 +309,32 @@ export default function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl gradient-btn text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex min-h-12 w-full items-center justify-center gap-2 bg-[#a34f3d] px-4 py-3 font-semibold text-white hover:bg-[#893f31] disabled:opacity-50"
               >
                 {loading
                   ? (isSignUp ? t.login.creatingAccount : t.login.signingIn)
                   : (isSignUp ? t.login.createAccountButton : t.login.signIn)}
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="h-4 w-4" />
               </button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-gray-400">
+            <p className="mt-6 text-center text-sm text-[#6e685f]">
               {isSignUp ? t.login.alreadyHaveAccount : t.login.newHere}
               <button
                 type="button"
                 onClick={() => { setIsSignUp(!isSignUp); setError(""); }}
-                className="text-brand-light hover:underline ml-1"
+                className="ml-1 min-h-11 font-medium text-[#923f30] hover:underline"
               >
                 {isSignUp ? t.login.signIn : t.login.signUp}
               </button>
             </p>
 
             {isSignUp && (
-              <p className="mt-5 text-center text-xs leading-relaxed text-gray-500">
+              <p className="mt-5 text-center text-xs leading-6 text-[#817a70]">
                 {t.login.ageAndTerms}{" "}
-                <Link href="/terms" className="text-brand-light hover:underline">{t.login.terms}</Link>
+                <Link href="/terms" className="text-[#923f30] underline underline-offset-4">{t.login.terms}</Link>
                 {" "}{t.login.and}{" "}
-                <Link href="/content-policy" className="text-brand-light hover:underline">{t.login.contentPolicy}</Link>.
+                <Link href="/content-policy" className="text-[#923f30] underline underline-offset-4">{t.login.contentPolicy}</Link>.
               </p>
             )}
           </>

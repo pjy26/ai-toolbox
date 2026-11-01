@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      <div className="flex min-h-screen items-center justify-center bg-[#f8f5ef]">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#a34f3d] border-t-transparent" />
       </div>
     }>
       <LoginForm />
