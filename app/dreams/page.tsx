@@ -10,6 +10,7 @@ import { apiRequest, Dream, ErrorState, formatDate, ImaginationLabel, PageLoader
 export default function DreamsPage() {
   const { session } = useSessionContext();
   const [dreams, setDreams] = useState<Dream[]>([]);
+  const [unavailable, setUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -21,8 +22,9 @@ export default function DreamsPage() {
     setLoading(true);
     setError("");
     try {
-      const result = await apiRequest<{ dreams: Dream[] }>("/api/dreams");
+      const result = await apiRequest<{ dreams: Dream[]; unavailable?: boolean }>("/api/dreams");
       setDreams(Array.isArray(result.dreams) ? result.dreams : []);
+      setUnavailable(Boolean(result.unavailable));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Please try again.");
     } finally {
@@ -50,9 +52,9 @@ export default function DreamsPage() {
       {loading ? <PageLoader label="Opening the dream journal…" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : dreams.length === 0 ? (
         <div className="py-16 sm:py-20">
           <CloudMoon className="h-8 w-8 text-[#a98a78]" strokeWidth={1.3} aria-hidden="true" />
-          <h2 className="mt-5 font-serif text-3xl">No Dreams have gathered yet.</h2>
+          <h2 className="mt-5 font-serif text-3xl">{unavailable ? "Dream storage isn’t available yet." : "No Dreams have gathered yet."}</h2>
           <p className="mt-3 max-w-lg text-sm leading-7 text-[#6e685f]">
-            Some nights stay quiet. When a meaningful conversation inspires a Dream, it will appear here. You can change this anytime in Settings.
+            {unavailable ? "The rest of your space remains available. Dream storage needs to be enabled before entries can appear here." : "Some nights stay quiet. When a meaningful conversation inspires a Dream, it will appear here. You can change this anytime in Settings."}
           </p>
         </div>
       ) : (

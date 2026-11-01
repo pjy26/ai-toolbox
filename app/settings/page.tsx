@@ -6,6 +6,7 @@ import { useSessionContext } from "@supabase/auth-helpers-react";
 import { BookOpen, Check, ChevronRight, Loader2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { apiRequest, ErrorState, PageLoader } from "@/components/amara-ui";
+import { useLocale } from "@/components/locale-provider";
 
 type Settings = {
   locale: string;
@@ -21,6 +22,7 @@ const fallbackTimezones = ["UTC", "America/New_York", "America/Los_Angeles", "Eu
 
 export default function SettingsPage() {
   const { session } = useSessionContext();
+  const { setLocale } = useLocale();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,12 +53,13 @@ export default function SettingsPage() {
     try {
       const result = await apiRequest<SettingsResponse>("/api/settings");
       setSettings(result.settings);
+      setLocale(result.settings.locale.toLowerCase().startsWith("zh") ? "zh" : "en");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, [session, setLocale]);
 
   useEffect(() => {
     void load();
@@ -70,11 +73,12 @@ export default function SettingsPage() {
     setSaved(false);
     setActionError("");
     try {
-      await apiRequest<SettingsResponse>("/api/settings", {
+      const result = await apiRequest<SettingsResponse>("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
       });
+      setLocale(result.settings.locale.toLowerCase().startsWith("zh") ? "zh" : "en");
       setSaved(true);
     } catch (cause) {
       setSettings(previous);

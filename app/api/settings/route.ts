@@ -35,8 +35,13 @@ export async function GET() {
     .select("locale, timezone, dream_enabled, proactive_enabled, memory_enabled")
     .eq("user_id", user.id)
     .maybeSingle();
-  if (error) return NextResponse.json({ error: "读取设置失败" }, { status: 500 });
-  return NextResponse.json({ settings: publicSettings(data) });
+  // Keep the settings surface usable while an older database has no settings
+  // table yet. PATCH remains explicit about persistence failures.
+  if (error) {
+    console.warn("[settings] read unavailable; returning compatible defaults", error.message);
+    return NextResponse.json({ settings: publicSettings(null), persistent: false });
+  }
+  return NextResponse.json({ settings: publicSettings(data), persistent: true });
 }
 
 export async function PATCH(req: Request) {

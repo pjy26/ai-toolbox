@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { BookOpen, CloudMoon, Home, MessageCircle, Settings } from "lucide-react";
 import { PageLoader } from "@/components/amara-ui";
+import { LocaleToggle, useLocale } from "@/components/locale-provider";
 
 const desktopNavigation = [
   { href: "/app", label: "Today", icon: Home },
@@ -35,6 +36,10 @@ function Wordmark() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { session, isLoading } = useSessionContext();
+  const { locale } = useLocale();
+  const labels = locale === "zh"
+    ? { "/app": "今天", "/chat": "聊天", "/memories": "记忆", "/dreams": "梦境", "/settings": "设置" }
+    : { "/app": "Today", "/chat": "Chat", "/memories": "Memories", "/dreams": "Dreams", "/settings": "Settings" };
 
   if (isLoading) {
     return (
@@ -71,7 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Wordmark />
         <p className="mt-3 text-xs leading-5 text-[#817a70]">A little continuity,<br />one conversation at a time.</p>
         <nav className="mt-12 space-y-1" aria-label="Main navigation">
-          {desktopNavigation.map(({ href, label, icon: Icon }) => {
+          {desktopNavigation.map(({ href, icon: Icon }) => {
             const active = pathname === href || (href !== "/app" && pathname.startsWith(`${href}/`));
             return (
               <Link
@@ -85,22 +90,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 }`}
               >
                 <Icon className="h-[18px] w-[18px]" strokeWidth={1.7} aria-hidden="true" />
-                {label}
+                {labels[href as keyof typeof labels]}
               </Link>
             );
           })}
         </nav>
         <div className="mt-auto border-t border-[#ded7cc] pt-5 text-xs leading-5 text-[#817a70]">
-          Your memories are yours.<br />Review or remove them anytime.
+          <p>{locale === "zh" ? <>你的记忆属于你。<br />随时可以查看或删除。</> : <>Your memories are yours.<br />Review or remove them anytime.</>}</p>
+          <LocaleToggle className="mt-4 !min-h-9 !px-0 !text-xs !font-medium !text-[#6e685f] hover:!text-[#a34f3d]" />
         </div>
       </aside>
 
       <header className="flex h-16 items-center justify-between border-b border-[#ded7cc] bg-[#f8f5ef] px-5 md:hidden">
         <Wordmark />
-        <Link href="/memories" className="flex min-h-11 items-center gap-2 text-xs font-medium text-[#6e685f]" aria-label="Open memories">
-          <BookOpen className="h-4 w-4" aria-hidden="true" />
-          Memories
-        </Link>
+        <div className="flex items-center gap-3">
+          <LocaleToggle className="!min-h-9 !px-1 !text-xs !font-medium !text-[#6e685f] hover:!text-[#a34f3d]" />
+          <Link href="/memories" className="flex min-h-11 items-center gap-2 text-xs font-medium text-[#6e685f]" aria-label="Open memories">
+            <BookOpen className="h-4 w-4" aria-hidden="true" />
+            {labels["/memories"]}
+          </Link>
+        </div>
       </header>
 
       <main className="pb-28 md:pb-12 md:pl-60">
@@ -111,7 +120,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-[#d8d0c4] bg-[#fffdf8] px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 md:hidden"
         aria-label="Mobile navigation"
       >
-        {mobileNavigation.map(({ href, label, icon: Icon }) => {
+        {mobileNavigation.map(({ href, icon: Icon }) => {
           const active = pathname === href || (href !== "/app" && pathname.startsWith(`${href}/`));
           return (
             <Link
@@ -121,7 +130,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className={`flex min-h-[56px] flex-col items-center justify-center gap-1 text-[11px] ${active ? "text-[#923f30]" : "text-[#756f66]"}`}
             >
               <Icon className="h-5 w-5" strokeWidth={active ? 2 : 1.6} aria-hidden="true" />
-              {label}
+              {labels[href as keyof typeof labels]}
             </Link>
           );
         })}

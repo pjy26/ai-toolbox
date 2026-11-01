@@ -42,6 +42,9 @@ export async function GET(req: Request) {
     .order("local_date", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(100);
-  if (error) return NextResponse.json({ error: "读取梦境失败" }, { status: 500 });
-  return NextResponse.json({ dreams: dreams || [] });
+  if (error) {
+    console.warn("[dreams] journal unavailable", error.message);
+    return NextResponse.json({ dreams: [], unavailable: true });
+  }
+  return NextResponse.json({ dreams: dreams || [], unavailable: false });
 }

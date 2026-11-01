@@ -4,12 +4,13 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
 // 获取当前用户的所有陪伴角色 + 每个角色的 profile / 记忆数
-export async function GET() {
+export async function GET(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const supabase = createRouteHandlerClient({ cookies });
-  const { data: companions, error } = await supabase
+  const lightweight = new URL(req.url).searchParams.get("lightweight") === "1";
+  let query = supabase
     .from("companions")
     .select(`
       id,
@@ -25,12 +26,17 @@ export async function GET() {
     `)
     .eq("user_id", user.id)
     .order("updated_at", { ascending: false });
+  if (lightweight) query = query.limit(1);
+  const { data: companions, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // 拉取每个 companion 的 user_profile 和 memory_summaries 数量
+  // Chat only needs the current relationship. Avoid reading every profile and
+  // memory row merely to calculate a count that the chat first screen never uses.
+  if (lightweight) return NextResponse.json({ companions: companions || [] });
+
   const ids = (companions || []).map((c: any) => c.id);
   let profiles: any[] = [];
   let summaries: any[] = [];
@@ -94,7 +100,8 @@ export async function POST(req: Request) {
       user_nickname: user_nickname || null,
       persona: "gentle", // 默认过渡人格，后台 5-8 轮后自动锁定
       relationship_stage: 5,
-      last_active_at: new Date().toISOString(),
+      // 创建关系不等于已经聊过；首次开场白需要可信的“第一次”状态。
+      last_active_at: null,
     })
     .select()
     .single();

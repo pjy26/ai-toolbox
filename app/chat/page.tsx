@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { useSearchParams } from "next/navigation";
 import { Send, User, Crown, LogOut, ChevronRight, X } from "lucide-react";
+import { useLocale } from "@/components/locale-provider";
+import { chatCopy, fillCopy } from "@/lib/chat-copy";
 
 interface Message {
   role: "user" | "assistant";
@@ -38,7 +40,11 @@ interface Plan {
 }
 
 function ChatInner() {
-  const { session, supabaseClient } = useSessionContext();
+  const { session } = useSessionContext();
+  const { locale } = useLocale();
+  const copy = chatCopy[locale];
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
   const userId = session?.user.id || null;
   const params = useSearchParams();
   const role = (params.get("role") as "friend" | "lover") || "lover";
@@ -104,28 +110,27 @@ function ChatInner() {
       return;
     }
     try {
-      // 配额
-      const qRes = await fetch("/api/companion/quota");
+      // 配额和关系并行加载；Chat 使用轻量列表，不再扫描全部记忆计数。
+      const [qRes, listRes] = await Promise.all([
+        fetch("/api/companion/quota"),
+        fetch("/api/companion/list?lightweight=1"),
+      ]);
       if (!isCurrent()) return;
-      if (qRes.ok) {
-        const qData = await qRes.json();
-        if (!isCurrent()) return;
-        setQuota(qData);
-      }
-
-      // 获取已有关系
-      const listRes = await fetch("/api/companion/list");
+      const [qData, listData] = await Promise.all([
+        qRes.ok ? qRes.json() : null,
+        listRes.json(),
+      ]);
       if (!isCurrent()) return;
-      const listData = await listRes.json();
-      if (!isCurrent()) return;
-      let c: Companion | null = null;
-      if (listData.companions?.length > 0) c = listData.companions[0];
+      if (qData) setQuota(qData);
+      const c: Companion | null = listData.companions?.length > 0 ? listData.companions[0] : null;
 
       if (!c) {
         if (isCurrent()) window.location.href = "/";
         return;
       }
       setCompanion(c);
+      // 先展示聊天框架，再恢复历史或生成开场白，避免长时间全屏加载。
+      setInitLoading(false);
 
       // 去重锁命中：恢复本 tab 指向的同一会话历史。
       if (sessionStorage.getItem(GREETING_KEY(c.id))) {
@@ -156,7 +161,12 @@ function ChatInner() {
         if (isCurrent()) setGreetingDone(true);
       } else {
         sessionStorage.setItem(GREETING_KEY(c.id), "1");
-        const greetRes = await fetch(`/api/companion/greeting?companion_id=${c.id}`);
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+        // Provider 在挂载后才读取 localStorage；首个开场白直接读取同一键，避免中文选择被默认英文抢先覆盖。
+        let storedLocale: string | null = null;
+        try { storedLocale = window.localStorage.getItem("amara-locale"); } catch { /* use provider locale */ }
+        const requestLocale = storedLocale === "zh" || storedLocale === "en" ? storedLocale : localeRef.current;
+        const greetRes = await fetch(`/api/companion/greeting?companion_id=${encodeURIComponent(c.id)}&locale=${requestLocale}&timezone=${encodeURIComponent(timezone)}`);
         if (!isCurrent()) return;
         if (greetRes.ok) {
           const greetData = await greetRes.json();
@@ -196,23 +206,24 @@ function ChatInner() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  /* ── 打字机 ── */
+  /* ── 打字机：保留出现节奏，但不让首句动画成为数秒的输入锁 ── */
   function typeWriter(text: string, onDone?: () => void, runId = initRunRef.current) {
     if (runId !== initRunRef.current) return;
     const msg: Message = { role: "assistant", content: "" };
     setMessages((prev) => [...prev, msg]);
     let i = 0;
+    const chunkSize = /[\u4e00-\u9fff]/.test(text) ? 2 : 4;
     function step() {
       if (runId !== initRunRef.current) return;
       if (i < text.length) {
+        i = Math.min(text.length, i + chunkSize);
         setMessages((prev) => {
           const arr = [...prev];
-          arr[arr.length - 1] = { ...arr[arr.length - 1], content: text.slice(0, i + 1) };
+          arr[arr.length - 1] = { ...arr[arr.length - 1], content: text.slice(0, i) };
           return arr;
         });
-        i++;
-        const d = ["，", "。", "？", "！", "…", "、"].includes(text.charAt(i - 1)) ? 75 : 45;
-        typeWriterTimerRef.current = setTimeout(step, d + Math.random() * 15);
+        const d = ["，", "。", "？", "！", "…", "、", ".", "?", "!"].includes(text.charAt(i - 1)) ? 40 : 18;
+        typeWriterTimerRef.current = setTimeout(step, d);
       } else {
         typeWriterTimerRef.current = null;
         onDone?.();
@@ -241,16 +252,17 @@ function ChatInner() {
 
     let res: Response;
     try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
       res = await fetch("/api/companion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, companion_id: companion.id, session_id: sessionId }),
+        body: JSON.stringify({ message: text, companion_id: companion.id, session_id: sessionId, locale: localeRef.current, timezone }),
         signal: controller.signal,
       });
     } catch {
       clearTimeout(timeout);
       setMessages((prev) => prev.slice(0, -2));
-      const errMsg: Message = { role: "assistant", content: "网络超时，请检查连接后重试" };
+      const errMsg: Message = { role: "assistant", content: copy.networkError };
       setMessages((prev) => [...prev, errMsg]);
       setLoading(false);
       return;
@@ -266,13 +278,8 @@ function ChatInner() {
     }
 
     if (!res.ok || !res.body) {
-      let errText = "出了点问题，稍后再试";
-      try {
-        const errData = await res.json();
-        if (errData.error) errText = errData.error;
-      } catch {}
       setMessages((prev) => prev.slice(0, -2));
-      const errMsg: Message = { role: "assistant", content: errText };
+      const errMsg: Message = { role: "assistant", content: copy.errorGeneric };
       setMessages((prev) => [...prev, errMsg]);
       setLoading(false);
       return;
@@ -304,7 +311,7 @@ function ChatInner() {
         try {
           const p = JSON.parse(data);
           if (p.error) {
-            content = String(p.error) + (p.debug?.message ? "（" + p.debug.message + "）" : "");
+            content = copy.errorGeneric;
             setMessages((prev) => {
               const arr = [...prev];
               arr[arr.length - 1] = { role: "assistant", content };
@@ -437,8 +444,8 @@ function ChatInner() {
     return (
       <div className="h-screen flex items-center justify-center" style={{ background: "#F8F5EF" }}>
         <div className="text-center" style={{ color: "#282621" }}>
-          <p className="text-lg mb-6" style={{ letterSpacing: 2 }}>需要先登录，才能与 Amara 相遇</p>
-          <a href="/login" className="px-8 py-3 rounded-xl text-white font-medium inline-block" style={{ letterSpacing: 2, background: "#A34F3D" }}>去登录</a>
+          <p className="text-lg mb-6" style={{ letterSpacing: 2 }}>{copy.loginRequired}</p>
+          <a href="/login" className="px-8 py-3 rounded-xl text-white font-medium inline-block" style={{ letterSpacing: 2, background: "#A34F3D" }}>{copy.login}</a>
         </div>
       </div>
     );
@@ -449,7 +456,7 @@ function ChatInner() {
       <div className="h-screen flex items-center justify-center" style={{ background: "#F8F5EF" }}>
         <div className="text-center" style={{ color: "#756F66" }}>
           <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-[#c9a894] animate-spin mx-auto mb-4" />
-          <p className="text-sm" style={{ letterSpacing: 2 }}>正在靠近...</p>
+          <p className="text-sm" style={{ letterSpacing: 2 }}>{copy.approaching}</p>
         </div>
       </div>
     );
@@ -463,7 +470,7 @@ function ChatInner() {
       {/* Header */}
       <header style={{ position: "relative", zIndex: 10, flexShrink: 0, padding: "16px 20px 12px", background: "rgba(248,245,239,0.92)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid #DED7CC" }}>
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <a href="/app" aria-label="返回控制台" className="w-10 text-lg" style={{ color: "#6E685F", textDecoration: "none" }}>&lsaquo;</a>
+          <a href="/app" aria-label={copy.back} className="w-10 text-lg" style={{ color: "#6E685F", textDecoration: "none" }}>&lsaquo;</a>
           <div className="flex-1 flex flex-col items-center">
             <div className="relative mb-1.5" style={{ width: 36, height: 36 }}>
               <div style={{ width: 36, height: 36, borderRadius: "50%", background: "radial-gradient(circle at 35% 35%, #FFFDF8, #E7D6C7)", border: "1px solid #D8C7B7", boxShadow: "0 3px 12px rgba(91,65,47,0.10)" }} />
@@ -471,14 +478,14 @@ function ChatInner() {
             </div>
             <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#282621", lineHeight: 1.4 }}>Amara</div>
             <div className="text-xs font-light mt-0.5" style={{ letterSpacing: 1, color: "#756F66" }}>
-              {isLover ? "为你存在" : "听你说话"}
-              {extracting && " · 记忆中..."}
+              {isLover ? copy.loverTagline : copy.friendTagline}
+              {extracting && ` · ${copy.remembering}`}
             </div>
           </div>
           {/* "我的" 按钮 */}
           <button
             onClick={() => setShowMyDrawer(true)}
-            aria-label="我的账号"
+            aria-label={copy.myAccount}
             className="w-10 flex justify-end items-center"
             style={{ color: "#6E685F", transition: "color 0.2s" }}
             onMouseEnter={(e) => { e.currentTarget.style.color = "#A34F3D"; }}
@@ -492,19 +499,19 @@ function ChatInner() {
       {/* 支付成功提示 */}
       {showPaySuccess && (
         <div className="text-center py-1.5 text-xs" style={{ color: "#805A25", letterSpacing: 1, background: "#FFF1D6", position: "relative", zIndex: 10 }}>
-          支付成功，会员开通中，稍等片刻即可生效 ♡
+          {copy.paymentSuccess}
         </div>
       )}
 
       {/* 免费额度提示 */}
       {quota && !quota.isMember && (
         <div className="text-center py-1.5 text-xs" style={{ color: "#6E685F", letterSpacing: 1, background: "#F1ECE4", position: "relative", zIndex: 10 }}>
-          免费试聊还剩 {quota.remaining} 句 ·{" "}
+          {fillCopy(copy.freeRemaining, { count: quota.remaining })} ·{" "}
           <span
             onClick={() => setShowPaywall(true)}
             style={{ color: "#A34F3D", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}
           >
-            让 TA 记住你
+            {copy.rememberCta}
           </span>
         </div>
       )}
@@ -513,7 +520,7 @@ function ChatInner() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto" style={{ position: "relative", zIndex: 10, padding: "20px 16px" }}>
         <div className="max-w-3xl mx-auto">
           <div className="text-center my-6" style={{ opacity: 0, animation: "fadeIn 0.8s ease forwards" }}>
-            <span className="text-xs font-light" style={{ color: "#817A70", letterSpacing: 2 }}>今天</span>
+            <span className="text-xs font-light" style={{ color: "#817A70", letterSpacing: 2 }}>{copy.today}</span>
           </div>
 
           {messages.map((msg, i) => (
@@ -553,7 +560,7 @@ function ChatInner() {
                   letterSpacing: 1,
                   ...(msg.role === "user" ? { textAlign: "right", marginRight: 4 } : { marginLeft: 4 }),
                 }}>
-                  刚刚
+                  {copy.justNow}
                 </div>
               </div>
             </div>
@@ -582,7 +589,7 @@ function ChatInner() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="想说点什么..."
+            placeholder={copy.inputPlaceholder}
             disabled={!greetingDone}
             className="flex-1 rounded-2xl text-sm font-light placeholder:text-[#9a9186]"
             style={{
@@ -603,7 +610,7 @@ function ChatInner() {
           <button
             onClick={handleSend}
             disabled={loading || !input.trim() || !greetingDone}
-            aria-label="发送消息"
+            aria-label={copy.send}
             className="rounded-full flex items-center justify-center"
             style={{
               width: 44, height: 44,
@@ -660,6 +667,8 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
   onShowPaywall: () => void;
 }) {
   const { supabaseClient } = useSessionContext();
+  const { locale } = useLocale();
+  const copy = chatCopy[locale];
   const accent = isLover ? "#A34F3D" : "#8A6438";
   const accentRgb = isLover ? "163, 79, 61" : "138, 100, 56";
   const [editingNick, setEditingNick] = useState(false);
@@ -677,7 +686,7 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
     const nick = nickInput.trim();
     if (!companion || savingNick) return;
     if (nick.length < 1 || nick.length > 12) {
-      setNickError("昵称需要 1-12 个字符");
+      setNickError(copy.nicknameLength);
       return;
     }
     setSavingNick(true);
@@ -692,7 +701,7 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
       onNicknameSaved(nick);
       setEditingNick(false);
     } catch {
-      setNickError("保存失败，请稍后重试");
+      setNickError(copy.saveFailed);
     } finally {
       setSavingNick(false);
     }
@@ -712,13 +721,14 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
   };
 
   const membershipLabel = () => {
-    if (!quota) return "加载中...";
-    if (!quota.isMember) return "未开通";
-    const typeMap: Record<string, string> = { weekly: "周卡", monthly: "月卡", yearly: "年卡" };
-    const typeName = typeMap[quota.membershipType || ""] || quota.membershipType || "已开通";
+    if (!quota) return copy.memberLoading;
+    if (!quota.isMember) return copy.free;
+    const typeMap: Record<string, string> = copy.planNames;
+    const typeName = typeMap[quota.membershipType || ""] || quota.membershipType || copy.active;
     if (quota.expiresAt) {
       const d = new Date(quota.expiresAt);
-      return `${typeName} · 至 ${d.getMonth() + 1}/${d.getDate()}`;
+      const date = locale === "zh" ? `${d.getMonth() + 1}/${d.getDate()}` : new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(d);
+      return `${typeName} · ${fillCopy(copy.until, { date })}`;
     }
     return typeName;
   };
@@ -732,8 +742,8 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid #DED7CC" }}>
-          <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#282621" }}>我的</div>
-          <button onClick={onClose} aria-label="关闭账号抽屉" style={{ color: "#6E685F", transition: "color 0.2s" }}
+          <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#282621" }}>{copy.myAccount}</div>
+          <button onClick={onClose} aria-label={copy.closeAccount} style={{ color: "#6E685F", transition: "color 0.2s" }}
             onMouseEnter={(e) => { e.currentTarget.style.color = "#A34F3D"; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = "#6E685F"; }}
           >
@@ -748,7 +758,7 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
               <Crown style={{ width: 18, height: 18, color: accent }} />
             </div>
             <div>
-              <div className="text-sm font-medium" style={{ color: "#282621" }}>会员状态</div>
+              <div className="text-sm font-medium" style={{ color: "#282621" }}>{copy.membership}</div>
               <div className="text-xs mt-0.5" style={{ color: quota?.isMember ? accent : "#756F66" }}>
                 {membershipLabel()}
               </div>
@@ -762,14 +772,14 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
               onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
               onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
             >
-              {isLover ? "让 TA 记住你" : "开通会员"}
+              {isLover ? copy.loverMemberCta : copy.friendMemberCta}
             </button>
           )}
         </div>
 
         {/* 昵称卡片 */}
         <div className="mx-4 mb-4 p-4 rounded-2xl" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB" }}>
-          <div className="text-xs mb-2" style={{ letterSpacing: 2, color: "#817A70" }}>TA 怎么称呼你</div>
+          <div className="text-xs mb-2" style={{ letterSpacing: 2, color: "#817A70" }}>{copy.nicknameLabel}</div>
           {editingNick ? (
             <div>
               <div className="flex gap-2">
@@ -779,7 +789,7 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
                   onKeyDown={(e) => { if (e.key === "Enter") saveNick(); }}
                   maxLength={12}
                   autoFocus
-                  placeholder="输入昵称"
+                  placeholder={copy.nicknamePlaceholder}
                   className="flex-1 rounded-xl text-sm font-light placeholder:text-[#9a9186]"
                   style={{
                     background: "#F8F5EF",
@@ -795,14 +805,14 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
                   className="px-4 rounded-xl text-sm text-white"
                   style={{ background: accent, opacity: savingNick ? 0.6 : 1, letterSpacing: 1 }}
                 >
-                  {savingNick ? "..." : "保存"}
+                  {savingNick ? "..." : copy.save}
                 </button>
                 <button
                   onClick={() => setEditingNick(false)}
                   className="px-3 rounded-xl text-sm"
                   style={{ color: "#6E685F", border: "1px solid #D8CFC2" }}
                 >
-                  取消
+                  {copy.cancel}
                 </button>
               </div>
               {nickError && <div className="text-xs mt-2" style={{ color: "#A34F3D" }}>{nickError}</div>}
@@ -810,9 +820,9 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
           ) : (
             <button onClick={startEditNick} className="w-full flex items-center justify-between text-left">
               <span className="text-sm font-light" style={{ letterSpacing: 1, color: "#37332D" }}>
-                {companion?.user_nickname || "未设置"}
+                {companion?.user_nickname || copy.notSet}
               </span>
-              <span className="text-xs" style={{ color: accent, letterSpacing: 1 }}>修改</span>
+              <span className="text-xs" style={{ color: accent, letterSpacing: 1 }}>{copy.edit}</span>
             </button>
           )}
         </div>
@@ -824,7 +834,7 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
               onMouseEnter={(e) => { e.currentTarget.style.background = "#F1ECE4"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             >
-              查看全部方案
+              {copy.viewPlans}
               <ChevronRight style={{ width: 16, height: 16, opacity: 0.55 }} />
             </button>
           )}
@@ -836,14 +846,14 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
           >
             <LogOut style={{ width: 16, height: 16 }} />
-            退出登录
+            {copy.logout}
           </button>
         </div>
 
         {/* 底部信息 */}
         <div className="mt-auto p-4 text-center">
           <p className="text-xs font-light" style={{ color: "#817A70", letterSpacing: 1 }}>
-            更多功能即将开放
+            {copy.moreSoon}
           </p>
         </div>
       </div>
@@ -853,6 +863,8 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
 
 /* ── 付费墙 ── */
 function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }) {
+  const { locale } = useLocale();
+  const copy = chatCopy[locale];
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loadingPlans, setLoadingPlans] = useState(true);
@@ -860,6 +872,11 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
   const [payError, setPayError] = useState("");
   const accent = isLover ? "#A34F3D" : "#8A6438";
   const accentRgb = isLover ? "163, 79, 61" : "138, 100, 56";
+  const planNames: Record<string, string> = copy.planNames;
+  const planHints: Record<string, string> = copy.planHints;
+  const planPeriods: Record<string, string> = locale === "en"
+    ? { weekly: "/ week", monthly: "/ month", quarterly: "/ quarter", yearly: "/ year" }
+    : { weekly: "/ 周", monthly: "/ 月", quarterly: "/ 季", yearly: "/ 年" };
 
   useEffect(() => {
     fetch("/api/pricing")
@@ -888,13 +905,11 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
         body: JSON.stringify({ type: "membership", plan_id: selectedPlan.id }),
       });
       const data = await res.json();
-      if (!res.ok || !data.payUrl) {
-        throw new Error(data.error || "创建订单失败");
-      }
+      if (!res.ok || !data.payUrl) throw new Error();
       // 跳转支付宝收银台，支付完成后会回到 /chat?payment=success
       window.location.href = data.payUrl;
-    } catch (e: any) {
-      setPayError(e?.message || "支付系统暂时不可用，请稍后重试");
+    } catch {
+      setPayError(copy.paymentError);
       setPaying(false);
     }
   };
@@ -902,19 +917,17 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(40,38,33,0.35)", backdropFilter: "blur(12px)" }} onClick={onClose}>
       <div className="rounded-3xl p-7 max-w-md w-full relative" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB", boxShadow: "0 24px 80px rgba(40,38,33,0.16)", animation: "paywallIn 0.4s cubic-bezier(0.22, 1, 0.36, 1)" }} onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-sm" style={{ color: "#756F66" }}>&times;</button>
+        <button onClick={onClose} aria-label={copy.cancel} className="absolute top-4 right-4 text-sm" style={{ color: "#756F66" }}>&times;</button>
 
         <div className="text-center mb-6">
           <div className="w-10 h-10 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: `rgba(${accentRgb}, 0.1)`, border: `1px solid rgba(${accentRgb}, 0.22)`, color: accent }}>
             <span className="text-lg">{isLover ? "\u2665" : "\u263A"}</span>
           </div>
           <h3 className="text-lg font-medium leading-relaxed" style={{ color: "#282621" }}>
-            {isLover ? "想让 TA 一直陪着你吗？" : "想让这段陪伴继续吗？"}
+            {isLover ? copy.paywallLoverTitle : copy.paywallFriendTitle}
           </h3>
           <p className="mt-3 text-sm leading-relaxed whitespace-pre-line" style={{ color: "#6E685F" }}>
-            {isLover
-              ? "聊到现在，TA 已经开始记得你了。\n开通后，TA 会记住你说过的每件事——\n你的习惯、你的心事、你随口提过的小事。"
-              : "聊了这么久，TA 已经有点懂你了。\n开通后，TA 会真正记住你们聊过的一切，\n随时找 TA 说话，不限次数。"}
+            {isLover ? copy.paywallLoverBody : copy.paywallFriendBody}
           </p>
         </div>
 
@@ -931,11 +944,11 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
                   background: selected === p.id ? `rgba(${accentRgb}, 0.08)` : "#F8F5EF",
                 }}>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm" style={{ color: "#282621" }}>{p.name}</span>
-                    {p.popular && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: accent, color: "#FFFDF8" }}>推荐</span>}
-                    <span className="text-xs" style={{ color: "#756F66" }}>&middot; {p.hint}</span>
+                    <span className="font-medium text-sm" style={{ color: "#282621" }}>{planNames[p.id] || p.name}</span>
+                    {p.popular && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: accent, color: "#FFFDF8" }}>{copy.recommended}</span>}
+                    <span className="text-xs" style={{ color: "#756F66" }}>&middot; {planHints[p.id] || p.hint}</span>
                   </div>
-                  <span className="font-semibold text-sm" style={{ color: "#282621" }}>&yen;{p.price}<span className="text-xs font-normal" style={{ color: "#756F66" }}>{p.period}</span></span>
+                  <span className="font-semibold text-sm" style={{ color: "#282621" }}>&yen;{p.price}<span className="text-xs font-normal" style={{ color: "#756F66" }}>{planPeriods[p.id] || p.period}</span></span>
                 </button>
               ))}
             </div>
@@ -948,19 +961,19 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
                   className="w-full py-3 rounded-2xl font-semibold text-sm text-white transition"
                   style={{ background: accent, letterSpacing: 1, opacity: paying ? 0.6 : 1 }}
                 >
-                  {paying ? "正在前往支付宝..." : `支付宝支付 ¥${selectedPlan.price}`}
+                  {paying ? copy.payingAlipay : fillCopy(copy.alipayPay, { price: selectedPlan.price })}
                 </button>
                 {payError && (
                   <p className="text-xs mt-2 text-center" style={{ color: "#A34F3D" }}>{payError}</p>
                 )}
                 <p className="mt-3 text-xs text-center leading-relaxed" style={{ color: "#817A70" }}>
-                  支付完成后自动开通，无需联系客服
-                  <br />遇到问题？客服 QQ：3801434603
+                  {copy.paymentNote}
+                  <br />{copy.support}
                 </p>
               </div>
             ) : (
               <button onClick={() => setSelected(plans[0]?.id || "")} className="w-full py-3 rounded-xl font-semibold text-sm text-white" style={{ background: accent }}>
-                {isLover ? "让 TA 留下来" : "继续聊下去"}
+                {copy.choosePlan}
               </button>
             )}
           </>
@@ -970,16 +983,21 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
   );
 }
 
+function ChatLoading() {
+  const { locale } = useLocale();
+  return (
+    <div className="h-screen flex items-center justify-center" style={{ background: "#F8F5EF" }}>
+      <div className="text-center" style={{ color: "#756F66" }}>
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-4" style={{ borderColor: "rgba(163,79,61,0.3)", borderTopColor: "transparent" }} />
+        <p className="text-sm" style={{ letterSpacing: 2 }}>{chatCopy[locale].approaching}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatPage() {
   return (
-    <Suspense fallback={
-      <div className="h-screen flex items-center justify-center" style={{ background: "#F8F5EF" }}>
-        <div className="text-center" style={{ color: "#756F66" }}>
-          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-4" style={{ borderColor: "rgba(163,79,61,0.3)", borderTopColor: "transparent" }} />
-          <p className="text-sm" style={{ letterSpacing: 2 }}>正在靠近...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<ChatLoading />}>
       <ChatInner />
     </Suspense>
   );

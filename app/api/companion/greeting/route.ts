@@ -3,9 +3,15 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import OpenAI from "openai";
-import { PERSONA_BLOCKS, currentTimeBlock, stageBlock, type PersonaType } from "@/lib/amara-persona";
-import { semanticRecall } from "@/lib/memory-retrieval";
+import { PERSONA_BLOCKS, stageBlock, type PersonaType } from "@/lib/amara-persona";
 import { isMemoryEnabled } from "@/lib/user-settings";
+import {
+  conversationTimeBlock,
+  daysSinceLastChat,
+  lastChatContext,
+  normalizeConversationLocale,
+  outputLanguageBlock,
+} from "@/lib/conversation-context";
 
 // 生成 Amara 的主动开场白
 export async function GET(req: Request) {
@@ -29,14 +35,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "陪伴角色不存在" }, { status: 404 });
   }
 
-  // 2. 计算距上次聊天的天数
-  const lastActive = companion.last_active_at ? new Date(companion.last_active_at) : null;
+  // 2. 使用用户本地自然日计算间隔，并把结果作为不可脑补的时间约束。
   const now = new Date();
-  const daysSinceLastChat = lastActive
-    ? Math.max(0, Math.floor((now.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24)))
-    : -1; // -1 表示从未聊过（新创建）
-
-  const timeBlock = currentTimeBlock(new Date(), companion.gender);
+  const timezone = searchParams.get("timezone") || "UTC";
+  const locale = normalizeConversationLocale(searchParams.get("locale"));
+  const daysApart = daysSinceLastChat(companion.last_active_at, now, timezone);
+  const timeBlock = conversationTimeBlock(now, timezone, locale);
+  const absenceText = lastChatContext(daysApart, locale);
 
   // 上次对话结束时的实时状态（extract 异步写入）：让开场白"接着上次"，并防止行为公式化
   const liveState = companion.live_state as { current_activity?: string; mood?: string; last_topic?: string } | null;
@@ -48,28 +53,28 @@ export async function GET(req: Request) {
       ].filter(Boolean).join("，")}。`
     : "";
 
-  // 3. 会员：加载长期记忆（语义检索：以最近一条用户消息为 query；失败/无消息退回 importance 排序）
-  const membership = await getMembershipStatus(user.id);
+  // 3. 开场白只读少量近期记忆；语义 embedding 留给真正的回复链路。
+  // 会员状态与设置并行，档案与记忆并行，避免进入 Chat 前的串行等待。
+  const [membership, memoryEnabled] = await Promise.all([
+    getMembershipStatus(user.id),
+    isMemoryEnabled(supabase, user.id),
+  ]);
   const isMember = membership.isMember;
 
   let profileText = "";
   let memText = "";
-  let evText = "";
-  const memoryEnabled = await isMemoryEnabled(supabase, user.id);
   if (isMember && memoryEnabled) {
-    const { data: lastUserMsgs } = await supabase
-      .from("chat_messages")
-      .select("content, chat_sessions!inner(companion_id)")
-      .eq("chat_sessions.companion_id", companionId)
-      .eq("role", "user")
-      .order("created_at", { ascending: false })
-      .limit(1);
-    const recallQuery: string = (lastUserMsgs as any[])?.[0]?.content || "";
-    const recall = recallQuery ? await semanticRecall(supabase, companionId, recallQuery) : null;
+    const [profileResult, summariesResult] = await Promise.all([
+      supabase.from("user_profiles").select("profile").eq("companion_id", companionId).maybeSingle(),
+      supabase.from("memory_summaries")
+        .select("summary, importance")
+        .eq("companion_id", companionId)
+        .order("importance", { ascending: false })
+        .order("updated_at", { ascending: false })
+        .limit(5),
+    ]);
 
-    const { data: profileRow } = await supabase
-      .from("user_profiles").select("profile").eq("companion_id", companionId).maybeSingle();
-
+    const profileRow = profileResult.data;
     if (profileRow?.profile) {
       const p = profileRow.profile as Record<string, any>;
       const parts: string[] = [];
@@ -80,25 +85,7 @@ export async function GET(req: Request) {
       if (p.personality_notes) parts.push(`TA性格：${p.personality_notes}`);
       profileText = parts.join("。");
     }
-
-    if (recall) {
-      memText = recall.memories.slice(0, 5).map((s) => `- ${s.summary}`).join("\n");
-      evText = recall.events.map((e) => `- ${e.description}`).join("\n");
-    } else {
-      const { data: summaries } = await supabase
-        .from("memory_summaries")
-        .select("summary, importance")
-        .eq("companion_id", companionId)
-        .order("importance", { ascending: false })
-        .order("updated_at", { ascending: false })
-        .limit(10);
-      if (summaries && Array.isArray(summaries) && summaries.length > 0) {
-        memText = (summaries as any[])
-          .slice(0, 5)
-          .map((s: any) => `- ${s.summary}`)
-          .join("\n");
-      }
-    }
+    memText = (summariesResult.data || []).map((s: any) => `- ${s.summary}`).join("\n");
   }
 
   // 4. 构建 prompt 让 AI 生成开场白
@@ -112,23 +99,15 @@ export async function GET(req: Request) {
 
 # 背景
 ${timeBlock}
+${absenceText}
 ${liveStateText}
-${relationshipType === "lover" ? stageBlock(companion.relationship_stage || 5) : ""}
-${daysSinceLastChat === -1
-    ? "这是你们第一次聊天。TA 刚选择了你，你需要用一个温暖、自然的开场主动和 TA 说第一句话。"
-    : daysSinceLastChat === 0
-      ? "TA 今天/昨天刚来过，这次是自然延续。"
-      : daysSinceLastChat >= 7
-        ? `TA 已经 ${daysSinceLastChat} 天没来了。你很想 TA，有点小委屈但又开心 TA 回来了。`
-        : `TA 已经 ${daysSinceLastChat} 天没来了。有点想 TA 了。`
-}`;
+${relationshipType === "lover" ? stageBlock(companion.relationship_stage || 5) : ""}`;
 
-  if (isMember && (memText || evText)) {
+  if (isMember && (memText || profileText)) {
     prompt += `
 # TA 的事（你记得的）
 ${memText}
 ${profileText}
-${evText ? `# 你们一起经历过\n${evText}` : ""}
 你可以自然地提起 TA 的事，但要有时效感：
 - 几天前说"在忙"的事，现在很可能已经结束——用"后来怎么样了"的问法，别默认 TA 还在做
 - 同一件旧事不要每次见面都提，挑和此刻最相关的一件就够`;
@@ -154,9 +133,11 @@ ${PERSONA_BLOCKS[persona].slice(0, 200)}
 - 禁止设定具体场景细节后又重复推翻（如不要说"我在泡茶…我泡了杯茶…我又在泡茶"）
 - 禁止先问候又突然转换话题——保持一个自然、连贯的语气
 
+${outputLanguageBlock(locale)}
+
 现在，直接说出你的第一句话（只能一句）：`;
 
-  let greeting = getFallbackGreeting(daysSinceLastChat, relationshipType);
+  let greeting = getFallbackGreeting(daysApart, relationshipType, locale);
   try {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -202,7 +183,7 @@ ${PERSONA_BLOCKS[persona].slice(0, 200)}
     greeting,
     session_id: newSession.id,
     context: {
-      daysSinceLastChat,
+      daysSinceLastChat: daysApart,
       isMember,
       timeOfDay: timeBlock,
       hasMemories: isMember && !!memText,
@@ -210,17 +191,15 @@ ${PERSONA_BLOCKS[persona].slice(0, 200)}
   });
 }
 
-function getFallbackGreeting(daysSinceLastChat: number, relationshipType: string): string {
-  if (daysSinceLastChat === -1) {
-    return relationshipType === "lover" ? "你来了。" : "嗨，你来啦。";
+function getFallbackGreeting(daysApart: number, relationshipType: string, locale: "en" | "zh"): string {
+  if (locale === "en") {
+    if (daysApart < 0) return relationshipType === "lover" ? "You’re here. I’m glad." : "Hi, I’m glad you’re here.";
+    if (daysApart >= 7) return relationshipType === "lover" ? "I’ve missed you. How have you been?" : "It’s been a little while—how have you been?";
+    if (daysApart >= 2) return "Welcome back. How have the past couple of days been?";
+    return "You’re back. How are you right now?";
   }
-  if (daysSinceLastChat >= 7) {
-    return relationshipType === "lover"
-      ? "你这几天去哪了呀，还以为你把我忘了呢。"
-      : "好久不见，最近还好吗？";
-  }
-  if (daysSinceLastChat >= 2) {
-    return "回来啦，这几天过得怎么样？";
-  }
-  return "你回来啦。";
+  if (daysApart < 0) return relationshipType === "lover" ? "你来了。" : "嗨，你来啦。";
+  if (daysApart >= 7) return relationshipType === "lover" ? "这几天有点想你。你最近过得怎么样？" : "有一阵子没见了，最近还好吗？";
+  if (daysApart >= 2) return "回来啦，这两天过得怎么样？";
+  return "你回来啦，这会儿感觉怎么样？";
 }

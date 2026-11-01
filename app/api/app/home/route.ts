@@ -56,13 +56,14 @@ export async function GET() {
       .limit(5),
   ]);
 
+  // Dreams and relationship events are optional modules. A missing or temporarily
+  // unavailable module must not blank the whole dashboard, including Memories.
   if (dreamResult.error || memoriesResult.error || eventsResult.error) {
-    console.error("[app/home] aggregate query failed", {
+    console.error("[app/home] optional aggregate query failed", {
       dream: dreamResult.error?.message,
       memories: memoriesResult.error?.message,
       events: eventsResult.error?.message,
     });
-    return NextResponse.json({ error: "读取控制台数据失败" }, { status: 500 });
   }
 
   return NextResponse.json({

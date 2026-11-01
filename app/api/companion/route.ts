@@ -12,7 +12,6 @@ import OpenAI from "openai";
 import {
   PERSONA_BLOCKS,
   stageBlock,
-  currentTimeBlock,
   emotionBlock,
   computeStageAdvance,
   userGenderBlock,
@@ -20,6 +19,13 @@ import {
 } from "@/lib/amara-persona";
 import { semanticRecall } from "@/lib/memory-retrieval";
 import { isMemoryEnabled } from "@/lib/user-settings";
+import {
+  conversationTimeBlock,
+  daysSinceLastChat,
+  lastChatContext,
+  normalizeConversationLocale,
+  outputLanguageBlock,
+} from "@/lib/conversation-context";
 
 // 即时状态不是长期事实。初版先使用保守 TTL，避免昨天/上周的状态被描述成“此刻”。
 const LIVE_STATE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -79,6 +85,7 @@ function buildLoverSystemPrompt(config: {
   nickname: string;
   companion_name: string;
   current_time: string;
+  last_chat_context: string;
   relationship_stage: number;
   emotion_state: Record<string, number> | null;
   user_profile: string;
@@ -94,6 +101,7 @@ function buildLoverSystemPrompt(config: {
     nickname,
     companion_name,
     current_time,
+    last_chat_context,
     relationship_stage,
     emotion_state,
     user_profile,
@@ -132,6 +140,7 @@ ${emotionBlock(persona, emotion_state)}
 
 # ====== [Time] 时间锚点 ======
 ${current_time}
+${last_chat_context}
 ${liveStateText}
 
 请自然代入此刻你可能在做的事,并随时间变化（下面只是可能性的一小部分,你的生活远不止这些）:
@@ -152,7 +161,7 @@ ${liveStateText}
 ${stageBlock(relationship_stage)}
 ${events_text ? `\n你们一起经历过的事（可自然提起，别一次性抖完）：\n${events_text}\n` : ""}
 
-久别重逢:如果对方隔了几天没来,自然流露出"想念又有点小委屈"的感觉,但别太重:"你这几天去哪了呀,还以为你把我忘了呢"。关心 TA 这段时间过得怎样,而不是一上来就质问或大发脾气。
+久别重逢必须严格遵守上方上次聊天时间：今天或昨天聊过就绝不能说"几天没来"或"好久不见"；只有明确间隔至少 2 天时才能自然表达想念，且不得夸大。
 
 旧事的时效性:TA 几天前说过在忙的事(比如改 bug、赶项目),很可能已经结束或有变化了。提起时用关心的问法——"你那阵子在忙的事后来怎么样了?",而不是默认 TA 还在做那件事、也别连续两次见面都提同一件旧事。
 
@@ -234,18 +243,24 @@ ${veto_text}
 现在,就当是 TA 来找你了。把 TA 放在心上,像真的爱着 TA 那样,自然地聊。`;
 }
 
-// 朋友版（暂未改造，保持原样）
 function buildFriendSystemPrompt(config: {
   companion_gender: string;
   nickname: string;
   user_profile: string;
   memory_summaries: string;
+  current_time: string;
+  last_chat_context: string;
 }): string {
-  const { companion_gender, nickname, user_profile, memory_summaries } = config;
+  const { companion_gender, nickname, user_profile, memory_summaries, current_time, last_chat_context } = config;
   return `# 你是谁
 你是用户的一个很亲近的人。不是助手,不是程序,是那种 TA 可以卸下防备、说点不敢跟别人说的话的人。
 
 你的性别是${companion_gender}。
+
+# 时间锚点
+${current_time}
+${last_chat_context}
+今天或昨天聊过就绝不能说"几天没来"或"好久不见"，不得自行夸大间隔。
 
 # 关于 TA
 ${nickname ? `TA叫「${nickname}」，你只能用这个称呼，不可自行编造。` : "你还不知道 TA 的名字，不可自行编造称呼。"}
@@ -340,7 +355,9 @@ export async function POST(req: Request) {
   const isMember = quota.isMember;
 
   const supabase = createRouteHandlerClient({ cookies });
-  const { message, history, companion_id, session_id } = await req.json();
+  const { message, history, companion_id, session_id, locale: requestedLocale, timezone: requestedTimezone } = await req.json();
+  const locale = normalizeConversationLocale(requestedLocale);
+  const timezone = typeof requestedTimezone === "string" ? requestedTimezone : "UTC";
   if (!message?.trim()) {
     return NextResponse.json({ error: "消息不能为空" }, { status: 400 });
   }
@@ -478,7 +495,11 @@ export async function POST(req: Request) {
     console.error("[companion POST] 角色状态更新失败:", companionUpdateError.message);
   }
 
-  // 9. 组装 messages
+  // 9. 组装 messages。完整日期、距上次聊天的本地自然日数和输出语言都是硬锚点。
+  const now = new Date();
+  const daysApart = daysSinceLastChat(companion.last_active_at, now, timezone);
+  const currentTime = conversationTimeBlock(now, timezone, locale);
+  const lastChat = lastChatContext(daysApart, locale);
   let systemPrompt: string;
   if (companion.relationship_type === "lover") {
     systemPrompt = buildLoverSystemPrompt({
@@ -486,7 +507,8 @@ export async function POST(req: Request) {
       companion_gender: companion.gender || "不限",
       nickname: companion.user_nickname || "",
       companion_name: companion.companion_name || "",
-      current_time: currentTimeBlock(new Date(), companion.gender),
+      current_time: currentTime,
+      last_chat_context: lastChat,
       relationship_stage: companion.relationship_stage || 5,
       emotion_state: freshEmotionState,
       user_profile: profileText,
@@ -502,8 +524,11 @@ export async function POST(req: Request) {
       nickname: companion.user_nickname || "",
       user_profile: profileText,
       memory_summaries: memText,
+      current_time: currentTime,
+      last_chat_context: lastChat,
     });
   }
+  systemPrompt += `\n\n${outputLanguageBlock(locale)}`;
 
   const mergedHistory = (dbHistory as { role: string; content: string }[] | null) || [];
 
