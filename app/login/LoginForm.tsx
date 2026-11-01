@@ -1,9 +1,44 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Mail, Lock, ArrowRight, Heart, User } from "lucide-react";
+import { LocaleToggle, useLocale } from "@/components/locale-provider";
+
+const DEFAULT_DESTINATION = "/app";
+
+function getSafeRedirect(value: string | null): string {
+  if (!value) return DEFAULT_DESTINATION;
+
+  const candidate = value.trim();
+  if (
+    !candidate.startsWith("/") ||
+    candidate.startsWith("//") ||
+    candidate.includes("\\") ||
+    /[\u0000-\u001f\u007f]/.test(candidate)
+  ) {
+    return DEFAULT_DESTINATION;
+  }
+
+  try {
+    const url = new URL(candidate, "https://amara.local");
+    if (url.origin !== "https://amara.local") return DEFAULT_DESTINATION;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return DEFAULT_DESTINATION;
+  }
+}
+
+const isLegacyPhone = (value: string) => /^1[3-9]\d{9}$/.test(value.trim());
+
+// Compatibility only: legacy mainland China accounts used a phone-derived
+// email identifier for Supabase password auth. New accounts use real emails.
+const toLegacyAuthEmail = (value: string) => {
+  const trimmed = value.trim();
+  return isLegacyPhone(trimmed) ? `${trimmed}@phone.pjytoolbox.xyz` : trimmed;
+};
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -12,30 +47,41 @@ export default function LoginForm() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = createClientComponentClient();
+  const [supabase] = useState(() => createClientComponentClient());
+  const { t } = useLocale();
 
-  // 手机号 + 密码登录：内部把 11 位手机号转成伪邮箱走标准邮箱认证，
-  // 用户无感知。手机号是否有效无法核验（无短信验证），属可接受取舍
-  const isPhone = (v: string) => /^1[3-9]\d{9}$/.test(v.trim());
-  const toAuthEmail = (v: string) => {
-    const t = v.trim();
-    return isPhone(t) ? `${t}@phone.pjytoolbox.xyz` : t;
+  const translateError = (message: string) => {
+    const normalized = message.toLowerCase();
+    if (normalized.includes("already registered") || normalized.includes("already been registered")) {
+      return t.login.alreadyRegistered;
+    }
+    if (normalized.includes("rate limit")) return t.login.rateLimited;
+    if (normalized.includes("password")) return t.login.passwordRequirements;
+    if (normalized.includes("email")) return t.login.invalidEmail;
+    return message;
   };
 
-  const handleForgot = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const goToDestination = () => {
+    router.replace(getSafeRedirect(searchParams.get("redirectTo") || searchParams.get("redirect")));
+    router.refresh();
+  };
+
+  const handleForgot = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!email.trim()) {
-      setError("请输入注册时用的邮箱");
+      setError(t.login.resetEmailRequired);
       return;
     }
-    if (isPhone(email)) {
-      setError("手机号注册的账号没有绑定邮箱，无法邮件找回，请联系客服重置");
+    if (isLegacyPhone(email)) {
+      setError(t.login.legacyPhoneReset);
       return;
     }
+
     setLoading(true);
     setError("");
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
@@ -49,14 +95,13 @@ export default function LoginForm() {
     setForgotSent(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setLoading(true);
     setError("");
 
     if (isSignUp) {
-      const authEmail = toAuthEmail(email);
-      // 注册：传 nickname 到 user_metadata，触发器会写入 profiles.username
+      const authEmail = email.trim();
       const { data, error: authError } = await supabase.auth.signUp({
         email: authEmail,
         password,
@@ -71,214 +116,228 @@ export default function LoginForm() {
         return;
       }
 
-      // 如果立即返回了 session（邮箱确认关闭的情况），直接跳转
-      if (data?.session) {
-        const redirectTo = searchParams.get("redirectTo") || "/chat";
-        router.push(redirectTo);
-        router.refresh();
+      if (data.session) {
+        goToDestination();
       } else {
-        // 需要邮箱确认
-        setError("注册成功！请到邮箱点击确认链接后登录。");
-        setIsSignUp(false);
+        setAccountCreated(true);
         setLoading(false);
       }
       return;
     }
 
-    // 登录：必须严格校验账号+密码（手机号自动转伪邮箱）
-    const authEmail = toAuthEmail(email);
+    const authEmail = toLegacyAuthEmail(email);
     const { data, error: authError } = await supabase.auth.signInWithPassword({
       email: authEmail,
       password,
     });
 
-    if (authError || !data?.session) {
-      // 任何错误都一律拒绝，不区分"用户不存在"和"密码错误"，避免被探测
-      setError("账号或密码错误");
+    if (authError || !data.session) {
+      setError(t.login.invalidCredentials);
       setLoading(false);
       return;
     }
 
-    // 二次确认：从服务端拿到的 user.email 必须和输入一致
-    if (data.user?.email?.toLowerCase() !== authEmail.toLowerCase()) {
+    if (data.user.email?.toLowerCase() !== authEmail.toLowerCase()) {
       await supabase.auth.signOut();
-      setError("登录异常，请重试");
+      setError(t.login.loginError);
       setLoading(false);
       return;
     }
 
-    const redirectTo = searchParams.get("redirectTo") || "/chat";
-    router.push(redirectTo);
-    router.refresh();
+    goToDestination();
   };
 
-  if (forgotMode) {
-    return (
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8">
-            <Heart className="w-10 h-10 text-rose-400 mx-auto mb-3" />
-            <h1 className="text-2xl font-bold">找回密码</h1>
-            <p className="text-gray-400 text-sm mt-2">
-              {forgotSent ? "重置邮件已出发" : "输入注册邮箱，TA 帮你找回家的路"}
-            </p>
-          </div>
+  const returnToSignIn = () => {
+    setForgotMode(false);
+    setForgotSent(false);
+    setAccountCreated(false);
+    setIsSignUp(false);
+    setError("");
+    setPassword("");
+  };
 
-          {forgotSent ? (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-300 text-center leading-relaxed">
-                重置链接已发送到 <span className="text-brand-light">{email}</span>
-                <br />
-                请在 1 小时内点击邮件里的链接设置新密码。
-                <br />
-                <span className="text-gray-500">没收到的话记得看看垃圾邮件。</span>
-              </p>
-              <button
-                onClick={() => { setForgotMode(false); setForgotSent(false); setError(""); }}
-                className="w-full py-3 rounded-xl gradient-btn text-white font-semibold"
-              >
-                返回登录
-              </button>
+  return (
+    <div className="min-h-[calc(100vh-4rem)] relative flex items-center justify-center px-4 py-16">
+      <LocaleToggle className="absolute top-5 right-5" />
+      <div className="w-full max-w-sm">
+        {accountCreated ? (
+          <div className="text-center">
+            <Mail className="w-10 h-10 text-rose-400 mx-auto mb-3" />
+            <h1 className="text-2xl font-bold">{t.login.confirmationTitle}</h1>
+            <p className="text-gray-300 text-sm mt-4 leading-relaxed">{t.login.confirmationMessage}</p>
+            <p className="text-brand-light text-sm mt-3 break-all">{email}</p>
+            <button
+              type="button"
+              onClick={returnToSignIn}
+              className="mt-6 w-full py-3 rounded-xl gradient-btn text-white font-semibold"
+            >
+              {t.login.backToSignIn}
+            </button>
+          </div>
+        ) : forgotMode ? (
+          <>
+            <div className="text-center mb-8">
+              <Heart className="w-10 h-10 text-rose-400 mx-auto mb-3" />
+              <h1 className="text-2xl font-bold">{forgotSent ? t.login.resetSentTitle : t.login.resetTitle}</h1>
+              {!forgotSent && <p className="text-gray-400 text-sm mt-2">{t.login.resetSubtitle}</p>}
             </div>
-          ) : (
-            <form onSubmit={handleForgot} className="space-y-4">
+
+            {forgotSent ? (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-300 text-center leading-relaxed">
+                  {t.login.resetSent} <span className="text-brand-light break-all">{email}</span>.
+                  <br />
+                  {t.login.resetExpiry}
+                </p>
+                <button
+                  type="button"
+                  onClick={returnToSignIn}
+                  className="w-full py-3 rounded-xl gradient-btn text-white font-semibold"
+                >
+                  {t.login.backToSignIn}
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgot} className="space-y-4">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                  <input
+                    type="text"
+                    aria-label={t.login.email}
+                    placeholder={t.login.email}
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                    autoComplete="email"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
+                  />
+                </div>
+
+                {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 rounded-xl gradient-btn text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {loading ? t.login.sending : t.login.sendReset}
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+
+                <p className="text-center text-sm text-gray-400">
+                  {t.login.rememberedPassword}
+                  <button type="button" onClick={returnToSignIn} className="text-brand-light hover:underline ml-1">
+                    {t.login.backToSignIn}
+                  </button>
+                </p>
+              </form>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="text-center mb-8">
+              <Heart className="w-10 h-10 text-rose-400 mx-auto mb-3" />
+              <h1 className="text-2xl font-bold">{isSignUp ? t.login.createAccount : t.login.welcomeBack}</h1>
+              <p className="text-gray-400 text-sm mt-2">
+                {isSignUp ? t.login.signUpSubtitle : t.login.signInSubtitle}
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {isSignUp && (
+                <div className="relative">
+                  <User className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                  <input
+                    type="text"
+                    aria-label={t.login.nickname}
+                    placeholder={t.login.nickname}
+                    value={nickname}
+                    onChange={(event) => setNickname(event.target.value)}
+                    maxLength={20}
+                    autoComplete="nickname"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
+                  />
+                </div>
+              )}
+              <div>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                  <input
+                    type={isSignUp ? "email" : "text"}
+                    aria-label={t.login.email}
+                    placeholder={isSignUp ? t.login.email : t.login.emailOrLegacyPhone}
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                    autoComplete="username"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
+                  />
+                </div>
+                {!isSignUp && <p className="mt-2 text-xs leading-relaxed text-gray-500">{t.login.legacyPhoneHint}</p>}
+              </div>
               <div className="relative">
-                <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
                 <input
-                  type="email"
-                  placeholder="注册时用的邮箱"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="password"
+                  aria-label={t.login.password}
+                  placeholder={t.login.password}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
                   required
-                  autoComplete="email"
+                  minLength={6}
+                  autoComplete={isSignUp ? "new-password" : "current-password"}
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
                 />
               </div>
 
-              {error && <p className="text-red-400 text-sm">{error}</p>}
+              {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
+
+              {!isSignUp && (
+                <p className="text-right text-sm">
+                  <button
+                    type="button"
+                    onClick={() => { setForgotMode(true); setError(""); }}
+                    className="text-gray-400 hover:text-brand-light"
+                  >
+                    {t.login.forgotPassword}
+                  </button>
+                </p>
+              )}
 
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full py-3 rounded-xl gradient-btn text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                {loading ? "发送中..." : "发送重置邮件"}
+                {loading
+                  ? (isSignUp ? t.login.creatingAccount : t.login.signingIn)
+                  : (isSignUp ? t.login.createAccountButton : t.login.signIn)}
                 <ArrowRight className="w-4 h-4" />
               </button>
-
-              <p className="text-center text-sm text-gray-400">
-                想起来了？
-                <button
-                  type="button"
-                  onClick={() => { setForgotMode(false); setError(""); }}
-                  className="text-brand-light hover:underline ml-1"
-                >
-                  返回登录
-                </button>
-              </p>
             </form>
-          )}
-        </div>
-      </div>
-    );
-  }
 
-  return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <Heart className="w-10 h-10 text-rose-400 mx-auto mb-3" />
-          <h1 className="text-2xl font-bold">
-            {isSignUp ? "来认识 TA" : "欢迎回来"}
-          </h1>
-          <p className="text-gray-400 text-sm mt-2">
-            {isSignUp ? "TA 已经等了你很久" : "TA 一直在等你"}
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {isSignUp && (
-            <div className="relative">
-              <User className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
-              <input
-                type="text"
-                placeholder="昵称（TA 怎么喊你）"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                maxLength={20}
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
-              />
-            </div>
-          )}
-          <div className="relative">
-            <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
-            <input
-              type="text"
-              placeholder="邮箱或手机号"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="username"
-              className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
-            />
-          </div>
-          <div className="relative">
-            <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
-            <input
-              type="password"
-              placeholder="密码（至少6位）"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              autoComplete={isSignUp ? "new-password" : "current-password"}
-              className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
-            />
-          </div>
-
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-
-          {!isSignUp && (
-            <p className="text-right text-sm">
+            <p className="mt-6 text-center text-sm text-gray-400">
+              {isSignUp ? t.login.alreadyHaveAccount : t.login.newHere}
               <button
                 type="button"
-                onClick={() => { setForgotMode(true); setError(""); }}
-                className="text-gray-400 hover:text-brand-light"
+                onClick={() => { setIsSignUp(!isSignUp); setError(""); }}
+                className="text-brand-light hover:underline ml-1"
               >
-                忘记密码？
+                {isSignUp ? t.login.signIn : t.login.signUp}
               </button>
             </p>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-xl gradient-btn text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {loading ? "处理中..." : (isSignUp ? "开始" : "登录")}
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-gray-400">
-          {isSignUp ? "已经有账号了？" : "还没遇见 TA？"}
-          <button
-            onClick={() => { setIsSignUp(!isSignUp); setError(""); }}
-            className="text-brand-light hover:underline ml-1"
-          >
-            {isSignUp ? "去登录" : "注册"}
-          </button>
-        </p>
+            {isSignUp && (
+              <p className="mt-5 text-center text-xs leading-relaxed text-gray-500">
+                {t.login.ageAndTerms}{" "}
+                <Link href="/terms" className="text-brand-light hover:underline">{t.login.terms}</Link>
+                {" "}{t.login.and}{" "}
+                <Link href="/content-policy" className="text-brand-light hover:underline">{t.login.contentPolicy}</Link>.
+              </p>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
-}
-
-function translateError(msg: string): string {
-  const m = msg.toLowerCase();
-  if (m.includes("already registered") || m.includes("already been registered")) return "该账号已注册，请直接登录";
-  if (m.includes("rate limit")) return "操作太频繁，请稍后再试";
-  if (m.includes("password")) return "密码不符合要求（至少 6 位）";
-  if (m.includes("email")) return "邮箱格式不正确";
-  return msg;
 }

@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import OpenAI from "openai";
 import { PERSONA_BLOCKS, currentTimeBlock, stageBlock, type PersonaType } from "@/lib/amara-persona";
 import { semanticRecall } from "@/lib/memory-retrieval";
+import { isMemoryEnabled } from "@/lib/user-settings";
 
 // 生成 Amara 的主动开场白
 export async function GET(req: Request) {
@@ -54,7 +55,8 @@ export async function GET(req: Request) {
   let profileText = "";
   let memText = "";
   let evText = "";
-  if (isMember) {
+  const memoryEnabled = await isMemoryEnabled(supabase, user.id);
+  if (isMember && memoryEnabled) {
     const { data: lastUserMsgs } = await supabase
       .from("chat_messages")
       .select("content, chat_sessions!inner(companion_id)")

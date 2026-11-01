@@ -42,7 +42,7 @@ export async function getMembershipStatus(userId: string): Promise<{
   };
 }
 
-// 陪伴对话配额校验：会员无限；非会员前 30 句免费
+// 陪伴对话配额校验：会员无限；非会员前 20 句免费
 export async function checkCompanionQuota(userId: string) {
   const status = await getMembershipStatus(userId);
   const remaining = status.isMember

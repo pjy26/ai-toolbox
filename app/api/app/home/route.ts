@@ -1,0 +1,72 @@
+import { NextResponse } from "next/server";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
+import { getAuthUser } from "@/lib/auth";
+import { DREAM_SELECT } from "@/lib/dream";
+
+export const dynamic = "force-dynamic";
+
+const COMPANION_SELECT = "id, relationship_type, companion_name, user_nickname, relationship_stage, live_state, last_active_at";
+
+export async function GET() {
+  const user = await getAuthUser();
+  if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  const supabase = createRouteHandlerClient({ cookies });
+
+  const { data: companion, error: companionError } = await supabase
+    .from("companions")
+    .select(COMPANION_SELECT)
+    .eq("user_id", user.id)
+    .order("last_active_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (companionError) return NextResponse.json({ error: "读取角色失败" }, { status: 500 });
+  if (!companion) {
+    return NextResponse.json({
+      companion: null,
+      latestDream: null,
+      recentMemories: [],
+      recentEvents: [],
+    });
+  }
+
+  const [dreamResult, memoriesResult, eventsResult] = await Promise.all([
+    supabase
+      .from("dream_entries")
+      .select(DREAM_SELECT)
+      .eq("companion_id", companion.id)
+      .eq("status", "published")
+      .order("local_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("memory_summaries")
+      .select("id, summary, importance, source_session_id, created_at, updated_at")
+      .eq("companion_id", companion.id)
+      .order("updated_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("relationship_events")
+      .select("id, companion_id, description, event_type, occurred_at, importance, created_at")
+      .eq("companion_id", companion.id)
+      .order("occurred_at", { ascending: false })
+      .limit(5),
+  ]);
+
+  if (dreamResult.error || memoriesResult.error || eventsResult.error) {
+    console.error("[app/home] aggregate query failed", {
+      dream: dreamResult.error?.message,
+      memories: memoriesResult.error?.message,
+      events: eventsResult.error?.message,
+    });
+    return NextResponse.json({ error: "读取控制台数据失败" }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    companion,
+    latestDream: dreamResult.data || null,
+    recentMemories: memoriesResult.data || [],
+    recentEvents: eventsResult.data || [],
+  });
+}

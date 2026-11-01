@@ -4,6 +4,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import OpenAI from "openai";
 import { embedText } from "@/lib/embedding";
+import { isMemoryEnabled } from "@/lib/user-settings";
 
 // 语义去重阈值：cosine 相似度 > 0.9 视为重复，跳过写入（初始值，可调）
 const DEDUP_THRESHOLD = 0.9;
@@ -36,6 +37,9 @@ export async function POST(req: Request) {
     .eq("user_id", user.id)
     .single();
   if (!companion) return NextResponse.json({ error: "角色不存在" }, { status: 404 });
+  if (!(await isMemoryEnabled(supabase, user.id))) {
+    return NextResponse.json({ ok: true, note: "memory_disabled" });
+  }
 
   // 会话必须同时属于当前用户和当前角色，避免把一个角色的对话抽取进另一个角色。
   if (session_id) {

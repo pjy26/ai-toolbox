@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Lock, Heart, ArrowRight } from "lucide-react";
+import { LocaleToggle, useLocale } from "@/components/locale-provider";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +17,11 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const [supabase] = useState(() => createClientComponentClient());
+  const { t } = useLocale();
 
   useEffect(() => {
-    // supabase-js 会自动读取邮件链接 URL hash 里的 recovery token 并建立会话
+    let expiryTimer: ReturnType<typeof setTimeout> | undefined;
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
@@ -29,77 +31,81 @@ export default function ResetPasswordPage() {
       }
     });
 
-    // 兜底：已有会话（比如刚登录过）也允许直接改
-    supabase.auth.getSession().then(({ data }) => {
+    // Supabase exchanges the recovery token from the emailed URL. An existing
+    // signed-in session is also allowed to choose a new password.
+    void supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
         setReady(true);
         setChecking(false);
       } else {
-        // 给 token 交换留几秒时间，超时提示链接失效
-        setTimeout(() => setChecking(false), 5000);
+        expiryTimer = setTimeout(() => setChecking(false), 5000);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (expiryTimer) clearTimeout(expiryTimer);
+    };
   }, [supabase]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (!done) return;
+    const redirectTimer = setTimeout(() => {
+      router.replace("/app");
+      router.refresh();
+    }, 2000);
+    return () => clearTimeout(redirectTimer);
+  }, [done, router]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError("");
     if (password.length < 6) {
-      setError("密码至少 6 位");
+      setError(t.reset.tooShort);
       return;
     }
     if (password !== confirm) {
-      setError("两次输入的密码不一致");
+      setError(t.reset.mismatch);
       return;
     }
     setLoading(true);
     const { error: updateError } = await supabase.auth.updateUser({ password });
     setLoading(false);
     if (updateError) {
-      setError("设置失败，链接可能已过期，请重新发起找回密码");
+      setError(t.reset.failed);
       return;
     }
     setDone(true);
-    setTimeout(() => {
-      router.push("/chat");
-      router.refresh();
-    }, 2000);
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4">
+    <div className="min-h-[calc(100vh-4rem)] relative flex items-center justify-center px-4 py-16">
+      <LocaleToggle className="absolute top-5 right-5" />
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <Heart className="w-10 h-10 text-rose-400 mx-auto mb-3" />
-          <h1 className="text-2xl font-bold">设置新密码</h1>
+          <h1 className="text-2xl font-bold">{t.reset.title}</h1>
           <p className="text-gray-400 text-sm mt-2">
-            {done ? "搞定，TA 在等你回去" : "换把新钥匙，继续见 TA"}
+            {done ? t.reset.doneSubtitle : t.reset.subtitle}
           </p>
         </div>
 
         {done ? (
-          <p className="text-center text-sm text-gray-300">
-            密码已更新，正在带你去见 TA...
-          </p>
+          <p className="text-center text-sm text-gray-300">{t.reset.done}</p>
         ) : checking ? (
-          <div className="flex justify-center py-6">
+          <div className="flex justify-center py-6" aria-label={t.reset.title}>
             <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
           </div>
         ) : !ready ? (
           <div className="space-y-4 text-center">
-            <p className="text-sm text-gray-300">
-              链接无效或已过期。找回密码的链接是一次性的——邮箱的安全扫描可能会提前“偷点”链接把它用掉，或者你点的是旧邮件。
-            </p>
-            <p className="text-sm text-gray-400">
-              重新发起一次，收到新邮件后立刻点、只点一次即可。
-            </p>
+            <p className="text-sm text-gray-300 leading-relaxed">{t.reset.expired}</p>
+            <p className="text-sm text-gray-400 leading-relaxed">{t.reset.tryAgain}</p>
             <button
+              type="button"
               onClick={() => router.push("/login")}
               className="w-full py-3 rounded-xl gradient-btn text-white font-semibold"
             >
-              返回登录
+              {t.reset.backToLogin}
             </button>
           </div>
         ) : (
@@ -108,9 +114,10 @@ export default function ResetPasswordPage() {
               <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
               <input
                 type="password"
-                placeholder="新密码（至少6位）"
+                aria-label={t.reset.newPassword}
+                placeholder={t.reset.newPassword}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 required
                 minLength={6}
                 autoComplete="new-password"
@@ -121,9 +128,10 @@ export default function ResetPasswordPage() {
               <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
               <input
                 type="password"
-                placeholder="再输一遍新密码"
+                aria-label={t.reset.confirmPassword}
+                placeholder={t.reset.confirmPassword}
                 value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
+                onChange={(event) => setConfirm(event.target.value)}
                 required
                 minLength={6}
                 autoComplete="new-password"
@@ -131,14 +139,14 @@ export default function ResetPasswordPage() {
               />
             </div>
 
-            {error && <p className="text-red-400 text-sm">{error}</p>}
+            {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
 
             <button
               type="submit"
               disabled={loading}
               className="w-full py-3 rounded-xl gradient-btn text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {loading ? "保存中..." : "保存新密码"}
+              {loading ? t.reset.saving : t.reset.save}
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>

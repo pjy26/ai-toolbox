@@ -19,6 +19,7 @@ import {
   type PersonaType,
 } from "@/lib/amara-persona";
 import { semanticRecall } from "@/lib/memory-retrieval";
+import { isMemoryEnabled } from "@/lib/user-settings";
 
 // 即时状态不是长期事实。初版先使用保守 TTL，避免昨天/上周的状态被描述成“此刻”。
 const LIVE_STATE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -373,7 +374,8 @@ export async function POST(req: Request) {
     .eq("id", user.id)
     .maybeSingle();
   const userGender: string = (userProfileRow as any)?.gender || "";
-  if (isMember) {
+  const memoryEnabled = await isMemoryEnabled(supabase, user.id);
+  if (isMember && memoryEnabled) {
     // 语义检索：用户消息 embedding → 事实型 top6 + 经历型 top3（混合排序）
     // 返回 null = 短消息/超时/失败 → 退回原来的 importance 排序降级路径
     const recall = await semanticRecall(supabase, companion_id, message);
