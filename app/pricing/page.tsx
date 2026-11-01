@@ -93,9 +93,8 @@ function PricingInner() {
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-[#6e685f]">{t.pricing.subtitle}</p>
         </div>
 
-        <div className="mx-auto mb-8 max-w-3xl border-y border-[#ded7cc] bg-[#f1ece4] px-5 py-4 text-center">
-          <p className="text-xs leading-6 text-[#625d55]">{t.pricing.currentAvailability}</p>
-          <p className="mt-2 text-xs leading-6 text-[#817a70]">{t.pricing.fixedAccess}</p>
+        <div className="mx-auto mb-8 max-w-3xl border-y border-[#ded7cc] px-5 py-3 text-center">
+          <p className="text-xs leading-6 text-[#817a70]">{t.pricing.fixedAccess}</p>
         </div>
 
         {weeklyIntroEligible && (
@@ -118,6 +117,11 @@ function PricingInner() {
               {item.popular && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap bg-[#a34f3d] px-3 py-1 text-xs font-semibold text-white">
                   {t.pricing.recommended}
+                </span>
+              )}
+              {item.offer === "new_user_weekly" && (
+                <span className="absolute -top-3 left-4 whitespace-nowrap border border-[#a34f3d] bg-[#fff7e6] px-3 py-1 text-xs font-semibold text-[#923f30]">
+                  {t.pricing.limitedTime}
                 </span>
               )}
               <p className="font-serif text-2xl text-[#282621]">{planNames[item.id]}</p>

@@ -86,7 +86,7 @@ export const dictionaries = {
     pricing: {
       title: "More time for the conversations that matter",
       subtitle: "Memberships are priced in US dollars and include unlimited conversations plus member memory features during the access period.",
-      currentAvailability: "USD checkout is being connected to our international payment provider. To purchase or ask about a plan now, email support. Never send card details by email.",
+      limitedTime: "Limited time",
       fixedAccess: "Current memberships are fixed-period and do not automatically renew. If a future checkout offers automatic renewal, its renewal and cancellation terms will be shown before payment.",
       newUserOffer: "New-user launch offer: your first Weekly membership is $0.99 (regular $1.99), once per account while the offer is available.",
       oncePerAccount: "New users · one discounted week per account",
@@ -209,7 +209,7 @@ export const dictionaries = {
     pricing: {
       title: "给重要的对话更多时间",
       subtitle: "会员价格以美元计价，在有效期内不限次数对话，并可使用会员记忆功能。",
-      currentAvailability: "美元在线收银台正在接入国际支付平台。如需现在购买或咨询套餐，请发送客服邮件。切勿通过邮件发送银行卡信息。",
+      limitedTime: "限时",
       fixedAccess: "当前会员均为固定期限，不会自动续费。若未来收银台提供自动续费，续费与取消条款会在付款前明确展示。",
       newUserOffer: "新用户限时优惠：首个周卡 $0.99（原价 $1.99），优惠可用期间每个账号仅一次。",
       oncePerAccount: "新用户 · 每个账号仅可优惠购买一周",
