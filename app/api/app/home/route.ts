@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { DREAM_SELECT } from "@/lib/dream";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +12,7 @@ export async function GET() {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
   const supabase = createRouteHandlerClient({ cookies });
+  const membership = await getMembershipStatus(user.id);
 
   const { data: companion, error: companionError } = await supabase
     .from("companions")
@@ -24,6 +25,7 @@ export async function GET() {
   if (!companion) {
     return NextResponse.json({
       companion: null,
+      membership,
       latestDream: null,
       recentMemories: [],
       recentEvents: [],
@@ -65,6 +67,7 @@ export async function GET() {
 
   return NextResponse.json({
     companion,
+    membership,
     latestDream: dreamResult.data || null,
     recentMemories: memoriesResult.data || [],
     recentEvents: eventsResult.data || [],

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
-import { ArrowRight, BookOpen, ChevronRight, CloudMoon, MessageCircle } from "lucide-react";
+import { ArrowRight, BookOpen, ChevronRight, CloudMoon, Crown, MessageCircle } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import {
   apiRequest,
@@ -21,6 +21,11 @@ import {
 
 type HomeResponse = {
   companion: Companion | null;
+  membership: {
+    isMember: boolean;
+    membershipType: string | null;
+    expiresAt: string | null;
+  };
   latestDream: Dream | null;
   recentMemories: Memory[];
   recentEvents: RelationshipEvent[];
@@ -53,6 +58,7 @@ export default function DashboardPage() {
       const result = await apiRequest<HomeResponse>("/api/app/home");
       setData({
         companion: result.companion,
+        membership: result.membership,
         latestDream: result.latestDream || null,
         recentMemories: Array.isArray(result.recentMemories) ? result.recentMemories : [],
         recentEvents: Array.isArray(result.recentEvents) ? result.recentEvents : [],
@@ -84,7 +90,7 @@ export default function DashboardPage() {
 }
 
 function DashboardContent({ data }: { data: HomeResponse }) {
-  const { companion, latestDream, recentMemories, recentEvents } = data;
+  const { companion, membership, latestDream, recentMemories, recentEvents } = data;
   if (!companion) return null;
   const name = companion.companion_name || "Amara";
   const liveState = getLiveState(companion.live_state);
@@ -94,6 +100,10 @@ function DashboardContent({ data }: { data: HomeResponse }) {
   const previousThreadDate = lastTopic
     ? lastTopic.occurred_at || lastTopic.created_at
     : liveState.updatedAt || companion.last_active_at;
+  const planNames: Record<string, string> = { weekly: "Weekly", monthly: "Monthly", quarterly: "Quarterly", yearly: "Yearly" };
+  const membershipLabel = membership.isMember
+    ? `${planNames[membership.membershipType || ""] || "Amara"} member`
+    : "Free plan";
 
   return (
     <>
@@ -101,9 +111,18 @@ function DashboardContent({ data }: { data: HomeResponse }) {
           <div className="absolute -right-8 -top-10 h-40 w-40 rounded-full border border-[#c8a894]/50 sm:right-8" aria-hidden="true" />
           <div className="absolute -right-1 -top-3 h-28 w-28 rounded-full border border-[#c8a894]/40 sm:right-12" aria-hidden="true" />
         <div className="relative max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.19em] text-[#94513f]">
-            {companion.user_nickname ? `Welcome back, ${companion.user_nickname}` : "Welcome back"}
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.19em] text-[#94513f]">
+              {companion.user_nickname ? `Welcome back, ${companion.user_nickname}` : "Welcome back"}
+            </p>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${membership.isMember ? "border-[#c8a265] bg-[#fff7e6] text-[#805a25]" : "border-[#d8cfc2] bg-[#fffdf8] text-[#756f66]"}`}
+              title={membership.expiresAt ? `Valid until ${formatDate(membership.expiresAt, true)}` : membershipLabel}
+            >
+              {membership.isMember && <Crown className="h-3.5 w-3.5" aria-hidden="true" />}
+              {membershipLabel}
+            </span>
+          </div>
           <h1 className="mt-4 font-serif text-4xl leading-tight tracking-[-0.035em] sm:text-5xl">
             There’s room for you here.
           </h1>

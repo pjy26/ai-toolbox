@@ -435,10 +435,10 @@ function ChatInner() {
 
   if (!session) {
     return (
-      <div className="h-screen flex items-center justify-center" style={{ background: "#0E0C0A" }}>
-        <div className="text-center" style={{ color: "#E8D5C4" }}>
+      <div className="h-screen flex items-center justify-center" style={{ background: "#F8F5EF" }}>
+        <div className="text-center" style={{ color: "#282621" }}>
           <p className="text-lg mb-6" style={{ letterSpacing: 2 }}>需要先登录，才能与 Amara 相遇</p>
-          <a href="/login" className="px-8 py-3 rounded-xl gradient-btn text-white font-medium inline-block" style={{ letterSpacing: 2 }}>去登录</a>
+          <a href="/login" className="px-8 py-3 rounded-xl text-white font-medium inline-block" style={{ letterSpacing: 2, background: "#A34F3D" }}>去登录</a>
         </div>
       </div>
     );
@@ -446,9 +446,9 @@ function ChatInner() {
 
   if (initLoading) {
     return (
-      <div className="h-screen flex items-center justify-center" style={{ background: "#0E0C0A" }}>
-        <div className="text-center" style={{ color: "rgba(232,213,196,0.7)" }}>
-          <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-amber-400/30 animate-spin mx-auto mb-4" />
+      <div className="h-screen flex items-center justify-center" style={{ background: "#F8F5EF" }}>
+        <div className="text-center" style={{ color: "#756F66" }}>
+          <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-[#c9a894] animate-spin mx-auto mb-4" />
           <p className="text-sm" style={{ letterSpacing: 2 }}>正在靠近...</p>
         </div>
       </div>
@@ -456,21 +456,21 @@ function ChatInner() {
   }
 
   return (
-    <div className="h-screen flex flex-col relative" style={{ background: "#0E0C0A" }}>
-      <canvas id="chat-particles" style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />
-      <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", background: "radial-gradient(ellipse 50% 40% at 50% 100%, rgba(201,169,110,0.04) 0%, transparent 60%)", opacity: 0.8 }} />
+    <div className="h-screen flex flex-col relative" style={{ background: "#F8F5EF" }}>
+      <canvas id="chat-particles" style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", opacity: 0.45 }} />
+      <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", background: "radial-gradient(ellipse 55% 45% at 50% 100%, rgba(163,79,61,0.07) 0%, transparent 65%)" }} />
 
       {/* Header */}
-      <header style={{ position: "relative", zIndex: 10, flexShrink: 0, padding: "16px 20px 12px", background: "rgba(15,13,11,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid rgba(201,169,110,0.06)" }}>
+      <header style={{ position: "relative", zIndex: 10, flexShrink: 0, padding: "16px 20px 12px", background: "rgba(248,245,239,0.92)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid #DED7CC" }}>
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <a href="/" className="w-10 text-lg" style={{ color: "rgba(232,213,196,0.85)", textDecoration: "none" }}>&lsaquo;</a>
+          <a href="/app" aria-label="返回控制台" className="w-10 text-lg" style={{ color: "#6E685F", textDecoration: "none" }}>&lsaquo;</a>
           <div className="flex-1 flex flex-col items-center">
             <div className="relative mb-1.5" style={{ width: 36, height: 36 }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "radial-gradient(circle at 35% 35%, #3A2A1E, #1A1510)", border: "1px solid rgba(201,169,110,0.2)", boxShadow: "0 0 12px rgba(201,169,110,0.1)" }} />
-              <div style={{ position: "absolute", bottom: 2, right: 2, width: 8, height: 8, borderRadius: "50%", background: "#7CB342", border: "2px solid #0E0C0A", boxShadow: "0 0 6px rgba(124,179,66,0.4)", animation: "statusPulse 3s ease-in-out infinite" }} />
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "radial-gradient(circle at 35% 35%, #FFFDF8, #E7D6C7)", border: "1px solid #D8C7B7", boxShadow: "0 3px 12px rgba(91,65,47,0.10)" }} />
+              <div style={{ position: "absolute", bottom: 2, right: 2, width: 8, height: 8, borderRadius: "50%", background: "#6F8B5E", border: "2px solid #F8F5EF", boxShadow: "0 0 5px rgba(111,139,94,0.3)", animation: "statusPulse 3s ease-in-out infinite" }} />
             </div>
-            <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#E8D5C4", lineHeight: 1.4 }}>Amara</div>
-            <div className="text-xs font-light mt-0.5" style={{ letterSpacing: 1, color: "rgba(232,213,196,0.85)" }}>
+            <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#282621", lineHeight: 1.4 }}>Amara</div>
+            <div className="text-xs font-light mt-0.5" style={{ letterSpacing: 1, color: "#756F66" }}>
               {isLover ? "为你存在" : "听你说话"}
               {extracting && " · 记忆中..."}
             </div>
@@ -478,10 +478,11 @@ function ChatInner() {
           {/* "我的" 按钮 */}
           <button
             onClick={() => setShowMyDrawer(true)}
+            aria-label="我的账号"
             className="w-10 flex justify-end items-center"
-            style={{ color: "rgba(232,213,196,0.7)", transition: "color 0.2s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.6)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.7)"; }}
+            style={{ color: "#6E685F", transition: "color 0.2s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "#A34F3D"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "#6E685F"; }}
           >
             <User style={{ width: 20, height: 20 }} />
           </button>
@@ -490,18 +491,18 @@ function ChatInner() {
 
       {/* 支付成功提示 */}
       {showPaySuccess && (
-        <div className="text-center py-1.5 text-xs" style={{ color: "#C9A96E", letterSpacing: 1, background: "rgba(201,169,110,0.08)", position: "relative", zIndex: 10 }}>
+        <div className="text-center py-1.5 text-xs" style={{ color: "#805A25", letterSpacing: 1, background: "#FFF1D6", position: "relative", zIndex: 10 }}>
           支付成功，会员开通中，稍等片刻即可生效 ♡
         </div>
       )}
 
       {/* 免费额度提示 */}
       {quota && !quota.isMember && (
-        <div className="text-center py-1.5 text-xs" style={{ color: "rgba(232,213,196,0.75)", letterSpacing: 1, background: "rgba(15,13,11,0.5)", position: "relative", zIndex: 10 }}>
+        <div className="text-center py-1.5 text-xs" style={{ color: "#6E685F", letterSpacing: 1, background: "#F1ECE4", position: "relative", zIndex: 10 }}>
           免费试聊还剩 {quota.remaining} 句 ·{" "}
           <span
             onClick={() => setShowPaywall(true)}
-            style={{ color: isLover ? "#D4849A" : "#C9A96E", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}
+            style={{ color: "#A34F3D", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}
           >
             让 TA 记住你
           </span>
@@ -512,7 +513,7 @@ function ChatInner() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto" style={{ position: "relative", zIndex: 10, padding: "20px 16px" }}>
         <div className="max-w-3xl mx-auto">
           <div className="text-center my-6" style={{ opacity: 0, animation: "fadeIn 0.8s ease forwards" }}>
-            <span className="text-xs font-light" style={{ color: "rgba(232,213,196,0.85)", letterSpacing: 2 }}>今天</span>
+            <span className="text-xs font-light" style={{ color: "#817A70", letterSpacing: 2 }}>今天</span>
           </div>
 
           {messages.map((msg, i) => (
@@ -529,26 +530,26 @@ function ChatInner() {
                   borderRadius: 18,
                   fontSize: 15,
                   lineHeight: 1.7,
-                  fontWeight: 350,
-                  letterSpacing: 0.5,
+                  fontWeight: 400,
+                  letterSpacing: 0.3,
                   wordBreak: "break-word",
                   ...(msg.role === "assistant" ? {
-                    background: "#2A1E15",
-                    color: "#E8D5C4",
-                    border: "1px solid rgba(201,169,110,0.12)",
+                    background: "#FFFDF8",
+                    color: "#37332D",
+                    border: "1px solid #E0D5C8",
                     borderBottomLeftRadius: 4,
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
+                    boxShadow: "0 3px 14px rgba(91,65,47,0.07)",
                   } : {
-                    background: "#1A1816",
-                    color: "rgba(232,213,196,0.85)",
-                    border: "1px solid rgba(255,255,255,0.05)",
+                    background: "#EEE2D5",
+                    color: "#41352F",
+                    border: "1px solid #DCCFC0",
                     borderBottomRightRadius: 4,
                   }),
                 }}>
                   {msg.content || (msg.role === "assistant" ? "..." : "")}
                 </div>
                 <div className="text-xs mt-1.5" style={{
-                  color: "rgba(232,213,196,0.8)",
+                  color: "#817A70",
                   letterSpacing: 1,
                   ...(msg.role === "user" ? { textAlign: "right", marginRight: 4 } : { marginLeft: 4 }),
                 }}>
@@ -561,11 +562,11 @@ function ChatInner() {
           {/* 加载指示器 */}
           {loading && messages.length > 0 && messages[messages.length - 1].role === "assistant" && messages[messages.length - 1].content === "" && (
             <div className="flex mb-4" style={{ justifyContent: "flex-start", animation: "msgIn 0.5s ease forwards" }}>
-              <div style={{ maxWidth: "min(72vw, 480px)", padding: "12px 16px", borderRadius: 18, borderBottomLeftRadius: 4, background: "#2A1E15", border: "1px solid rgba(201,169,110,0.12)" }}>
+              <div style={{ maxWidth: "min(72vw, 480px)", padding: "12px 16px", borderRadius: 18, borderBottomLeftRadius: 4, background: "#FFFDF8", border: "1px solid #E0D5C8" }}>
                 <div className="flex gap-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400/40 animate-bounce" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400/40 animate-bounce" style={{ animationDelay: "0.15s" }} />
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400/40 animate-bounce" style={{ animationDelay: "0.3s" }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#b87964] animate-bounce" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#b87964] animate-bounce" style={{ animationDelay: "0.15s" }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#b87964] animate-bounce" style={{ animationDelay: "0.3s" }} />
                 </div>
               </div>
             </div>
@@ -574,8 +575,8 @@ function ChatInner() {
       </div>
 
       {/* 输入框 */}
-      <div style={{ position: "relative", zIndex: 10, flexShrink: 0, padding: "12px 16px 20px", background: "#151210", borderTop: "1px solid rgba(201,169,110,0.06)" }}>
-        <div style={{ position: "absolute", top: -20, left: 0, right: 0, height: 20, background: "linear-gradient(180deg, transparent, #151210)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 10, flexShrink: 0, padding: "12px 16px 20px", background: "#F1ECE4", borderTop: "1px solid #DED7CC" }}>
+        <div style={{ position: "absolute", top: -20, left: 0, right: 0, height: 20, background: "linear-gradient(180deg, transparent, #F1ECE4)", pointerEvents: "none" }} />
         <div className="max-w-3xl mx-auto flex items-end gap-2.5">
           <input
             value={input}
@@ -583,31 +584,32 @@ function ChatInner() {
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder="想说点什么..."
             disabled={!greetingDone}
-            className="flex-1 rounded-2xl text-sm font-light"
+            className="flex-1 rounded-2xl text-sm font-light placeholder:text-[#9a9186]"
             style={{
-              background: "#1A1716",
-              border: "1px solid #2A2018",
+              background: "#FFFDF8",
+              border: "1px solid #D8CFC2",
               padding: "10px 16px",
               height: 44,
               fontSize: 15,
               lineHeight: 1.6,
-              color: "#E8D5C4",
+              color: "#282621",
               outline: "none",
               transition: "border-color 0.3s ease, box-shadow 0.3s ease",
-              opacity: greetingDone ? 1 : 0.5,
+              opacity: greetingDone ? 1 : 0.55,
             }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(201,169,110,0.3)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(201,169,110,0.05)"; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = "#2A2018"; e.currentTarget.style.boxShadow = "none"; }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#B87964"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(163,79,61,0.10)"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "#D8CFC2"; e.currentTarget.style.boxShadow = "none"; }}
           />
           <button
             onClick={handleSend}
             disabled={loading || !input.trim() || !greetingDone}
+            aria-label="发送消息"
             className="rounded-full flex items-center justify-center"
             style={{
               width: 44, height: 44,
-              background: "rgba(201,169,110,0.15)",
-              border: "1px solid rgba(201,169,110,0.2)",
-              color: "#C9A96E",
+              background: "#A34F3D",
+              border: "1px solid #A34F3D",
+              color: "#FFFDF8",
               fontSize: 18,
               cursor: "pointer",
               flexShrink: 0,
@@ -616,12 +618,12 @@ function ChatInner() {
             }}
             onMouseEnter={(e) => {
               if (!loading && input.trim() && greetingDone) {
-                e.currentTarget.style.background = "rgba(201,169,110,0.25)";
-                e.currentTarget.style.boxShadow = "0 0 16px rgba(201,169,110,0.15)";
+                e.currentTarget.style.background = "#893F31";
+                e.currentTarget.style.boxShadow = "0 5px 16px rgba(163,79,61,0.18)";
               }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(201,169,110,0.15)";
+              e.currentTarget.style.background = "#A34F3D";
               e.currentTarget.style.boxShadow = "none";
             }}
           >
@@ -658,8 +660,8 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
   onShowPaywall: () => void;
 }) {
   const { supabaseClient } = useSessionContext();
-  const accent = isLover ? "#D4849A" : "#C9A96E";
-  const accentRgb = isLover ? "212, 132, 154" : "201, 169, 110";
+  const accent = isLover ? "#A34F3D" : "#8A6438";
+  const accentRgb = isLover ? "163, 79, 61" : "138, 100, 56";
   const [editingNick, setEditingNick] = useState(false);
   const [nickInput, setNickInput] = useState("");
   const [savingNick, setSavingNick] = useState(false);
@@ -722,32 +724,32 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(14,12,10,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(40,38,33,0.25)", backdropFilter: "blur(4px)" }} onClick={onClose}>
       <div
         className="h-full w-80 max-w-[85vw] flex flex-col overflow-y-auto"
-        style={{ background: "#151210", borderLeft: "1px solid rgba(201,169,110,0.06)", animation: "drawerIn 0.3s cubic-bezier(0.22, 1, 0.36, 1)" }}
+        style={{ background: "#F8F5EF", borderLeft: "1px solid #DED7CC", animation: "drawerIn 0.3s cubic-bezier(0.22, 1, 0.36, 1)" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid rgba(201,169,110,0.06)" }}>
-          <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#E8D5C4" }}>我的</div>
-          <button onClick={onClose} style={{ color: "rgba(232,213,196,0.7)", transition: "color 0.2s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.6)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(232,213,196,0.7)"; }}
+        <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid #DED7CC" }}>
+          <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#282621" }}>我的</div>
+          <button onClick={onClose} aria-label="关闭账号抽屉" style={{ color: "#6E685F", transition: "color 0.2s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "#A34F3D"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "#6E685F"; }}
           >
             <X style={{ width: 18, height: 18 }} />
           </button>
         </div>
 
         {/* 会员状态卡片 */}
-        <div className="m-4 p-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="m-4 p-4 rounded-2xl" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB" }}>
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `rgba(${accentRgb}, 0.15)`, border: `1px solid rgba(${accentRgb}, 0.2)` }}>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `rgba(${accentRgb}, 0.10)`, border: `1px solid rgba(${accentRgb}, 0.22)` }}>
               <Crown style={{ width: 18, height: 18, color: accent }} />
             </div>
             <div>
-              <div className="text-sm font-medium" style={{ color: "#E8D5C4" }}>会员状态</div>
-              <div className="text-xs mt-0.5" style={{ color: quota?.isMember ? accent : "rgba(232,213,196,0.7)" }}>
+              <div className="text-sm font-medium" style={{ color: "#282621" }}>会员状态</div>
+              <div className="text-xs mt-0.5" style={{ color: quota?.isMember ? accent : "#756F66" }}>
                 {membershipLabel()}
               </div>
             </div>
@@ -766,8 +768,8 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
         </div>
 
         {/* 昵称卡片 */}
-        <div className="mx-4 mb-4 p-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div className="text-xs mb-2" style={{ letterSpacing: 2, color: "rgba(232,213,196,0.6)" }}>TA 怎么称呼你</div>
+        <div className="mx-4 mb-4 p-4 rounded-2xl" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB" }}>
+          <div className="text-xs mb-2" style={{ letterSpacing: 2, color: "#817A70" }}>TA 怎么称呼你</div>
           {editingNick ? (
             <div>
               <div className="flex gap-2">
@@ -778,12 +780,12 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
                   maxLength={12}
                   autoFocus
                   placeholder="输入昵称"
-                  className="flex-1 rounded-xl text-sm font-light"
+                  className="flex-1 rounded-xl text-sm font-light placeholder:text-[#9a9186]"
                   style={{
-                    background: "#1A1716",
-                    border: "1px solid #2A2018",
+                    background: "#F8F5EF",
+                    border: "1px solid #D8CFC2",
                     padding: "8px 12px",
-                    color: "#E8D5C4",
+                    color: "#282621",
                     outline: "none",
                   }}
                 />
@@ -798,16 +800,16 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
                 <button
                   onClick={() => setEditingNick(false)}
                   className="px-3 rounded-xl text-sm"
-                  style={{ color: "rgba(232,213,196,0.7)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  style={{ color: "#6E685F", border: "1px solid #D8CFC2" }}
                 >
                   取消
                 </button>
               </div>
-              {nickError && <div className="text-xs mt-2" style={{ color: "#D4849A" }}>{nickError}</div>}
+              {nickError && <div className="text-xs mt-2" style={{ color: "#A34F3D" }}>{nickError}</div>}
             </div>
           ) : (
             <button onClick={startEditNick} className="w-full flex items-center justify-between text-left">
-              <span className="text-sm font-light" style={{ letterSpacing: 1, color: "#E8D5C4" }}>
+              <span className="text-sm font-light" style={{ letterSpacing: 1, color: "#37332D" }}>
                 {companion?.user_nickname || "未设置"}
               </span>
               <span className="text-xs" style={{ color: accent, letterSpacing: 1 }}>修改</span>
@@ -818,19 +820,19 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
         {/* 菜单项 */}
         <div className="px-4 space-y-1">
           {!quota?.isMember && (
-            <button onClick={onShowPaywall} className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition" style={{ color: "rgba(232,213,196,0.85)", letterSpacing: 1 }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+            <button onClick={onShowPaywall} className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition" style={{ color: "#49453E", letterSpacing: 1 }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#F1ECE4"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             >
               查看全部方案
-              <ChevronRight style={{ width: 16, height: 16, opacity: 0.4 }} />
+              <ChevronRight style={{ width: 16, height: 16, opacity: 0.55 }} />
             </button>
           )}
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition"
-            style={{ color: "rgba(232,213,196,0.8)", letterSpacing: 1 }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+            style={{ color: "#5F5951", letterSpacing: 1 }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#F1ECE4"; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
           >
             <LogOut style={{ width: 16, height: 16 }} />
@@ -840,7 +842,7 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
 
         {/* 底部信息 */}
         <div className="mt-auto p-4 text-center">
-          <p className="text-xs font-light" style={{ color: "rgba(232,213,196,0.8)", letterSpacing: 1 }}>
+          <p className="text-xs font-light" style={{ color: "#817A70", letterSpacing: 1 }}>
             更多功能即将开放
           </p>
         </div>
@@ -856,8 +858,8 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState("");
-  const accent = isLover ? "#D4849A" : "#C9A96E";
-  const accentRgb = isLover ? "212, 132, 154" : "201, 169, 110";
+  const accent = isLover ? "#A34F3D" : "#8A6438";
+  const accentRgb = isLover ? "163, 79, 61" : "138, 100, 56";
 
   useEffect(() => {
     fetch("/api/pricing")
@@ -898,18 +900,18 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(14,12,10,0.85)", backdropFilter: "blur(12px)" }} onClick={onClose}>
-      <div className="rounded-3xl p-7 max-w-md w-full relative" style={{ background: "#151210", border: `1px solid rgba(${accentRgb}, 0.2)`, animation: "paywallIn 0.4s cubic-bezier(0.22, 1, 0.36, 1)" }} onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-sm" style={{ color: "rgba(232,213,196,0.7)" }}>&times;</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(40,38,33,0.35)", backdropFilter: "blur(12px)" }} onClick={onClose}>
+      <div className="rounded-3xl p-7 max-w-md w-full relative" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB", boxShadow: "0 24px 80px rgba(40,38,33,0.16)", animation: "paywallIn 0.4s cubic-bezier(0.22, 1, 0.36, 1)" }} onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-sm" style={{ color: "#756F66" }}>&times;</button>
 
         <div className="text-center mb-6">
-          <div className="w-10 h-10 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: `rgba(${accentRgb}, 0.15)`, border: `1px solid rgba(${accentRgb}, 0.3)` }}>
+          <div className="w-10 h-10 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: `rgba(${accentRgb}, 0.1)`, border: `1px solid rgba(${accentRgb}, 0.22)`, color: accent }}>
             <span className="text-lg">{isLover ? "\u2665" : "\u263A"}</span>
           </div>
-          <h3 className="text-lg font-medium text-white leading-relaxed">
+          <h3 className="text-lg font-medium leading-relaxed" style={{ color: "#282621" }}>
             {isLover ? "想让 TA 一直陪着你吗？" : "想让这段陪伴继续吗？"}
           </h3>
-          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line" style={{ color: "rgba(232,213,196,0.8)" }}>
+          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line" style={{ color: "#6E685F" }}>
             {isLover
               ? "聊到现在，TA 已经开始记得你了。\n开通后，TA 会记住你说过的每件事——\n你的习惯、你的心事、你随口提过的小事。"
               : "聊了这么久，TA 已经有点懂你了。\n开通后，TA 会真正记住你们聊过的一切，\n随时找 TA 说话，不限次数。"}
@@ -925,15 +927,15 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
             <div className="space-y-2 mb-5">
               {plans.map((p) => (
                 <button key={p.id} onClick={() => setSelected(p.id)} className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition text-left" style={{
-                  border: selected === p.id ? `1px solid rgba(${accentRgb}, 0.4)` : "1px solid rgba(255,255,255,0.08)",
-                  background: selected === p.id ? `rgba(${accentRgb}, 0.08)` : "rgba(255,255,255,0.03)",
+                  border: selected === p.id ? `1px solid rgba(${accentRgb}, 0.4)` : "1px solid #DED7CC",
+                  background: selected === p.id ? `rgba(${accentRgb}, 0.08)` : "#F8F5EF",
                 }}>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-white text-sm">{p.name}</span>
-                    {p.popular && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: accent, color: "#0E0C0A" }}>推荐</span>}
-                    <span className="text-xs" style={{ color: "rgba(232,213,196,0.7)" }}>&middot; {p.hint}</span>
+                    <span className="font-medium text-sm" style={{ color: "#282621" }}>{p.name}</span>
+                    {p.popular && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: accent, color: "#FFFDF8" }}>推荐</span>}
+                    <span className="text-xs" style={{ color: "#756F66" }}>&middot; {p.hint}</span>
                   </div>
-                  <span className="text-white font-semibold text-sm">&yen;{p.price}<span className="text-xs font-normal" style={{ color: "rgba(232,213,196,0.7)" }}>{p.period}</span></span>
+                  <span className="font-semibold text-sm" style={{ color: "#282621" }}>&yen;{p.price}<span className="text-xs font-normal" style={{ color: "#756F66" }}>{p.period}</span></span>
                 </button>
               ))}
             </div>
@@ -949,9 +951,9 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
                   {paying ? "正在前往支付宝..." : `支付宝支付 ¥${selectedPlan.price}`}
                 </button>
                 {payError && (
-                  <p className="text-xs mt-2 text-center" style={{ color: "#D4849A" }}>{payError}</p>
+                  <p className="text-xs mt-2 text-center" style={{ color: "#A34F3D" }}>{payError}</p>
                 )}
-                <p className="mt-3 text-xs text-center leading-relaxed" style={{ color: "rgba(232,213,196,0.55)" }}>
+                <p className="mt-3 text-xs text-center leading-relaxed" style={{ color: "#817A70" }}>
                   支付完成后自动开通，无需联系客服
                   <br />遇到问题？客服 QQ：3801434603
                 </p>
@@ -971,9 +973,9 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
 export default function ChatPage() {
   return (
     <Suspense fallback={
-      <div className="h-screen flex items-center justify-center" style={{ background: "#0E0C0A" }}>
-        <div className="text-center" style={{ color: "rgba(232,213,196,0.7)" }}>
-          <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-amber-400/30 animate-spin mx-auto mb-4" />
+      <div className="h-screen flex items-center justify-center" style={{ background: "#F8F5EF" }}>
+        <div className="text-center" style={{ color: "#756F66" }}>
+          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-4" style={{ borderColor: "rgba(163,79,61,0.3)", borderTopColor: "transparent" }} />
           <p className="text-sm" style={{ letterSpacing: 2 }}>正在靠近...</p>
         </div>
       </div>
