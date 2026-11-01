@@ -108,10 +108,7 @@ export async function POST(req: Request) {
   } catch (error) {
     await supabase.from("orders").update({ status: "failed", subscription_status: "checkout_failed" })
       .eq("order_no", orderNo).eq("user_id", user.id);
-    console.error("Waffo checkout creation failed", {
-      error,
-      siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "https://amarapjy.xyz",
-    });
+    console.error("Waffo checkout creation failed", error instanceof Error ? error.message : "Unknown error");
     return NextResponse.json({ error: "Checkout is temporarily unavailable. Please try again." }, { status: 503 });
   }
 }

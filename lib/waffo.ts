@@ -55,6 +55,7 @@ export function waffoPriceSnapshot(planId: MembershipPlanId, weeklyIntro: boolea
 }
 
 export function siteUrl(path: string) {
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://amarapjy.xyz";
+  // Trim invisible BOM/whitespace that can be introduced by dashboard pastes.
+  const origin = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.amarapjy.xyz").trim();
   return new URL(path, origin).toString();
 }
