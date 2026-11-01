@@ -16,8 +16,12 @@ const sections = [
     body: "You must follow the Content Policy and applicable law. Do not use the service to harm, exploit, deceive, or harass others; facilitate illegal activity; violate privacy or intellectual-property rights; attempt unauthorized access; or interfere with the service. We may restrict access or remove content where reasonably necessary to protect users, the service, or others, subject to applicable law.",
   },
   {
-    title: "Memberships and manual payment",
-    body: "The plans currently displayed are fixed-period memberships priced in CNY and paid through Alipay. Support activates membership manually after reviewing payment confirmation, so activation is not instant. Amara does not automatically renew these plans. International cards and Stripe checkout are not currently available. Confirm the current payment and refund terms with support before paying; nothing on this page creates a refund promise not otherwise required by applicable law.",
+    title: "Memberships, prices, and payment",
+    body: "Memberships are displayed and charged in US dollars (USD): Weekly is $1.99, Monthly is $3.99, and Yearly is $29.90. While the launch offer is available, an eligible new account may purchase its first Weekly membership for $0.99, once per account. Current memberships provide access for a fixed period and do not automatically renew. USD online checkout is being connected; purchases currently begin through support email. Confirm the price, activation timing, and exact access period before sending payment. Never send passwords or full payment-card details by email.",
+  },
+  {
+    title: "Cancellation and refunds",
+    body: "A current fixed-period membership simply expires at the end of its paid access period, so no action is needed to prevent renewal. If a receipt or future checkout expressly shows automatic renewal, follow the cancellation instructions shown there or email support from your account email before the next renewal. Cancellation stops future renewals; access normally continues through the already-paid period. Cancellation is not automatically a refund. Any refund or statutory withdrawal right depends on the applicable purchase terms and law; contact support before payment if you need clarification. See the Cancellation page for current options.",
   },
   {
     title: "Your content and generated content",
@@ -54,7 +58,7 @@ export default function TermsPage() {
         ))}
       </div>
       <footer className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm leading-7 text-gray-300">
-        Questions about these terms or a purchase? <Link href="/contact" className="text-brand-light hover:underline">Contact support</Link>.
+        Questions about these terms or a purchase? Email <a href="mailto:admin@amarapjy.xyz" className="text-brand-light hover:underline">admin@amarapjy.xyz</a>. See <Link href="/cancellation" className="text-brand-light hover:underline">Cancellation options</Link> and our <Link href="/privacy" className="text-brand-light hover:underline">Privacy Policy</Link>.
       </footer>
     </main>
   );

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
-import { BookOpen, Check, ChevronRight, Loader2 } from "lucide-react";
+import { BookOpen, Check, ChevronRight, Loader2, WalletCards } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { apiRequest, ErrorState, PageLoader } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
@@ -158,15 +158,19 @@ export default function SettingsPage() {
           </section>
 
           <section className="py-8" aria-labelledby="control-title">
-            <h2 id="control-title" className="font-serif text-2xl">Review what’s saved</h2>
+            <h2 id="control-title" className="font-serif text-2xl">Membership & your data</h2>
             <div className="mt-4 divide-y divide-[#ded7cc] border-y border-[#ded7cc]">
               <Link href="/memories" className="flex min-h-16 items-center justify-between gap-4 py-4 text-sm font-medium hover:text-[#923f30]">
                 <span className="flex items-center gap-3"><BookOpen className="h-5 w-5 text-[#a34f3d]" strokeWidth={1.6} />View, correct, or delete memories</span>
                 <ChevronRight className="h-4 w-4 shrink-0" />
               </Link>
+              <Link href="/cancellation" className="flex min-h-16 items-center justify-between gap-4 py-4 text-sm font-medium hover:text-[#923f30]">
+                <span className="flex items-center gap-3"><WalletCards className="h-5 w-5 text-[#a34f3d]" strokeWidth={1.6} />Cancel or manage a membership</span>
+                <ChevronRight className="h-4 w-4 shrink-0" />
+              </Link>
             </div>
             <p className="mt-6 text-xs leading-6 text-[#817a70]">
-              Want to understand how information is handled? Read the <Link href="/privacy" className="font-semibold text-[#6e685f] underline underline-offset-4">privacy policy</Link>.
+              Current fixed-period memberships do not renew automatically. Want to understand how information is handled? Read the <Link href="/privacy" className="font-semibold text-[#6e685f] underline underline-offset-4">privacy policy</Link>.
             </p>
           </section>
         </div>

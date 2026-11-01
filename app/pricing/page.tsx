@@ -1,44 +1,57 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, Heart, X, MessageCircle, Copy } from "lucide-react";
+import { Check, X, Mail, Copy } from "lucide-react";
 import Link from "next/link";
 import { LocaleToggle, useLocale } from "@/components/locale-provider";
-
-const PLANS = [
-  { id: "weekly", price: 12, popular: false },
-  { id: "monthly", price: 29, popular: true },
-  { id: "quarterly", price: 69, popular: false },
-] as const;
-
-type PlanId = (typeof PLANS)[number]["id"];
-
-const QQ = "3801434603";
+import {
+  formatUsd,
+  membershipPlans,
+  SUPPORT_EMAIL,
+  supportMailto,
+  type MembershipPlan,
+  type MembershipPlanId,
+} from "@/lib/membership-plans";
 
 function PricingInner() {
   const { session } = useSessionContext();
   const router = useRouter();
   const params = useSearchParams();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(params.get("plan"));
+  const [plans, setPlans] = useState<MembershipPlan[]>(membershipPlans(true));
+  const [weeklyIntroEligible, setWeeklyIntroEligible] = useState(true);
   const [copied, setCopied] = useState(false);
-  const [qrError, setQrError] = useState(false);
   const { t } = useLocale();
 
-  const handleSelect = (planId: PlanId) => {
+  useEffect(() => {
+    let active = true;
+    fetch("/api/pricing", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Pricing unavailable")))
+      .then((data) => {
+        if (!active || !Array.isArray(data.plans)) return;
+        setPlans(data.plans);
+        setWeeklyIntroEligible(data.weeklyIntroEligible === true);
+      })
+      .catch(() => {
+        // Keep the published prices visible; eligibility is confirmed again by support.
+      });
+    return () => { active = false; };
+  }, [session?.user.id]);
+
+  const handleSelect = (planId: MembershipPlanId) => {
     if (!session) {
       const destination = `/pricing?plan=${planId}`;
       router.push(`/login?redirectTo=${encodeURIComponent(destination)}`);
       return;
     }
-    setQrError(false);
     setSelectedPlan(planId);
   };
 
-  const copyQQ = async () => {
+  const copyEmail = async () => {
     try {
-      await navigator.clipboard.writeText(QQ);
+      await navigator.clipboard.writeText(SUPPORT_EMAIL);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -46,61 +59,74 @@ function PricingInner() {
     }
   };
 
-  const plan = PLANS.find((item) => item.id === selectedPlan);
-  const planNames: Record<PlanId, string> = {
+  const plan = plans.find((item) => item.id === selectedPlan);
+  const planNames: Record<MembershipPlanId, string> = {
     weekly: t.pricing.weekly,
     monthly: t.pricing.monthly,
-    quarterly: t.pricing.quarterly,
+    yearly: t.pricing.yearly,
   };
-  const planPeriods: Record<PlanId, string> = {
+  const planPeriods: Record<MembershipPlanId, string> = {
     weekly: t.pricing.perWeek,
     monthly: t.pricing.perMonth,
-    quarterly: t.pricing.perQuarter,
+    yearly: t.pricing.perYear,
   };
-  const planDescriptions: Record<PlanId, string> = {
+  const planDescriptions: Record<MembershipPlanId, string> = {
     weekly: t.pricing.weeklyDescription,
     monthly: t.pricing.monthlyDescription,
-    quarterly: t.pricing.quarterlyDescription,
+    yearly: t.pricing.yearlyDescription,
   };
+  const purchaseLink = plan ? supportMailto(
+    `Amara ${plan.name} membership`,
+    `I would like to purchase the ${plan.name} membership at ${formatUsd(plan.price)} USD.\n\nAccount email: ${session?.user.email || ""}\n\nPlease confirm the current price, availability, and cancellation terms before payment.`,
+  ) : "#";
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-16">
-      <div className="flex justify-end mb-4"><LocaleToggle /></div>
-      <div className="text-center mb-8">
+    <main className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
+      <div className="mb-4 flex justify-end"><LocaleToggle /></div>
+      <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold">{t.pricing.title}</h1>
-        <p className="text-gray-400 mt-3 text-sm max-w-2xl mx-auto leading-relaxed">{t.pricing.subtitle}</p>
+        <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-gray-400">{t.pricing.subtitle}</p>
       </div>
 
-      <div className="max-w-3xl mx-auto mb-10 rounded-2xl border border-amber-300/15 bg-amber-300/5 px-5 py-4 text-center">
+      <div className="mx-auto mb-8 max-w-3xl rounded-2xl border border-amber-300/15 bg-amber-300/5 px-5 py-4 text-center">
         <p className="text-xs leading-relaxed text-gray-300">{t.pricing.currentAvailability}</p>
         <p className="mt-2 text-xs text-gray-500">{t.pricing.fixedAccess}</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
-        {PLANS.map((item) => (
+      {weeklyIntroEligible && (
+        <p className="mx-auto mb-8 max-w-3xl text-center text-sm leading-6 text-brand-light" role="status">
+          {t.pricing.newUserOffer}
+        </p>
+      )}
+
+      <div className="mx-auto grid max-w-4xl grid-cols-1 gap-4 md:grid-cols-3">
+        {plans.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => handleSelect(item.id)}
-            className={`relative p-7 rounded-2xl bg-surface card-glow text-center transition hover:-translate-y-1 ${
+            className={`relative rounded-2xl bg-surface p-7 text-center card-glow transition hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rose-300 ${
               item.popular ? "border-2 border-rose-400 md:-translate-y-2" : "border border-white/10"
             } ${selectedPlan === item.id ? "ring-2 ring-rose-400 ring-offset-0" : ""}`}
+            aria-label={`${planNames[item.id]} · ${formatUsd(item.price)} USD`}
           >
             {item.popular && (
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-rose-400 text-white text-xs font-medium whitespace-nowrap">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-rose-400 px-3 py-0.5 text-xs font-medium text-white">
                 {t.pricing.recommended}
               </span>
             )}
-            <p className="font-semibold text-white text-lg">{planNames[item.id]}</p>
-            <div className="mt-2">
-              <span className="text-4xl font-bold">¥{item.price}</span>
-              <span className="text-gray-400 text-sm"> {planPeriods[item.id]}</span>
+            <p className="text-lg font-semibold text-white">{planNames[item.id]}</p>
+            <div className="mt-3 flex min-h-12 flex-wrap items-baseline justify-center gap-x-2">
+              <span className="text-4xl font-bold">{formatUsd(item.price)}</span>
+              <span className="text-sm text-gray-400">{planPeriods[item.id]}</span>
+              {item.regularPrice && <span className="text-sm text-gray-500 line-through">{formatUsd(item.regularPrice)}</span>}
             </div>
+            {item.offer === "new_user_weekly" && <p className="mt-2 text-xs font-medium text-brand-light">{t.pricing.oncePerAccount}</p>}
             <p className="mt-2 text-xs text-gray-500">{planDescriptions[item.id]}</p>
             <ul className="mt-5 space-y-2 text-left">
               {[t.pricing.unlimited, t.pricing.memories, t.pricing.anytime].map((feature) => (
                 <li key={feature} className="flex items-center gap-2 text-xs text-gray-300">
-                  <Check className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                  <Check className="h-3.5 w-3.5 shrink-0 text-green-400" />
                   {feature}
                 </li>
               ))}
@@ -111,68 +137,59 @@ function PricingInner() {
 
       {plan && (
         <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
           onClick={() => setSelectedPlan(null)}
           role="dialog"
           aria-modal="true"
-          aria-label={`${planNames[plan.id]} · ¥${plan.price}`}
+          aria-label={`${planNames[plan.id]} · ${formatUsd(plan.price)} USD`}
         >
           <div
-            className="bg-surface-dark border border-white/10 rounded-3xl p-7 max-w-md w-full relative max-h-[90vh] overflow-y-auto"
+            className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-surface-dark p-7"
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
-              aria-label="Close"
+              aria-label={t.pricing.close}
               onClick={() => setSelectedPlan(null)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-white"
+              className="absolute right-4 top-4 flex min-h-11 min-w-11 items-center justify-center text-gray-500 hover:text-white"
             >
-              <X className="w-5 h-5" />
+              <X className="h-5 w-5" />
             </button>
 
-            <div className="text-center mb-5">
-              <Heart className="w-10 h-10 text-rose-400 mx-auto mb-3" />
-              <h2 className="text-xl font-bold">{planNames[plan.id]} · ¥{plan.price}</h2>
-              <p className="text-sm font-medium text-gray-200 mt-2">{t.pricing.paymentTitle}</p>
-              <p className="text-xs text-gray-400 mt-2 leading-relaxed">{t.pricing.paymentInstructions}</p>
+            <div className="mb-5 text-center">
+              <Mail className="mx-auto mb-3 h-10 w-10 text-rose-400" />
+              <h2 className="text-xl font-bold">{planNames[plan.id]} · {formatUsd(plan.price)}</h2>
+              <p className="mt-2 text-sm font-medium text-gray-200">{t.pricing.paymentTitle}</p>
+              <p className="mt-2 text-xs leading-relaxed text-gray-400">{t.pricing.paymentInstructions}</p>
             </div>
 
-            <div className="bg-white rounded-2xl p-3 mx-auto w-48 h-48 flex items-center justify-center">
-              {qrError ? (
-                <p className="text-gray-500 text-xs text-center px-2">{t.pricing.qrUnavailable}</p>
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src="/qr.png"
-                  alt={t.pricing.qrAlt}
-                  className="w-full h-full object-contain"
-                  onError={() => setQrError(true)}
-                />
-              )}
-            </div>
+            <a
+              href={purchaseLink}
+              className="flex min-h-12 w-full items-center justify-center rounded-xl bg-rose-400 px-4 text-sm font-semibold text-white transition hover:bg-rose-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rose-300"
+            >
+              {t.pricing.purchaseByEmail}
+            </a>
 
-            <div className="mt-5 p-4 rounded-xl bg-white/5 border border-white/10">
-              <div className="flex items-center gap-2 mb-2">
-                <MessageCircle className="w-4 h-4 text-sky-400" />
-                <span className="text-sm text-gray-300">{t.pricing.supportQq}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <code className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-brand-light font-mono text-base">
-                  {QQ}
-                </code>
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4">
+              <span className="text-sm text-gray-300">{t.pricing.supportEmail}</span>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="break-all py-2 font-mono text-base text-brand-light hover:underline">{SUPPORT_EMAIL}</a>
                 <button
                   type="button"
-                  onClick={copyQQ}
-                  className="text-xs text-gray-400 hover:text-white flex items-center gap-1"
+                  onClick={copyEmail}
+                  className="flex min-h-11 items-center gap-1 px-2 text-xs text-gray-400 hover:text-white"
                 >
-                  <Copy className="w-3 h-3" />
+                  <Copy className="h-3 w-3" />
                   {copied ? t.pricing.copied : t.pricing.copy}
                 </button>
               </div>
-              <p className="mt-2 text-xs text-gray-500 leading-relaxed">{t.pricing.supportNote}</p>
+              <p className="mt-2 text-xs leading-relaxed text-gray-500">{t.pricing.supportNote}</p>
             </div>
 
-            <p className="mt-4 text-center text-xs text-gray-500 leading-relaxed">{t.pricing.activationNote}</p>
+            <p className="mt-4 text-center text-xs leading-relaxed text-gray-500">{t.pricing.activationNote}</p>
+            <Link href="/cancellation" className="mt-3 flex min-h-11 items-center justify-center text-xs font-medium text-brand-light hover:underline">
+              {t.pricing.cancelMembership}
+            </Link>
           </div>
         </div>
       )}
@@ -181,19 +198,23 @@ function PricingInner() {
         {t.pricing.freeTrial} · {t.pricing.unlimitedMember} ·{" "}
         <Link href="/contact" className="text-brand-light hover:underline">{t.pricing.contact}</Link>
       </p>
-      <p className="mt-4 max-w-2xl mx-auto text-center text-xs leading-relaxed text-gray-500">{t.pricing.refundNote}</p>
-      <p className="mt-6 text-center text-xs text-gray-500">
-        <Link href="/terms" className="hover:text-brand-light">{t.login.terms}</Link>
-        <span className="mx-2">·</span>
-        <Link href="/content-policy" className="hover:text-brand-light">{t.login.contentPolicy}</Link>
+      <p className="mx-auto mt-4 max-w-2xl text-center text-xs leading-relaxed text-gray-500">{t.pricing.refundNote}</p>
+      <p className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center text-xs text-gray-500">
+        <Link href="/terms" className="py-2 hover:text-brand-light">{t.login.terms}</Link>
+        <span aria-hidden="true">·</span>
+        <Link href="/privacy" className="py-2 hover:text-brand-light">{t.pricing.privacy}</Link>
+        <span aria-hidden="true">·</span>
+        <Link href="/cancellation" className="py-2 hover:text-brand-light">{t.pricing.cancelMembership}</Link>
+        <span aria-hidden="true">·</span>
+        <Link href="/content-policy" className="py-2 hover:text-brand-light">{t.login.contentPolicy}</Link>
       </p>
-    </div>
+    </main>
   );
 }
 
 export default function PricingPage() {
   return (
-    <Suspense fallback={<div className="max-w-5xl mx-auto px-4 py-16 text-center text-gray-500">Loading pricing...</div>}>
+    <Suspense fallback={<div className="mx-auto max-w-5xl px-4 py-16 text-center text-gray-500">Loading pricing...</div>}>
       <PricingInner />
     </Suspense>
   );

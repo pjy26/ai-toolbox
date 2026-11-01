@@ -8,7 +8,7 @@ const sections = [
     paragraphs: [
       "Amara processes the account information you provide, such as your email address, password credentials handled by our authentication provider, and optional nickname. Legacy accounts may use a phone-derived login identifier.",
       "To provide ongoing companionship, we process conversations, relationship events, companion settings, saved memories, and generated Dream entries. A Dream is generated fiction or reflection, not a factual record of you.",
-      "If you contact support or make a manual payment, we may process the messages and payment confirmation you choose to send. Do not send passwords, full payment credentials, or unnecessary sensitive information.",
+      "If you contact support or purchase a membership, we may process your support emails, account identifier, selected plan, order and payment status, access period, and payment confirmation you choose to provide. Payment providers may process transaction information under their own privacy terms. Never email passwords or full payment-card details, and avoid sending unnecessary sensitive information.",
     ],
   },
   {
@@ -65,7 +65,7 @@ export default function PrivacyPage() {
         ))}
       </div>
       <footer className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm leading-7 text-gray-300">
-        Questions or privacy requests? <Link href="/contact" className="text-brand-light hover:underline">Contact support</Link>. Include your account email, but never your password.
+        Questions or privacy requests? Email <a href="mailto:admin@amarapjy.xyz" className="text-brand-light hover:underline">admin@amarapjy.xyz</a>. Include your account email, but never your password. See our <Link href="/terms" className="text-brand-light hover:underline">Terms</Link>.
       </footer>
     </main>
   );

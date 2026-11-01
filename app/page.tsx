@@ -169,6 +169,7 @@ export default function HomePage() {
           <div className="flex flex-wrap gap-x-6 gap-y-3">
             <Link href="/privacy" className="hover:text-[#282621]">{t.privacy}</Link>
             <Link href="/terms" className="hover:text-[#282621]">{t.terms}</Link>
+            <Link href="/cancellation" className="hover:text-[#282621]">{t.cancellation}</Link>
             <Link href="/content-policy" className="hover:text-[#282621]">{t.contentPolicy}</Link>
             <Link href="/contact" className="hover:text-[#282621]">{t.contact}</Link>
           </div>

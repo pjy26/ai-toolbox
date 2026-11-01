@@ -3,9 +3,11 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Send, User, Crown, LogOut, ChevronRight, X } from "lucide-react";
 import { useLocale } from "@/components/locale-provider";
 import { chatCopy, fillCopy } from "@/lib/chat-copy";
+import { formatUsd, SUPPORT_EMAIL, supportMailto } from "@/lib/membership-plans";
 
 interface Message {
   role: "user" | "assistant";
@@ -34,9 +36,11 @@ interface Plan {
   id: string;
   name: string;
   price: number;
+  regularPrice?: number;
   period: string;
   popular: boolean;
   hint: string;
+  offer?: "new_user_weekly";
 }
 
 function ChatInner() {
@@ -864,22 +868,21 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
 /* ── 付费墙 ── */
 function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }) {
   const { locale } = useLocale();
+  const { session } = useSessionContext();
   const copy = chatCopy[locale];
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loadingPlans, setLoadingPlans] = useState(true);
-  const [paying, setPaying] = useState(false);
-  const [payError, setPayError] = useState("");
   const accent = isLover ? "#A34F3D" : "#8A6438";
   const accentRgb = isLover ? "163, 79, 61" : "138, 100, 56";
   const planNames: Record<string, string> = copy.planNames;
   const planHints: Record<string, string> = copy.planHints;
   const planPeriods: Record<string, string> = locale === "en"
-    ? { weekly: "/ week", monthly: "/ month", quarterly: "/ quarter", yearly: "/ year" }
-    : { weekly: "/ 周", monthly: "/ 月", quarterly: "/ 季", yearly: "/ 年" };
+    ? { weekly: "/ week", monthly: "/ month", yearly: "/ year" }
+    : { weekly: "/ 周", monthly: "/ 月", yearly: "/ 年" };
 
   useEffect(() => {
-    fetch("/api/pricing")
+    fetch("/api/pricing", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         setPlans(data.plans || []);
@@ -893,31 +896,15 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
   }, []);
 
   const selectedPlan = plans.find((p) => p.id === selected);
-
-  const handlePay = async () => {
-    if (!selectedPlan || paying) return;
-    setPaying(true);
-    setPayError("");
-    try {
-      const res = await fetch("/api/pay/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "membership", plan_id: selectedPlan.id }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.payUrl) throw new Error();
-      // 跳转支付宝收银台，支付完成后会回到 /chat?payment=success
-      window.location.href = data.payUrl;
-    } catch {
-      setPayError(copy.paymentError);
-      setPaying(false);
-    }
-  };
+  const purchaseLink = selectedPlan ? supportMailto(
+    `Amara ${selectedPlan.name} membership`,
+    `I would like to purchase the ${selectedPlan.name} membership at ${formatUsd(selectedPlan.price)} USD.\n\nAccount email: ${session?.user.email || ""}\n\nPlease confirm the current price, activation, access period, and cancellation terms before payment.`,
+  ) : "#";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(40,38,33,0.35)", backdropFilter: "blur(12px)" }} onClick={onClose}>
-      <div className="rounded-3xl p-7 max-w-md w-full relative" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB", boxShadow: "0 24px 80px rgba(40,38,33,0.16)", animation: "paywallIn 0.4s cubic-bezier(0.22, 1, 0.36, 1)" }} onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} aria-label={copy.cancel} className="absolute top-4 right-4 text-sm" style={{ color: "#756F66" }}>&times;</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(40,38,33,0.35)", backdropFilter: "blur(12px)" }} onClick={onClose} role="dialog" aria-modal="true">
+      <div className="rounded-3xl p-6 sm:p-7 max-w-md max-h-[90vh] overflow-y-auto w-full relative" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB", boxShadow: "0 24px 80px rgba(40,38,33,0.16)", animation: "paywallIn 0.4s cubic-bezier(0.22, 1, 0.36, 1)" }} onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} aria-label={copy.cancel} className="absolute top-4 right-4 min-h-11 min-w-11 text-sm" style={{ color: "#756F66" }}>&times;</button>
 
         <div className="text-center mb-6">
           <div className="w-10 h-10 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: `rgba(${accentRgb}, 0.1)`, border: `1px solid rgba(${accentRgb}, 0.22)`, color: accent }}>
@@ -939,37 +926,40 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
           <>
             <div className="space-y-2 mb-5">
               {plans.map((p) => (
-                <button key={p.id} onClick={() => setSelected(p.id)} className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition text-left" style={{
+                <button key={p.id} onClick={() => setSelected(p.id)} className="w-full flex flex-wrap items-center justify-between gap-2 px-4 py-3 rounded-xl transition text-left" style={{
                   border: selected === p.id ? `1px solid rgba(${accentRgb}, 0.4)` : "1px solid #DED7CC",
                   background: selected === p.id ? `rgba(${accentRgb}, 0.08)` : "#F8F5EF",
                 }}>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-sm" style={{ color: "#282621" }}>{planNames[p.id] || p.name}</span>
                     {p.popular && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: accent, color: "#FFFDF8" }}>{copy.recommended}</span>}
                     <span className="text-xs" style={{ color: "#756F66" }}>&middot; {planHints[p.id] || p.hint}</span>
                   </div>
-                  <span className="font-semibold text-sm" style={{ color: "#282621" }}>&yen;{p.price}<span className="text-xs font-normal" style={{ color: "#756F66" }}>{planPeriods[p.id] || p.period}</span></span>
+                  <span className="font-semibold text-sm" style={{ color: "#282621" }}>
+                    {formatUsd(p.price)}<span className="text-xs font-normal" style={{ color: "#756F66" }}>{planPeriods[p.id] || p.period}</span>
+                    {p.regularPrice && <span className="ml-2 text-xs font-normal line-through" style={{ color: "#817A70" }}>{formatUsd(p.regularPrice)}</span>}
+                  </span>
+                  {p.offer === "new_user_weekly" && <span className="w-full text-xs" style={{ color: accent }}>{copy.newUserOffer}</span>}
                 </button>
               ))}
             </div>
 
             {selectedPlan ? (
               <div>
-                <button
-                  onClick={handlePay}
-                  disabled={paying}
-                  className="w-full py-3 rounded-2xl font-semibold text-sm text-white transition"
-                  style={{ background: accent, letterSpacing: 1, opacity: paying ? 0.6 : 1 }}
+                <a
+                  href={purchaseLink}
+                  className="flex min-h-12 w-full items-center justify-center rounded-2xl px-4 text-center font-semibold text-sm text-white transition"
+                  style={{ background: accent, letterSpacing: 1 }}
                 >
-                  {paying ? copy.payingAlipay : fillCopy(copy.alipayPay, { price: selectedPlan.price })}
-                </button>
-                {payError && (
-                  <p className="text-xs mt-2 text-center" style={{ color: "#A34F3D" }}>{payError}</p>
-                )}
+                  {fillCopy(copy.emailPurchase, { price: formatUsd(selectedPlan.price) })}
+                </a>
                 <p className="mt-3 text-xs text-center leading-relaxed" style={{ color: "#817A70" }}>
                   {copy.paymentNote}
-                  <br />{copy.support}
+                  <br /><a href={`mailto:${SUPPORT_EMAIL}`} className="underline underline-offset-2">{copy.support}</a>
                 </p>
+                <Link href="/cancellation" className="mt-2 flex min-h-11 items-center justify-center text-xs font-medium underline underline-offset-4" style={{ color: accent }}>
+                  {copy.cancelMembership}
+                </Link>
               </div>
             ) : (
               <button onClick={() => setSelected(plans[0]?.id || "")} className="w-full py-3 rounded-xl font-semibold text-sm text-white" style={{ background: accent }}>

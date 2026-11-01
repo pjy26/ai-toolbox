@@ -1,36 +1,33 @@
 import { NextResponse } from "next/server";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
+import { getAuthUser } from "@/lib/auth";
+import { MEMBERSHIP_CURRENCY, membershipPlans } from "@/lib/membership-plans";
 
-// 统一定价数据 —— 付费墙和"我的"页都读这里
-const PLANS = [
-  {
-    id: "weekly",
-    name: "周卡",
-    price: 12,
-    period: "/周",
-    membershipWeeks: 1,
-    popular: false,
-    hint: "想多聊几天",
-  },
-  {
-    id: "monthly",
-    name: "月卡",
-    price: 29,
-    period: "/月",
-    membershipMonths: 1,
-    popular: true,
-    hint: "一天只要一块钱",
-  },
-  {
-    id: "quarterly",
-    name: "季卡",
-    price: 69,
-    period: "/季",
-    membershipMonths: 3,
-    popular: false,
-    hint: "更划算",
-  },
-];
-
+// 统一美元定价。新客优惠按账号判断：已有任何会员订单即不再展示首周优惠。
 export async function GET() {
-  return NextResponse.json({ plans: PLANS });
+  const user = await getAuthUser();
+  let weeklyIntroEligible = true;
+
+  if (user) {
+    const supabase = createRouteHandlerClient({ cookies });
+    const { data, error } = await supabase
+      .from("orders")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("type", "membership")
+      .limit(1);
+
+    // 无法核实资格时不展示优惠价，避免对用户做出无法兑现的承诺。
+    weeklyIntroEligible = !error && data.length === 0;
+  }
+
+  return NextResponse.json(
+    {
+      currency: MEMBERSHIP_CURRENCY,
+      weeklyIntroEligible,
+      plans: membershipPlans(weeklyIntroEligible),
+    },
+    { headers: { "Cache-Control": "private, no-store" } },
+  );
 }

@@ -2,18 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { MessageCircle, Mail, Heart } from "lucide-react";
+import { Mail, Heart } from "lucide-react";
 import { LocaleToggle, useLocale } from "@/components/locale-provider";
-
-const QQ = "3801434603";
+import { SUPPORT_EMAIL, supportMailto } from "@/lib/membership-plans";
 
 export default function ContactPage() {
   const [copied, setCopied] = useState(false);
   const { t } = useLocale();
 
-  const copyQQ = async () => {
+  const copyEmail = async () => {
     try {
-      await navigator.clipboard.writeText(QQ);
+      await navigator.clipboard.writeText(SUPPORT_EMAIL);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -29,22 +28,22 @@ export default function ContactPage() {
         <p className="text-gray-400 mt-3 text-sm leading-relaxed">{t.contact.subtitle}</p>
       </div>
 
-      <div className="bg-surface rounded-2xl p-8 border border-white/5 card-glow">
+      <div className="bg-surface rounded-2xl p-6 sm:p-8 border border-white/5 card-glow">
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-sky-400/10 border border-sky-400/20 flex items-center justify-center shrink-0">
-            <MessageCircle className="w-6 h-6 text-sky-400" />
+            <Mail className="w-6 h-6 text-sky-400" />
           </div>
-          <div className="flex-1">
-            <h2 className="text-lg font-semibold text-white">{t.contact.qq}</h2>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold text-white">{t.contact.email}</h2>
             <p className="text-gray-400 text-sm mt-1">{t.contact.fastest}</p>
-            <div className="mt-3 flex items-center gap-3">
-              <code className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-brand-light text-base font-mono">
-                {QQ}
-              </code>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <a href={supportMailto("Amara support", "Please describe your request here.\n\nAccount email: ")} className="break-all py-2 text-brand-light text-base font-mono hover:underline">
+                {SUPPORT_EMAIL}
+              </a>
               <button
                 type="button"
-                onClick={copyQQ}
-                className="text-xs text-gray-400 hover:text-white transition"
+                onClick={copyEmail}
+                className="min-h-11 px-2 text-xs text-gray-400 hover:text-white transition"
               >
                 {copied ? t.contact.copied : t.contact.copy}
               </button>
@@ -68,7 +67,10 @@ export default function ContactPage() {
       </div>
 
       <p className="mt-8 rounded-xl border border-white/5 bg-white/5 p-4 text-xs leading-relaxed text-gray-400">
-        {t.contact.privacyNote} <Link href="/privacy" className="text-brand-light hover:underline">Privacy Policy</Link>
+        {t.contact.privacyNote} <Link href="/privacy" className="text-brand-light hover:underline">{t.pricing.privacy}</Link>
+      </p>
+      <p className="mt-4 text-center text-xs text-gray-500">
+        <Link href="/cancellation" className="text-brand-light hover:underline">{t.pricing.cancelMembership}</Link>
       </p>
       <p className="mt-6 text-center text-xs text-gray-500">{t.contact.responseTime}</p>
     </div>

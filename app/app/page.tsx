@@ -100,7 +100,7 @@ function DashboardContent({ data }: { data: HomeResponse }) {
   const previousThreadDate = lastTopic
     ? lastTopic.occurred_at || lastTopic.created_at
     : liveState.updatedAt || companion.last_active_at;
-  const planNames: Record<string, string> = { weekly: "Weekly", monthly: "Monthly", quarterly: "Quarterly", yearly: "Yearly" };
+  const planNames: Record<string, string> = { weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" };
   const membershipLabel = membership.isMember
     ? `${planNames[membership.membershipType || ""] || "Amara"} member`
     : "Free plan";
