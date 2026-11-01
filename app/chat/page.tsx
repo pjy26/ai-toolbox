@@ -7,7 +7,8 @@ import Link from "next/link";
 import { Send, User, Crown, LogOut, ChevronRight, X } from "lucide-react";
 import { useLocale } from "@/components/locale-provider";
 import { chatCopy, fillCopy } from "@/lib/chat-copy";
-import { formatUsd, SUPPORT_EMAIL, supportMailto } from "@/lib/membership-plans";
+import { formatUsd, SUPPORT_EMAIL } from "@/lib/membership-plans";
+import { openWaffoCheckout } from "@/lib/waffo-browser";
 
 interface Message {
   role: "user" | "assistant";
@@ -868,11 +869,12 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
 /* ── 付费墙 ── */
 function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }) {
   const { locale } = useLocale();
-  const { session } = useSessionContext();
   const copy = chatCopy[locale];
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loadingPlans, setLoadingPlans] = useState(true);
+  const [isPaying, setIsPaying] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
   const accent = isLover ? "#A34F3D" : "#8A6438";
   const accentRgb = isLover ? "163, 79, 61" : "138, 100, 56";
   const planNames: Record<string, string> = copy.planNames;
@@ -896,10 +898,17 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
   }, []);
 
   const selectedPlan = plans.find((p) => p.id === selected);
-  const purchaseLink = selectedPlan ? supportMailto(
-    `Amara ${selectedPlan.name} membership`,
-    `I would like to purchase the ${selectedPlan.name} membership at ${formatUsd(selectedPlan.price)} USD.\n\nAccount email: ${session?.user.email || ""}\n\nPlease confirm the current price, activation, access period, and cancellation terms before payment.`,
-  ) : "#";
+  const handleCheckout = async () => {
+    if (!selectedPlan || isPaying) return;
+    setIsPaying(true);
+    setPaymentError("");
+    try {
+      await openWaffoCheckout(selectedPlan.id, locale);
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : copy.paymentError);
+      setIsPaying(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(40,38,33,0.35)", backdropFilter: "blur(12px)" }} onClick={onClose} role="dialog" aria-modal="true">
@@ -946,13 +955,16 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
 
             {selectedPlan ? (
               <div>
-                <a
-                  href={purchaseLink}
-                  className="flex min-h-12 w-full items-center justify-center rounded-2xl px-4 text-center font-semibold text-sm text-white transition"
+                <button
+                  type="button"
+                  onClick={() => void handleCheckout()}
+                  disabled={isPaying}
+                  className="flex min-h-12 w-full items-center justify-center rounded-2xl px-4 text-center font-semibold text-sm text-white transition disabled:cursor-wait disabled:opacity-60"
                   style={{ background: accent, letterSpacing: 1 }}
                 >
-                  {fillCopy(copy.emailPurchase, { price: formatUsd(selectedPlan.price) })}
-                </a>
+                  {isPaying ? "…" : fillCopy(copy.emailPurchase, { price: formatUsd(selectedPlan.price) })}
+                </button>
+                {paymentError && <p className="mt-3 text-center text-xs leading-relaxed" style={{ color: accent }} role="alert">{paymentError}</p>}
                 <p className="mt-3 text-xs text-center leading-relaxed" style={{ color: "#817A70" }}>
                   {copy.paymentNote}
                   <br /><a href={`mailto:${SUPPORT_EMAIL}`} className="underline underline-offset-2">{copy.support}</a>

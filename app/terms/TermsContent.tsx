@@ -29,11 +29,11 @@ const copy = {
       },
       {
         title: "Memberships, prices, and payment",
-        body: "Memberships are displayed and charged in US dollars (USD): Weekly is $1.99, Monthly is $3.99, and Yearly is $29.90. While the launch offer is available, an eligible new account may purchase its first Weekly membership for $0.99, once per account. Current memberships provide access for a fixed period and do not automatically renew. Purchases currently begin through support email. Confirm the price, activation timing, and exact access period before sending payment. Never send passwords or full payment-card details by email.",
+        body: "Memberships are displayed and charged in US dollars (USD): Weekly renews at $1.99/week, Monthly at $3.99/month, and Yearly at $29.90/year. While the launch offer is available, an eligible new account may start its first Weekly membership at $0.99 for the first week, then $1.99/week, once per account. Memberships renew automatically until canceled. Checkout is hosted by Waffo Pancake; review the final price, taxes if shown, renewal cadence, and cancellation terms before paying. Never send passwords or full payment-card details by email.",
       },
       {
         title: "Cancellation and refunds",
-        body: "A current fixed-period membership simply expires at the end of its paid access period, so no action is needed to prevent renewal. If a receipt or future checkout expressly shows automatic renewal, follow the cancellation instructions shown there or email support from your account email before the next renewal. Cancellation stops future renewals; access normally continues through the already-paid period. Cancellation is not automatically a refund. Any refund or statutory withdrawal right depends on the applicable purchase terms and law; contact support before payment if you need clarification. See the Cancellation page for current options.",
+        body: "You can cancel automatic renewal at any time through the Waffo customer portal linked from the Cancellation page. Cancellation stops future charges; access continues through the current paid billing period. Deleting an account or stopping use does not itself cancel a subscription. Cancellation is not automatically a refund. Any refund or statutory withdrawal right depends on the purchase terms and applicable law. See the Cancellation page for self-service and support options.",
       },
       {
         title: "Your content and generated content",
@@ -74,11 +74,11 @@ const copy = {
       },
       {
         title: "会员、价格与付款",
-        body: "会员以美元（USD）展示和收费：周卡 $1.99、月卡 $3.99、年卡 $29.90。新客优惠可用期间，符合条件的新账号可以 $0.99 购买首个周卡，每个账号仅一次。当前会员在固定期限内有效，不会自动续费。目前购买通过客服邮件发起。付款前请确认价格、开通时间及准确的有效期。切勿通过邮件发送密码或完整的银行卡信息。",
+        body: "会员以美元（USD）展示和收费：周卡按 $1.99/周续费，月卡按 $3.99/月续费，年卡按 $29.90/年续费。新客优惠可用期间，符合条件的新账号首周支付 $0.99，之后按 $1.99/周续费，每个账号仅一次。会员将自动续费，直至取消。收银台由 Waffo Pancake 托管；付款前请核对最终价格、可能展示的税费、续费周期及取消条款。切勿通过邮件发送密码或完整银行卡信息。",
       },
       {
         title: "退订与退款",
-        body: "当前固定期限会员会在已付费有效期结束时自然到期，无需操作即可避免续费。如果收据或未来的收银台明确显示自动续费，请按照其中的取消说明操作，或在下次续费前使用账号邮箱联系客服。取消会停止后续续费，通常可继续使用至已付期限结束。取消不等于自动退款。任何退款或法定撤回权均取决于适用的购买条款及法律；如需说明，请在付款前联系客服。当前可选方式请参见退订说明页面。",
+        body: "你可以随时通过退订页面所链接的 Waffo 客户门户取消自动续费。取消会停止后续扣款，会员仍可使用至当前已付账期结束。删除账号或停止使用并不等于已取消订阅。取消不等于自动退款。任何退款或法定撤回权均取决于购买条款及适用法律。自助退订及客服方式请参见退订页面。",
       },
       {
         title: "你的内容与生成内容",

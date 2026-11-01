@@ -12,6 +12,7 @@ import {
   normalizeConversationLocale,
   outputLanguageBlock,
 } from "@/lib/conversation-context";
+import { scanWaffoContent } from "@/lib/content-safety";
 
 // 生成 Amara 的主动开场白
 export async function GET(req: Request) {
@@ -153,7 +154,9 @@ ${outputLanguageBlock(locale)}
       max_tokens: 1000,
     });
 
-    greeting = completion.choices?.[0]?.message?.content?.trim() || greeting;
+    const generated = completion.choices?.[0]?.message?.content?.trim() || "";
+    // Only reviewed model output replaces the known-safe fallback greeting.
+    if (generated && await scanWaffoContent(generated, locale, "output")) greeting = generated;
   } catch (error) {
     console.error("greeting 生成失败，使用兜底文案:", error);
   }

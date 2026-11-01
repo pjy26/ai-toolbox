@@ -26,6 +26,7 @@ import {
   normalizeConversationLocale,
   outputLanguageBlock,
 } from "@/lib/conversation-context";
+import { contentSafetyMessage, scanWaffoContent } from "@/lib/content-safety";
 
 // 即时状态不是长期事实。初版先使用保守 TTL，避免昨天/上周的状态被描述成“此刻”。
 const LIVE_STATE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -358,11 +359,14 @@ export async function POST(req: Request) {
   const { message, history, companion_id, session_id, locale: requestedLocale, timezone: requestedTimezone } = await req.json();
   const locale = normalizeConversationLocale(requestedLocale);
   const timezone = typeof requestedTimezone === "string" ? requestedTimezone : "UTC";
-  if (!message?.trim()) {
+  if (typeof message !== "string" || !message.trim()) {
     return NextResponse.json({ error: "消息不能为空" }, { status: 400 });
   }
   if (!companion_id) {
     return NextResponse.json({ error: "缺少 companion_id" }, { status: 400 });
+  }
+  if (!await scanWaffoContent(message, locale, "input")) {
+    return NextResponse.json({ error: contentSafetyMessage(locale, "input"), code: "CONTENT_REVIEW_REQUIRED" }, { status: 422 });
   }
 
   // 1. 验证 companion 归属 + 拉人格字段
@@ -578,35 +582,41 @@ export async function POST(req: Request) {
         });
 
         for await (const chunk of stream) {
-          const delta = chunk.choices?.[0]?.delta?.content || "";
-          if (delta) assistantFull += delta;
+          assistantFull += chunk.choices?.[0]?.delta?.content || "";
+        }
+
+        // Generated content must be reviewed before it is shown or persisted.
+        if (!assistantFull || !await scanWaffoContent(assistantFull, locale, "output")) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: contentSafetyMessage(locale, "output") })}\n\n`));
+          controller.close();
+          return;
+        }
+        for (let offset = 0; offset < assistantFull.length; offset += 24) {
+          const chunk = { choices: [{ delta: { content: assistantFull.slice(offset, offset + 24) } }] };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
         }
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
 
-        if (assistantFull) {
-          // 入库内容必须与已经流式展示的内容完全一致；不能事后再改称呼，
-          // 否则用户重新进入会话时会看到一条“变了”的历史消息。
-          const { error: assistantMessageError } = await supabase.from("chat_messages").insert({
-            session_id: sessionId,
-            role: "assistant",
-            content: assistantFull,
-          });
-          if (assistantMessageError) {
-            console.error("[companion POST] 助手消息入库失败:", assistantMessageError.message);
-          } else {
-            const { error: sessionUpdateError } = await supabase
-              .from("chat_sessions")
-              .update({ updated_at: new Date().toISOString() })
-              .eq("id", sessionId);
-            if (sessionUpdateError) console.error("[companion POST] 会话时间更新失败:", sessionUpdateError.message);
-          }
+        // 入库内容与通过审核后展示的内容完全一致。
+        const { error: assistantMessageError } = await supabase.from("chat_messages").insert({
+          session_id: sessionId,
+          role: "assistant",
+          content: assistantFull,
+        });
+        if (assistantMessageError) {
+          console.error("[companion POST] 助手消息入库失败:", assistantMessageError.message);
+        } else {
+          const { error: sessionUpdateError } = await supabase
+            .from("chat_sessions")
+            .update({ updated_at: new Date().toISOString() })
+            .eq("id", sessionId);
+          if (sessionUpdateError) console.error("[companion POST] 会话时间更新失败:", sessionUpdateError.message);
         }
 
         // 恋人版：异步触发隐形性格匹配
         if (companion.relationship_type === "lover" && !companion.persona_locked_at) {
           try {
-            const absUrl = new URL("/api/companion/match-persona", process.env.NEXT_PUBLIC_SITE_URL || "https://pjytoolbox.xyz");
+            const absUrl = new URL("/api/companion/match-persona", process.env.NEXT_PUBLIC_SITE_URL || "https://amarapjy.xyz");
             fetch(absUrl.toString(), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -617,14 +627,8 @@ export async function POST(req: Request) {
 
         controller.close();
       } catch (err: any) {
-        console.error("Stream error:", err);
-        const debug = {
-          message: err?.message || String(err),
-          status: err?.status || err?.response?.status,
-          type: err?.constructor?.name,
-          code: err?.code,
-        };
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "AI 服务暂时不可用", debug })}\n\n`));
+        console.error("Stream error:", err instanceof Error ? err.message : "Unknown error");
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: contentSafetyMessage(locale, "output") })}\n\n`));
         controller.close();
       }
     },

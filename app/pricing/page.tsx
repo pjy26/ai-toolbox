@@ -10,10 +10,10 @@ import {
   formatUsd,
   membershipPlans,
   SUPPORT_EMAIL,
-  supportMailto,
   type MembershipPlan,
   type MembershipPlanId,
 } from "@/lib/membership-plans";
+import { openWaffoCheckout } from "@/lib/waffo-browser";
 
 function PricingInner() {
   const { session } = useSessionContext();
@@ -23,7 +23,9 @@ function PricingInner() {
   const [plans, setPlans] = useState<MembershipPlan[]>(membershipPlans(true));
   const [weeklyIntroEligible, setWeeklyIntroEligible] = useState(true);
   const [copied, setCopied] = useState(false);
-  const { t } = useLocale();
+  const [isPaying, setIsPaying] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+  const { t, locale } = useLocale();
 
   useEffect(() => {
     let active = true;
@@ -35,7 +37,7 @@ function PricingInner() {
         setWeeklyIntroEligible(data.weeklyIntroEligible === true);
       })
       .catch(() => {
-        // Keep the published prices visible; eligibility is confirmed again by support.
+        // Keep published prices visible; the server confirms eligibility again.
       });
     return () => { active = false; };
   }, [session?.user.id]);
@@ -46,6 +48,7 @@ function PricingInner() {
       router.push(`/login?redirectTo=${encodeURIComponent(destination)}`);
       return;
     }
+    setPaymentError("");
     setSelectedPlan(planId);
   };
 
@@ -56,6 +59,18 @@ function PricingInner() {
       setTimeout(() => setCopied(false), 1500);
     } catch {
       setCopied(false);
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (!plan || isPaying) return;
+    setIsPaying(true);
+    setPaymentError("");
+    try {
+      await openWaffoCheckout(plan.id, locale);
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : t.pricing.paymentInstructions);
+      setIsPaying(false);
     }
   };
 
@@ -75,10 +90,6 @@ function PricingInner() {
     monthly: t.pricing.monthlyDescription,
     yearly: t.pricing.yearlyDescription,
   };
-  const purchaseLink = plan ? supportMailto(
-    `Amara ${plan.name} membership`,
-    `I would like to purchase the ${plan.name} membership at ${formatUsd(plan.price)} USD.\n\nAccount email: ${session?.user.email || ""}\n\nPlease confirm the current price, availability, and cancellation terms before payment.`,
-  ) : "#";
 
   return (
     <div className="min-h-screen bg-[#f8f5ef] text-[#282621]">
@@ -172,12 +183,15 @@ function PricingInner() {
                 <p className="mt-2 text-xs leading-6 text-[#6e685f]">{t.pricing.paymentInstructions}</p>
               </div>
 
-              <a
-                href={purchaseLink}
-                className="flex min-h-12 w-full items-center justify-center bg-[#a34f3d] px-4 text-sm font-semibold text-white transition hover:bg-[#893f31] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a34f3d]"
+              <button
+                type="button"
+                onClick={() => void handleCheckout()}
+                disabled={isPaying}
+                className="flex min-h-12 w-full items-center justify-center bg-[#a34f3d] px-4 text-sm font-semibold text-white transition hover:bg-[#893f31] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a34f3d] disabled:cursor-wait disabled:opacity-60"
               >
-                {t.pricing.purchaseByEmail}
-              </a>
+                {isPaying ? "…" : `${t.pricing.purchaseByEmail} · ${formatUsd(plan.price)}`}
+              </button>
+              {paymentError && <p className="mt-3 text-center text-xs leading-6 text-[#923f30]" role="alert">{paymentError}</p>}
 
               <div className="mt-6 border-y border-[#ded7cc] bg-[#f8f5ef] p-4">
                 <span className="text-sm text-[#49453e]">{t.pricing.supportEmail}</span>

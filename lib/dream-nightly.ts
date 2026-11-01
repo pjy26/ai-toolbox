@@ -1,5 +1,6 @@
 import { createServerAdminClient } from "@/lib/supabase";
 import { DREAM_PROMPT_VERSION, generateDream } from "@/lib/dream";
+import { scanWaffoContent } from "@/lib/content-safety";
 import {
   getLocalDate,
   getLocalDateRange,
@@ -244,6 +245,12 @@ async function generateForCandidate(
       memories,
       events,
     });
+
+    const dreamText = [dream.title, dream.content, dream.emotional_theme, dream.next_day_hook].filter(Boolean).join("\n");
+    const locale = settings.locale.toLowerCase().startsWith("zh") ? "zh" : "en";
+    if (!await scanWaffoContent(dreamText, locale, "dream")) {
+      throw new Error("Dream did not pass content safety review");
+    }
 
     const { error: dreamInsertError } = await admin.from("dream_entries").insert({
       companion_id: companion.id,

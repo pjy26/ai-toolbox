@@ -31,7 +31,7 @@ const copy = {
       {
         title: "Service providers and transfers",
         paragraphs: [
-          "We rely on infrastructure and AI providers to operate Amara, including Supabase for application data and authentication, DeepSeek for conversation generation, and an embedding provider for memory retrieval. These providers process relevant data for us under their own terms and safeguards.",
+          "We rely on infrastructure and AI providers to operate Amara, including Supabase for application data and authentication, DeepSeek for conversation generation, an embedding provider for memory retrieval, and Waffo Pancake for hosted checkout, subscription management, and content-safety scanning. Relevant prompts and generated text are sent for safety review; Waffo states that its prompt scan is stateless. Payment details are handled by the checkout provider, and we receive order, payment status, subscription, and access-period records rather than your full card credentials.",
           "Using an online service may involve processing in countries other than your own. The locations and legal safeguards involved depend on the providers used to deliver the service.",
         ],
       },
@@ -79,7 +79,7 @@ const copy = {
       {
         title: "服务商与跨境传输",
         paragraphs: [
-          "我们依靠基础设施及 AI 服务商运营 Amara，包括由 Supabase 提供应用数据和身份验证服务、DeepSeek 生成对话，以及由嵌入模型服务商支持记忆检索。这些服务商会依据其条款及保障措施，为我们处理相关数据。",
+          "我们依靠基础设施及 AI 服务商运营 Amara，包括由 Supabase 提供应用数据和身份验证服务、DeepSeek 生成对话、嵌入模型服务商支持记忆检索，以及 Waffo Pancake 提供托管收银台、订阅管理和内容安全扫描。相关输入及生成文本会发送至安全审核；Waffo 表示其文本扫描为无状态处理。支付信息由收银台服务商处理，我们接收订单、付款状态、订阅及有效期记录，而不会接收你的完整银行卡凭据。",
           "使用在线服务可能涉及在你的所在国家或地区之外处理信息。具体处理地点和法律保障措施取决于提供服务所使用的服务商。",
         ],
       },

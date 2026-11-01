@@ -170,7 +170,7 @@ export default function SettingsPage() {
               </Link>
             </div>
             <p className="mt-6 text-xs leading-6 text-[#817a70]">
-              Current fixed-period memberships do not renew automatically. Want to understand how information is handled? Read the <Link href="/privacy" className="font-semibold text-[#6e685f] underline underline-offset-4">privacy policy</Link>.
+              Waffo memberships renew automatically until canceled. Use the customer portal to stop future charges; access continues through the current paid period. Read the <Link href="/privacy" className="font-semibold text-[#6e685f] underline underline-offset-4">privacy policy</Link>.
             </p>
           </section>
         </div>
