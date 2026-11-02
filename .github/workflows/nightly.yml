@@ -1,0 +1,21 @@
+name: Nightly companion jobs
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger protected nightly endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 90 \
+            --request POST \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            https://www.amarapjy.xyz/api/jobs/nightly
