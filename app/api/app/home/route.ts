@@ -53,7 +53,7 @@ export async function GET() {
       .select("id, companion_id, description, event_type, occurred_at, importance, created_at")
       .eq("companion_id", companion.id)
       .order("occurred_at", { ascending: false })
-      .limit(5),
+      .limit(50),
   ]);
 
   // Dreams and relationship events are optional modules. A missing or temporarily
