@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Crown, Gift, RefreshCw, Search, ShieldCheck, Users, WalletCards, XCircle } from "lucide-react";
+import { ArrowLeft, Crown, Gift, LogIn, LogOut, RefreshCw, Search, ShieldCheck, Users, WalletCards, XCircle } from "lucide-react";
 
 type PlanId = "weekly" | "monthly" | "yearly";
 
@@ -69,13 +69,16 @@ export default function AdminPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [errorStatus, setErrorStatus] = useState(0);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [planId, setPlanId] = useState<PlanId>("monthly");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -84,11 +87,10 @@ export default function AdminPage() {
       const response = await fetch("/api/admin/overview", { cache: "no-store" });
       const result = await response.json();
       if (!response.ok) {
-        setErrorStatus(response.status);
+        if (response.status === 401 || response.status === 403) setData(null);
         throw new Error(result.error || "Could not load the admin dashboard");
       }
       setData(result);
-      setErrorStatus(0);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not load the admin dashboard");
     } finally {
@@ -106,6 +108,43 @@ export default function AdminPage() {
     );
   }, [data, query]);
   const selected = data?.users.find((user) => user.id === selectedId) || null;
+
+  async function signIn(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSigningIn(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Administrator sign-in failed");
+      setPassword("");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Administrator sign-in failed");
+    } finally {
+      setSigningIn(false);
+    }
+  }
+
+  async function signOut() {
+    setSigningOut(true);
+    try {
+      const response = await fetch("/api/admin/session", { method: "DELETE" });
+      if (!response.ok) throw new Error("Sign out failed");
+      setData(null);
+      setSelectedId("");
+      setNotice("");
+      setError("");
+    } catch {
+      setError("Could not sign out. Please try again.");
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   async function changeMembership(action: "grant" | "revoke") {
     if (!selected) return;
@@ -137,15 +176,27 @@ export default function AdminPage() {
     return <main className="flex min-h-screen items-center justify-center bg-[#f7f4ee] text-sm text-[#716a60]">Loading administration…</main>;
   }
 
-  if (error && !data) {
+  if (!data) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f4ee] px-6 text-[#37332d]">
-        <div className="w-full max-w-md border border-[#ded7cc] bg-white p-8 text-center">
-          <ShieldCheck className="mx-auto h-8 w-8 text-[#9e4837]" />
-          <h1 className="mt-5 font-serif text-3xl">Administrator access</h1>
-          <p className="mt-3 text-sm leading-6 text-[#716a60]">{error}</p>
-          {errorStatus === 401 && <Link href="/login?redirectTo=%2Fadmin" className="mt-6 inline-flex min-h-11 items-center bg-[#9e4837] px-5 text-sm font-semibold text-white">Sign in</Link>}
-          <button onClick={() => void load()} className="ml-3 mt-6 min-h-11 border border-[#d8cfc2] px-5 text-sm font-semibold">Retry</button>
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f4ee] px-6 py-12 text-[#37332d]">
+        <div className="w-full max-w-md border border-[#ded7cc] bg-white p-8">
+          <ShieldCheck className="h-8 w-8 text-[#9e4837]" />
+          <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[#94513f]">Amara administration</p>
+          <h1 className="mt-2 font-serif text-3xl">Administrator sign in</h1>
+          <p className="mt-3 text-sm leading-6 text-[#716a60]">This login is separate from your Amara chat account. Signing in or out here will not change your chat session.</p>
+          {error && <div role="alert" className="mt-5 border border-[#e1b7ae] bg-[#fff4f1] px-4 py-3 text-sm text-[#8c392c]">{error}</div>}
+          <form onSubmit={(event) => void signIn(event)} className="mt-6 space-y-4">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[#716a60]">
+              Administrator email
+              <input type="email" required autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 min-h-12 w-full border border-[#d8cfc2] bg-[#fbf9f5] px-3 text-sm normal-case tracking-normal outline-none focus:border-[#9e4837]" />
+            </label>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[#716a60]">
+              Password
+              <input type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 min-h-12 w-full border border-[#d8cfc2] bg-[#fbf9f5] px-3 text-sm normal-case tracking-normal outline-none focus:border-[#9e4837]" />
+            </label>
+            <button disabled={signingIn} className="inline-flex min-h-12 w-full items-center justify-center gap-2 bg-[#9e4837] px-5 text-sm font-semibold text-white disabled:opacity-50"><LogIn className="h-4 w-4" />{signingIn ? "Signing in…" : "Sign in to administration"}</button>
+          </form>
+          <Link href="/app" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#745f52]"><ArrowLeft className="h-4 w-4" /> Back to user app</Link>
         </div>
       </main>
     );
@@ -159,11 +210,12 @@ export default function AdminPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#94513f]">Amara administration</p>
             <h1 className="mt-1 font-serif text-3xl">Members & subscriptions</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button onClick={() => void load()} className="inline-flex min-h-11 items-center gap-2 border border-[#d8cfc2] bg-white px-4 text-sm font-semibold hover:bg-[#f4eee6]">
               <RefreshCw className="h-4 w-4" /> Refresh
             </button>
             <Link href="/app" className="inline-flex min-h-11 items-center gap-2 px-3 text-sm font-semibold text-[#745f52]"><ArrowLeft className="h-4 w-4" /> User app</Link>
+            <button disabled={signingOut} onClick={() => void signOut()} className="inline-flex min-h-11 items-center gap-2 border border-[#d8cfc2] bg-white px-4 text-sm font-semibold text-[#8d3f30] hover:bg-[#f4eee6] disabled:opacity-50"><LogOut className="h-4 w-4" />{signingOut ? "Signing out…" : "Sign out"}</button>
           </div>
         </div>
       </header>
