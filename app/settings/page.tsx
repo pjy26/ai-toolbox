@@ -50,16 +50,18 @@ export default function SettingsPage() {
   async function updateSettings(patch: Partial<Settings>) {
     if (!settings || saving) return;
     const previous = settings;
+    const previousLocale = locale;
     setSettings({ ...settings, ...patch });
+    if (patch.locale) setLocale(patch.locale.toLowerCase().startsWith("zh") ? "zh" : "en", false);
     setSaving(true);
     setSaved(false);
     setActionError("");
     try {
-      const result = await apiRequest<SettingsResponse>("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
-      setLocale(result.settings.locale.toLowerCase().startsWith("zh") ? "zh" : "en");
+      await apiRequest<SettingsResponse>("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
       setSaved(true);
     } catch (cause) {
       setSettings(previous);
+      if (patch.locale) setLocale(previousLocale, false);
       setActionError(cause instanceof Error ? cause.message : "Your change couldn’t be saved.");
     } finally { setSaving(false); }
   }

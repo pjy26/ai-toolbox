@@ -7,6 +7,14 @@ export function isLocale(value: string | null): value is Locale {
   return value === "en" || value === "zh";
 }
 
+export function localeFromSetting(value: unknown): Locale | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "en" || normalized.startsWith("en-")) return "en";
+  if (normalized === "zh" || normalized.startsWith("zh-")) return "zh";
+  return null;
+}
+
 /**
  * Shared copy for the public/account surface. Product features outside this
  * surface can adopt the same provider incrementally without adding a routing

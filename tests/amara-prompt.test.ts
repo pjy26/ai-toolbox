@@ -43,6 +43,17 @@ const tests: [string, () => void][] = [
     assert.match(prompt, /natural spoken English/);
     assert.doesNotMatch(prompt, /# 人格内核|# 对话连续性与表达/);
   }],
+  ["English replies use natural, concise conversation rather than therapy scripts", () => {
+    const prompt = lover();
+    assert.match(prompt, /one or two is often enough/);
+    assert.match(prompt, /natural contractions/);
+    assert.match(prompt, /A question is optional/);
+    assert.match(prompt, /at most one/);
+    assert.match(prompt, /How does that make you feel/);
+    assert.match(prompt, /your feelings are valid/);
+    assert.match(prompt, /Never claim you were thinking about the user while no conversation was happening/);
+    assert.match(prompt, /First acknowledge one specific detail/);
+  }],
   ["Chinese lover prompt retains natural Chinese persona and stage instructions", () => {
     const prompt = lover({ locale: "zh", last_chat_context: LAST_CHAT_ZH });
     assert.match(prompt, /# 温柔包容型/);

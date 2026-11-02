@@ -5,7 +5,7 @@ import { useSessionContext } from "@supabase/auth-helpers-react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Send, User, Crown, LogOut, ChevronRight, X } from "lucide-react";
-import { useLocale } from "@/components/locale-provider";
+import { LocaleToggle, useLocale } from "@/components/locale-provider";
 import { chatCopy, fillCopy } from "@/lib/chat-copy";
 import { formatUsd, SUPPORT_EMAIL } from "@/lib/membership-plans";
 import { openWaffoCheckout } from "@/lib/waffo-browser";
@@ -46,7 +46,7 @@ interface Plan {
 
 function ChatInner() {
   const { session } = useSessionContext();
-  const { locale } = useLocale();
+  const { locale, isReady: localeReady } = useLocale();
   const copy = chatCopy[locale];
   const localeRef = useRef(locale);
   localeRef.current = locale;
@@ -95,6 +95,8 @@ function ChatInner() {
   const GREETING_KEY = (cid: string) => `amara_greeting_sent:${cid}`;
   const SESSION_KEY = (cid: string) => `amara_session:${cid}`;
   const init = useCallback(async () => {
+    // 等设备选择或账号语言解析完成，再决定开场白语言。
+    if (!localeReady) return;
     // 只允许最新一轮初始化更新界面。旧请求即使在新的会话之后才返回，
     // 也不能把旧消息铺进来，更不能让打字机继续写入新状态。
     const runId = ++initRunRef.current;
@@ -194,7 +196,7 @@ function ChatInner() {
     } finally {
       if (isCurrent()) setInitLoading(false);
     }
-  }, [userId]);
+  }, [userId, localeReady]);
 
   useEffect(() => {
     void init();
@@ -492,17 +494,19 @@ function ChatInner() {
               {extracting && ` · ${copy.remembering}`}
             </div>
           </div>
-          {/* "我的" 按钮 */}
-          <button
-            onClick={() => setShowMyDrawer(true)}
-            aria-label={copy.myAccount}
-            className="w-10 flex justify-end items-center"
-            style={{ color: "#6E685F", transition: "color 0.2s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "#A34F3D"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "#6E685F"; }}
-          >
-            <User style={{ width: 20, height: 20 }} />
-          </button>
+          <div className="flex items-center gap-2">
+            <LocaleToggle />
+            <button
+              onClick={() => setShowMyDrawer(true)}
+              aria-label={copy.myAccount}
+              className="flex w-8 items-center justify-end"
+              style={{ color: "#6E685F", transition: "color 0.2s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "#A34F3D"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "#6E685F"; }}
+            >
+              <User style={{ width: 20, height: 20 }} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -648,7 +652,7 @@ function ChatInner() {
           </button>
         </div>
         <p className="max-w-3xl mx-auto mt-2 text-center text-[11px] font-light" style={{ color: "#817A70", letterSpacing: 0.4, lineHeight: 1.5 }}>
-          {copy.aiDisclosure}
+          {copy.aiDisclosure} · {copy.replyLanguage}
         </p>
       </div>
 
