@@ -11,6 +11,7 @@ export type Memory = {
   source_session_id: string | null;
   created_at: string;
   updated_at: string;
+  record_type?: "summary" | "profile";
 };
 
 export type Dream = {

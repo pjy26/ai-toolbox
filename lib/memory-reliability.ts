@@ -153,7 +153,7 @@ export function dedupeMemoryEntries<T>(
 }
 
 const TRANSIENT_MEMORY_PATTERN =
-  /最近|这几天|这周|本周|今天|昨天|明天|目前|现在|正在|在忙|在赶|准备|打算|加班|考试|失眠|睡眠差|生病|感冒|发烧|咳嗽|生理期|月经|例假/;
+  /最近|这几天|这周|本周|今天|昨天|明天|目前|现在|正在|在忙|在赶|准备|打算|加班|考试|失眠|睡眠差|生病|感冒|发烧|咳嗽|生理期|月经|例假|\b(?:recently|these days|this week|today|yesterday|tomorrow|currently|right now|busy|preparing|planning|overtime|exams?|insomnia|sleep deprived|sleeping poorly|sick|ill|fever|cough|menstru\w*|on (?:my|their) period)\b/i;
 
 /** 过期临时记忆只在召回时隐藏，不做硬删除；无效/未来时间不会被误判为过期。 */
 export function isExpiredTransientMemory(

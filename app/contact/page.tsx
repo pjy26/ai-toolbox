@@ -8,7 +8,7 @@ import { SUPPORT_EMAIL, supportMailto } from "@/lib/membership-plans";
 
 export default function ContactPage() {
   const [copied, setCopied] = useState(false);
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
   const copyEmail = async () => {
     try {
@@ -40,7 +40,7 @@ export default function ContactPage() {
               <h2 className="font-serif text-2xl font-semibold">{t.contact.email}</h2>
               <p className="mt-2 text-sm text-[#6e685f]">{t.contact.fastest}</p>
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <a href={supportMailto("Amara support", "Please describe your request here.\n\nAccount email: ")} className="break-all py-2 font-mono text-sm text-[#923f30] underline underline-offset-4 sm:text-base">
+                <a href={supportMailto("Amara support", locale === "zh" ? "请在这里说明你的请求。\n\n账号邮箱：" : "Please describe your request here.\n\nAccount email: ")} className="break-all py-2 font-mono text-sm text-[#923f30] underline underline-offset-4 sm:text-base">
                   {SUPPORT_EMAIL}
                 </a>
                 <button

@@ -32,13 +32,14 @@ export async function POST(req: Request) {
   }
 
   const supabase = createRouteHandlerClient({ cookies });
-  const { companion_id, session_id } = await req.json();
+  const { companion_id, session_id, locale: requestedLocale } = await req.json();
+  const locale = requestedLocale === "zh" ? "zh" : "en";
   if (!companion_id) return NextResponse.json({ error: "缺少 companion_id" }, { status: 400 });
 
   // 校验归属
   const { data: companion } = await supabase
     .from("companions")
-    .select("id, relationship_type")
+    .select("id, relationship_type, companion_name, user_nickname")
     .eq("id", companion_id)
     .eq("user_id", user.id)
     .single();
@@ -117,7 +118,7 @@ export async function POST(req: Request) {
     baseURL: process.env.OPENAI_BASE_URL || "https://api.deepseek.com",
   });
 
-  const extractPrompt = `你是一个记忆抽取器。下面是用户与AI陪伴角色的最近一段对话。请从中抽取值得长期记住的事实和情绪节点，以 JSON 返回。
+  const extractPrompt = `你是一个保守的记忆抽取器。下面是 user 与 assistant（Amara）的最近对话。请把“长期事实”“共同经历”“近期状态”分开抽取，以严格 JSON 返回。
 
 当前已有的用户档案：
 ${JSON.stringify(currentProfile)}
@@ -139,7 +140,7 @@ ${recentText}
     "key_facts": []
   },
   "new_summaries": [
-    { "summary": "一句话", "importance": 3 }
+    { "summary": "一个原子事实，一句话", "importance": 3 }
   ],
   "emotion_state": {
     "valence": 0.5,
@@ -147,25 +148,26 @@ ${recentText}
     "tags": ["开心"]
   },
   "new_events": [
-    { "description": "一句话描述共同经历", "event_type": "milestone", "importance": 4 }
+    { "description": "一句可以直接展示给用户的 Amara 第一人称独白", "event_type": "milestone", "importance": 4 }
   ],
   "amara_state": {
-    "current_activity": "对话结尾时陪伴角色正在做的事（具体、生活化，5-15字，如'窝在沙发追剧''刚跑完步喝水'）",
-    "last_topic": "你们最后在聊的话题（5-15字）"
+    "current_activity": "对话结尾时 Amara 正在做的事",
+    "last_topic": "最后聊到的具体话题"
   }
 }
 
 规则：
-- 【事实来源】profile_updates 和 new_summaries 中的用户事实，只能来自 user 明确陈述的信息。assistant 的猜测、安慰、比喻、角色扮演、虚构细节和未经用户确认的反问，一律不得写成用户事实。无法确认就不抽取。
-- new_events 只能记录对话中实际发生的双方互动，不得把 assistant 单方面设想的场景写成共同经历。
-- profile_updates 只包含这次对话里"新发现"或"需要更新"的字段，没有就留空对象/空数组。已有的档案字段不重复。
-- ongoing_matters 是【覆盖式】字段：输出"截至此刻仍在进行的事"的完整列表。已经结束、解决、翻篇的事（如已改完的 bug、已结束的考试）不要再包含进去——它会整体替换旧列表。
-- new_summaries 只写"值得长期带着"的事件/情绪节点，1-3 句，importance 1-5。没有就空数组。
-- emotion_state 必填：以陪伴角色视角，对话结束那一刻的情绪。valence 愉悦度 -1（很难受）~1（很开心），arousal 激动程度 0（平静）~1（强烈），tags 1-4 个情绪词（如"开心""想念""小委屈""安心"）。
-- new_events：判断这轮有没有"值得记的共同经历"，判定标准五类：①第一次类里程碑（第一次说喜欢、第一次互道晚安等）②吵架与和好 ③共同完成的事 ④生病或困难时的陪伴 ⑤对方表达深层情感的时刻。符合才写，不符合就空数组，宁缺毋滥。event_type 用 milestone/conflict_together/achievement/support/deep_feeling 之一。importance 1-5。
-- amara_state 必填：以陪伴角色的视角描述对话结束那一刻的场景快照（只管"在干嘛/聊到哪"，情绪一律走 emotion_state，不要在这里表达情绪）。活动要具体、每次不同，不要总是"喝茶"。
-- 一句话能讲清的别拆两条。
-- 不得综合多条记忆或推测出折中事实；新信息与已有信息冲突时，只能原样输出用户最新明确陈述的内容，由系统保守处理。
+- 【输出语言】所有新增自然语言内容必须使用${locale === "zh" ? "自然、简洁的简体中文" : "natural, concise English"}，包括档案值、摘要、事件、情绪标签和状态；JSON 字段名保持不变。
+- 【事实来源】profile_updates 和 new_summaries 只能来自 user 明确陈述的信息。assistant 的猜测、安慰、比喻、角色扮演、虚构细节和未经 user 确认的反问，一律不得写成用户事实。无法确认就不抽取。
+- 【档案与摘要分工】profile_updates 保存稳定的基本信息、偏好、习惯、重要人物和仍在进行的事；new_summaries 只补充值得长期携带且尚未进入档案的原子事实。一条只写一个事实，不写双方互动，不写 assistant 的行为，不用空泛标签。
+- important_people 优先使用对象，如 {"name":"名字","relation":"关系","notes":"用户明确说过的细节"}；不知道名字时不要编造。
+- profile_updates 只包含这次对话里新发现或需要更新的字段，没有就留空对象/空数组；已有内容不重复。
+- ongoing_matters 是【覆盖式】字段：输出截至此刻仍在进行的事的完整列表。已经结束、解决、翻篇的事不要再包含。
+- new_events 只能记录对话中实际发生的双方互动，不得把 assistant 单方面设想的场景写成共同经历。判定标准五类：①第一次类里程碑②吵架与和好③共同完成的事④困难时的陪伴⑤对方表达深层情感的时刻。符合才写，不符合就空数组，宁缺毋滥。event_type 用 milestone/conflict_together/achievement/support/deep_feeling 之一，importance 1-5。
+- 【独白格式】new_events.description 必须以 Amara 的“我 / I”为主体，用一两句具体的话写下实际互动，可直接放进“Our Moments”。用户称为“${companion.user_nickname || (locale === "zh" ? "你" : "you")}”。禁止出现“用户”“这位用户”“陪伴角色”“assistant”“TA”“Amara 记得”等第三方标签；禁止再添加“我记得”“那天有一件小事”等万能开头。不得虚构 Amara 没有表达过的感受或反应。
+- emotion_state 必填：以 Amara 视角记录对话结束时的情绪。valence -1~1，arousal 0~1，tags 1-4 个。
+- amara_state 必填：只描述对话结束时的场景快照和最后话题，不写情绪，不把它当长期事实；活动具体且自然，不默认喝茶。
+- 不得综合多条记忆或推测折中事实。新信息与已有信息冲突时，只输出用户最新明确陈述的内容，由系统保守处理。
 - 严格输出 JSON，不要 markdown 代码块，不要解释。`;
 
   try {

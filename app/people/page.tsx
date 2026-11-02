@@ -58,7 +58,7 @@ export default function PeoplePage() {
   useEffect(() => { void load(); }, [load]);
 
   const labels: Record<string, string> = locale === "zh"
-    ? { relation: "关系", relationship: "关系", description: "关于 TA", notes: "记得的事", birthday: "生日", personality: "性格", 关系: "关系", 描述: "关于 TA", 备注: "记得的事" }
+    ? { relation: "关系", relationship: "关系", description: "关于这个人", notes: "记得的事", birthday: "生日", personality: "性格", 关系: "关系", 描述: "关于这个人", 备注: "记得的事" }
     : { relation: "Relationship", relationship: "Relationship", description: "About them", notes: "Remembered", birthday: "Birthday", personality: "Personality", 关系: "Relationship", 描述: "About them", 备注: "Remembered" };
 
   return (

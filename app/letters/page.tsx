@@ -137,8 +137,7 @@ export default function LettersPage() {
             <Sparkles className="absolute -right-2 -top-2 h-5 w-5 text-[#b59267]" strokeWidth={1.3} />
           </div>
           <h2 className="mt-7 font-serif text-3xl leading-tight text-[#413b34]">{unavailable ? copy.unavailableTitle : copy.emptyTitle}</h2>
-          <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-[#6e685f]">{unavailable ? copy.unavailableBody : copy.emptyBody}</p>
-          <div className="mx-auto mt-8 max-w-xs border-t border-[#e4d6c8] pt-5 font-serif text-sm italic text-[#a34f3d]">{copy.waiting}</div>
+          {unavailable && <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-[#6e685f]">{copy.unavailableBody}</p>}
         </section>
       ) : (
         <section className="mx-auto mt-8 max-w-3xl" aria-label={copy.title}>

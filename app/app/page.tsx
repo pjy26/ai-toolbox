@@ -8,6 +8,7 @@ import { AppShell } from "@/components/app-shell";
 import { apiRequest, Companion, Dream, ErrorState, formatDate, getLiveState, ImaginationLabel, isFreshState, Memory, PageLoader, RelationshipEvent } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
+import { amaraMomentText } from "@/lib/amara-moments";
 
 type HomeResponse = {
   companion: Companion | null;
@@ -70,9 +71,9 @@ function DashboardContent({ data }: { data: HomeResponse }) {
   const name = companion.companion_name || "Amara";
   const liveState = getLiveState(companion.live_state);
   const fresh = isFreshState(liveState.updatedAt, companion.last_active_at);
-  const lastTopic = recentEvents.find((event) => eventText(event));
-  const previousThread = lastTopic ? eventText(lastTopic) : liveState.lastTopic;
-  const previousThreadDate = lastTopic ? lastTopic.occurred_at || lastTopic.created_at : liveState.updatedAt || companion.last_active_at;
+  // A milestone is not an ongoing topic. Only the recorded live topic belongs here.
+  const previousThread = liveState.lastTopic;
+  const previousThreadDate = liveState.updatedAt || companion.last_active_at;
   const planNames = locale === "zh" ? { weekly: "周卡", monthly: "月卡", yearly: "年卡" } : { weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" };
   const membershipLabel = membership.isMember ? `${planNames[membership.membershipType as keyof typeof planNames] || "Amara"} ${copy.member}` : copy.free;
   const stage = typeof companion.relationship_stage === "number"
@@ -115,7 +116,7 @@ function DashboardContent({ data }: { data: HomeResponse }) {
         <section className="border-b border-[#ded7cc] py-9 sm:py-10">
           <div className="flex items-center justify-between gap-4"><h2 className="text-xs font-semibold uppercase tracking-[0.17em] text-[#817a70]">{copy.latestDream}</h2><Link href="/dreams" className="min-h-11 py-3 text-xs font-semibold text-[#923f30] hover:underline">{copy.allDreams}</Link></div>
           {latestDream ? (
-            <Link href={`/dreams/${latestDream.id}`} className="group block pt-3"><ImaginationLabel /><h3 className="mt-4 font-serif text-3xl leading-tight text-[#37332d] group-hover:text-[#923f30]">{latestDream.title || "An untitled Dream"}</h3><p className="mt-3 line-clamp-3 text-sm leading-7 text-[#6e685f]">{latestDream.content}</p><p className="mt-4 text-xs text-[#817a70]">{formatDate(latestDream.local_date || latestDream.generated_at || latestDream.created_at, false, locale)}</p></Link>
+            <Link href={`/dreams/${latestDream.id}`} className="group block pt-3"><ImaginationLabel /><h3 className="mt-4 font-serif text-3xl leading-tight text-[#37332d] group-hover:text-[#923f30]">{latestDream.title || consoleCopy[locale].dreams.untitled}</h3><p className="mt-3 line-clamp-3 text-sm leading-7 text-[#6e685f]">{latestDream.content}</p><p className="mt-4 text-xs text-[#817a70]">{formatDate(latestDream.local_date || latestDream.generated_at || latestDream.created_at, false, locale)}</p></Link>
           ) : (
             <div className="pt-5"><CloudMoon className="h-6 w-6 text-[#a98a78]" strokeWidth={1.4} /><p className="mt-4 font-serif text-2xl">{copy.quietNight}</p><p className="mt-2 max-w-md text-sm leading-6 text-[#6e685f]">{copy.quietBody}</p></div>
           )}
@@ -134,7 +135,7 @@ function DashboardContent({ data }: { data: HomeResponse }) {
       <section className="py-9 sm:py-10">
         <div className="flex items-end justify-between gap-4"><div><h2 className="text-xs font-semibold uppercase tracking-[0.17em] text-[#817a70]">{copy.moments}</h2><p className="mt-3 font-serif text-3xl">{copy.momentsTitle}</p></div><Link href="/moments" className="min-h-11 py-3 text-xs font-semibold text-[#923f30] hover:underline">{copy.moments}</Link></div>
         {recentEvents.length > 0 ? (
-          <ol className="mt-7 border-l border-[#cfc5b7] pl-6 sm:ml-2">{recentEvents.slice(0, 5).map((event) => <li key={event.id} className="relative pb-7 last:pb-0"><span className="absolute -left-[29px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#f8f5ef] bg-[#a34f3d] ring-1 ring-[#a34f3d]" /><p className="text-xs text-[#817a70]">{formatDate(event.occurred_at || event.created_at, false, locale)}</p><p className="mt-2 max-w-3xl text-sm leading-6 text-[#49453e]">{eventText(event) || event.event_type?.replaceAll("_", " ")}</p></li>)}</ol>
+          <ol className="mt-7 border-l border-[#cfc5b7] pl-6 sm:ml-2">{recentEvents.slice(0, 5).map((event) => <li key={event.id} className="relative pb-7 last:pb-0"><span className="absolute -left-[29px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#f8f5ef] bg-[#a34f3d] ring-1 ring-[#a34f3d]" /><p className="text-xs text-[#817a70]">{formatDate(event.occurred_at || event.created_at, false, locale)}</p><p className="mt-2 max-w-3xl text-sm leading-6 text-[#49453e]">{amaraMomentText(eventText(event), companion.user_nickname || (locale === "zh" ? "你" : "you"), locale) || event.event_type?.replaceAll("_", " ")}</p></li>)}</ol>
         ) : <p className="mt-6 border-t border-[#ded7cc] pt-6 text-sm leading-6 text-[#6e685f]">{copy.noMoments}</p>}
       </section>
     </>

@@ -366,7 +366,7 @@ function ChatInner() {
       const extractRes = await fetch("/api/companion/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companion_id: companion.id, session_id: targetSessionId }),
+        body: JSON.stringify({ companion_id: companion.id, session_id: targetSessionId, locale }),
         signal: controller.signal,
       });
       if (!extractRes.ok) console.error("记忆抽取失败:", extractRes.status);
@@ -858,12 +858,6 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
           </button>
         </div>
 
-        {/* 底部信息 */}
-        <div className="mt-auto p-4 text-center">
-          <p className="text-xs font-light" style={{ color: "#817A70", letterSpacing: 1 }}>
-            {copy.moreSoon}
-          </p>
-        </div>
       </div>
     </div>
   );
@@ -881,7 +875,6 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
   const accent = isLover ? "#A34F3D" : "#8A6438";
   const accentRgb = isLover ? "163, 79, 61" : "138, 100, 56";
   const planNames: Record<string, string> = copy.planNames;
-  const planHints: Record<string, string> = copy.planHints;
   const planPeriods: Record<string, string> = locale === "en"
     ? { weekly: "/ week", monthly: "/ month", yearly: "/ year" }
     : { weekly: "/ 周", monthly: "/ 月", yearly: "/ 年" };
@@ -945,7 +938,6 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-sm" style={{ color: "#282621" }}>{planNames[p.id] || p.name}</span>
                     {p.popular && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: accent, color: "#FFFDF8" }}>{copy.recommended}</span>}
-                    <span className="text-xs" style={{ color: "#756F66" }}>&middot; {planHints[p.id] || p.hint}</span>
                   </div>
                   <span className="font-semibold text-sm" style={{ color: "#282621" }}>
                     {formatUsd(p.price)}<span className="text-xs font-normal" style={{ color: "#756F66" }}>{planPeriods[p.id] || p.period}</span>

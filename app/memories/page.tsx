@@ -49,8 +49,14 @@ export default function MemoriesPage() {
     if (!ids.length || deleteBusy) return;
     setDeleteBusy(true);
     setActionError("");
-    const results = await Promise.allSettled(ids.map((id) => apiRequest(`/api/memories/${encodeURIComponent(id)}`, { method: "DELETE" })));
-    const removed = new Set(ids.filter((_, index) => results[index].status === "fulfilled"));
+    const removed = new Set<string>();
+    // Sequential writes prevent two profile deletions from overwriting each other.
+    for (const id of ids) {
+      try {
+        await apiRequest(`/api/memories/${encodeURIComponent(id)}`, { method: "DELETE" });
+        removed.add(id);
+      } catch { /* Keep failed items visible and show one honest error. */ }
+    }
     setMemories((current) => current.filter((memory) => !removed.has(memory.id)));
     setSelected((current) => new Set(Array.from(current).filter((id) => !removed.has(id))));
     if (removed.size !== ids.length) setActionError(copy.failed);

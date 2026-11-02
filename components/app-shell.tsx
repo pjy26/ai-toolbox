@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { useEffect, useState } from "react";
-import { BookOpen, CloudMoon, HeartHandshake, Home, Mail, Settings, UserRound, UsersRound } from "lucide-react";
+import { BookOpen, CloudMoon, HeartHandshake, Home, Mail, Settings, UsersRound } from "lucide-react";
 import { PageLoader } from "@/components/amara-ui";
 import { LocaleToggle, useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
@@ -128,8 +128,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className="mt-auto border-t border-[#ded7cc] pt-5 text-xs leading-5 text-[#817a70]">
-          <div className="flex items-start gap-2"><UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.5} /><p>{copy.nav.care}</p></div>
-          <LocaleToggle className="mt-4 !min-h-9 !px-0 !text-xs !font-medium !text-[#6e685f] hover:!text-[#a34f3d]" />
+          <LocaleToggle className="!min-h-9 !px-0 !text-xs !font-medium !text-[#6e685f] hover:!text-[#a34f3d]" />
         </div>
       </aside>
 

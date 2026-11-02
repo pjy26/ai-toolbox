@@ -13,6 +13,7 @@ import { computeStageAdvance, type PersonaType } from "@/lib/amara-persona";
 import { buildFriendSystemPrompt, buildLoverSystemPrompt } from "@/lib/amara-prompt";
 import { semanticRecall } from "@/lib/memory-retrieval";
 import { isMemoryEnabled } from "@/lib/user-settings";
+import { dedupeMemoryEntries, isExpiredTransientMemory } from "@/lib/memory-reliability";
 import {
   conversationTimeBlock,
   daysSinceLastChat,
@@ -90,11 +91,6 @@ interface CompanionRow {
 
 interface ProfileRow {
   profile: Record<string, any> | null;
-}
-
-interface SummaryRow {
-  summary: string;
-  importance: number;
 }
 
 function profileToText(profile: Record<string, any> | null, locale: "en" | "zh"): string {
@@ -203,13 +199,17 @@ export async function POST(req: Request) {
       // 短消息或 embedding 失败时只保留少量高重要性记忆，避免一次塞入大量无关内容。
       const { data: summaries, error: fallbackError } = await supabase
         .from("memory_summaries")
-        .select("summary, importance")
+        .select("summary, importance, created_at, updated_at")
         .eq("companion_id", companion_id)
         .order("importance", { ascending: false })
         .order("updated_at", { ascending: false })
-        .limit(5);
+        .limit(15);
       if (fallbackError) console.error("记忆降级检索失败:", fallbackError.message);
-      memText = (summaries as SummaryRow[] || []).map((s) => `- ${s.summary}`).join("\n");
+      memText = dedupeMemoryEntries(
+        (summaries as any[] || []),
+        (memory) => memory.summary,
+        (memory) => isExpiredTransientMemory(memory.summary, memory.updated_at || memory.created_at),
+      ).slice(0, 5).map((memory) => `- ${memory.summary}`).join("\n");
     }
   }
 

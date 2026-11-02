@@ -85,11 +85,6 @@ function PricingInner() {
     monthly: t.pricing.perMonth,
     yearly: t.pricing.perYear,
   };
-  const planDescriptions: Record<MembershipPlanId, string> = {
-    weekly: t.pricing.weeklyDescription,
-    monthly: t.pricing.monthlyDescription,
-    yearly: t.pricing.yearlyDescription,
-  };
 
   return (
     <div className="min-h-screen bg-[#f8f5ef] text-[#282621]">
@@ -142,7 +137,6 @@ function PricingInner() {
                 {item.regularPrice && <span className="text-sm text-[#817a70] line-through">{formatUsd(item.regularPrice)}</span>}
               </div>
               {item.offer === "new_user_weekly" && <p className="mt-3 text-xs font-semibold leading-5 text-[#923f30]">{t.pricing.oncePerAccount}</p>}
-              <p className="mt-3 min-h-5 text-xs text-[#817a70]">{planDescriptions[item.id]}</p>
               <ul className="mt-6 space-y-3 border-t border-[#e3dcd1] pt-5 text-left">
                 {[t.pricing.unlimited, t.pricing.memories, t.pricing.anytime].map((feature) => (
                   <li key={feature} className="flex items-start gap-2 text-xs leading-5 text-[#625d55]">

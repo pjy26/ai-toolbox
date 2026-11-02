@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { DREAM_SELECT } from "@/lib/dream";
+import { listMemoryRecords } from "@/lib/memory-records";
 
 export const dynamic = "force-dynamic";
 
@@ -42,12 +43,10 @@ export async function GET() {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from("memory_summaries")
-      .select("id, summary, importance, source_session_id, created_at, updated_at")
-      .eq("companion_id", companion.id)
-      .order("updated_at", { ascending: false })
-      .limit(5),
+    listMemoryRecords(supabase, [companion.id]).then(
+      (records) => ({ data: records.slice(0, 5), error: null }),
+      (error) => ({ data: null, error }),
+    ),
     supabase
       .from("relationship_events")
       .select("id, companion_id, description, event_type, occurred_at, importance, created_at")

@@ -25,7 +25,7 @@ const copy = {
         title: "How we use information",
         paragraphs: [
           "We use this information to authenticate your account, provide and personalize conversations, generate and display memories and Dreams, maintain security, respond to support requests, and administer memberships.",
-          "AI-generated content can be inaccurate. Memory controls let you review, edit, or delete saved memories and delete Dreams through the product when those features are available.",
+          "AI-generated content can be inaccurate. Memory controls let you review or delete saved memories and delete Dreams through the product when those features are available.",
         ],
       },
       {
@@ -73,7 +73,7 @@ const copy = {
         title: "我们如何使用信息",
         paragraphs: [
           "我们使用这些信息验证账号、提供并个性化对话、生成和展示记忆与梦境、维护安全、回应客服请求及管理会员。",
-          "AI 生成内容可能不准确。相关功能可用时，你可以通过产品中的记忆管理功能查看、编辑或删除已保存的记忆，并删除梦境。",
+          "AI 生成内容可能不准确。相关功能可用时，你可以通过产品中的记忆管理功能查看或删除已保存的记忆，并删除梦境。",
         ],
       },
       {

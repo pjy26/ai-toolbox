@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { apiRequest, Companion, ErrorState, formatDate, PageLoader, RelationshipEvent } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
+import { amaraMomentText } from "@/lib/amara-moments";
 
 type HomeResponse = { companion: Companion | null; recentEvents: RelationshipEvent[] };
 
@@ -51,16 +52,14 @@ export default function MomentsPage() {
       ) : (
         <ol className="mt-8 space-y-5">
           {events.map((event, index) => {
-            const original = eventText(event);
-            const personal = original.replaceAll("用户", nickname).replaceAll("TA", nickname);
-            const introduction = copy.introductions[index % copy.introductions.length];
+            const monologue = amaraMomentText(eventText(event), nickname, locale);
             return (
               <li key={event.id}>
                 <article className="relative overflow-hidden border border-[#e0d4c7] bg-[#fffaf2] px-6 py-7 sm:px-9 sm:py-9">
                   <span className="absolute right-5 top-3 font-serif text-6xl italic text-[#eaded2]" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
                   <div className="relative max-w-3xl">
                     <p className="text-xs font-medium tracking-wide text-[#94513f]">{formatDate(event.occurred_at || event.created_at, false, locale)}</p>
-                    <p className="mt-5 font-serif text-[1.35rem] leading-9 text-[#413b34] sm:text-2xl sm:leading-10">“{introduction}{personal}”</p>
+                    <p className="mt-5 font-serif text-[1.35rem] leading-9 text-[#413b34] sm:text-2xl sm:leading-10">“{monologue}”</p>
                     <p className="mt-5 text-right font-serif text-sm italic text-[#a34f3d]">— Amara</p>
                   </div>
                 </article>
