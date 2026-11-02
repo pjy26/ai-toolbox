@@ -40,7 +40,6 @@ export default function SettingsPage() {
     try {
       const result = await apiRequest<SettingsResponse>("/api/settings");
       setSettings(result.settings);
-      setLocale(result.settings.locale.toLowerCase().startsWith("zh") ? "zh" : "en");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Please try again.");
     } finally { setLoading(false); }
@@ -78,7 +77,7 @@ export default function SettingsPage() {
             <h2 className="font-serif text-2xl">{copy.languageTime}</h2><p className="mt-2 text-sm text-[#6e685f]">{copy.languageBody}</p>
             <div className="mt-6 grid gap-5 sm:grid-cols-2">
               <label className="block text-sm font-medium text-[#49453e]">{copy.language}
-                <select value={settings.locale} onChange={(event) => void updateSettings({ locale: event.target.value })} disabled={saving} className="mt-2 min-h-12 w-full border border-[#cfc5b7] bg-[#fffdf8] px-3 text-base outline-none focus:border-[#a34f3d] focus:ring-2 focus:ring-[#a34f3d]/15 disabled:opacity-60"><option value="en">English</option><option value="zh-CN">简体中文</option></select>
+                <select value={locale === "zh" ? "zh-CN" : "en"} onChange={(event) => void updateSettings({ locale: event.target.value })} disabled={saving} className="mt-2 min-h-12 w-full border border-[#cfc5b7] bg-[#fffdf8] px-3 text-base outline-none focus:border-[#a34f3d] focus:ring-2 focus:ring-[#a34f3d]/15 disabled:opacity-60"><option value="en">English</option><option value="zh-CN">简体中文</option></select>
               </label>
               <label className="block text-sm font-medium text-[#49453e]">{copy.timezone}
                 <select value={settings.timezone} onChange={(event) => void updateSettings({ timezone: event.target.value })} disabled={saving} className="mt-2 min-h-12 w-full border border-[#cfc5b7] bg-[#fffdf8] px-3 text-base outline-none focus:border-[#a34f3d] focus:ring-2 focus:ring-[#a34f3d]/15 disabled:opacity-60">{timezones.map((zone) => <option key={zone} value={zone}>{zone}{zone === detectedTimezone ? ` (${copy.device})` : ""}</option>)}</select>
