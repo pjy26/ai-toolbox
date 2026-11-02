@@ -2,7 +2,7 @@ import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import OpenAI from "openai";
+import { createCompanionClient, getCompanionModel } from "@/lib/companion-model";
 import { embedText } from "@/lib/embedding";
 import { isMemoryEnabled } from "@/lib/user-settings";
 import {
@@ -113,10 +113,7 @@ export async function POST(req: Request) {
     (memory) => isExpiredTransientMemory(memory.summary, memory.updated_at || memory.created_at),
   ).slice(0, 5).map((memory) => memory.summary).join("\n") || "(无)";
 
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: process.env.OPENAI_BASE_URL || "https://api.deepseek.com",
-  });
+  const openai = createCompanionClient();
 
   const extractPrompt = `你是一个保守的记忆抽取器。下面是 user 与 assistant（Amara）的最近对话。请把“长期事实”“共同经历”“近期状态”分开抽取，以严格 JSON 返回。
 
@@ -172,7 +169,7 @@ ${recentText}
 
   try {
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "deepseek-v4-pro",
+      model: getCompanionModel(),
       messages: [{ role: "user", content: extractPrompt }],
       temperature: 0.3,
       response_format: { type: "json_object" },

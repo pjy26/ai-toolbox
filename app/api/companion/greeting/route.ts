@@ -2,7 +2,7 @@ import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import OpenAI from "openai";
+import { generateCompanionText } from "@/lib/companion-model";
 import { type PersonaType } from "@/lib/amara-persona";
 import { buildGreetingPrompt } from "@/lib/amara-prompt";
 import { isMemoryEnabled } from "@/lib/user-settings";
@@ -108,29 +108,14 @@ export async function GET(req: Request) {
 
   let greeting = getFallbackGreeting(daysApart, relationshipType, locale);
   try {
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      baseURL: process.env.OPENAI_BASE_URL || "https://api.deepseek.com",
-    });
-
-    const request = {
-      model: process.env.OPENAI_MODEL || "deepseek-v4-pro",
-      messages: [{ role: "user" as const, content: prompt }],
+    const completion = await generateCompanionText({
+      messages: [{ role: "user", content: prompt }],
+      mode: "non_stream",
       temperature: 0.85,
-      reasoning_effort: "low" as const,
-      max_tokens: 1600,
-    };
-    let completion = await openai.chat.completions.create(request);
-    let generated = completion.choices?.[0]?.message?.content?.trim() || "";
-    if (!generated) {
-      console.warn("greeting 首次返回空正文，切换非思考模式重试");
-      completion = await openai.chat.completions.create({
-        ...request,
-        max_tokens: 1000,
-        thinking: { type: "disabled" },
-      } as any);
-      generated = completion.choices?.[0]?.message?.content?.trim() || "";
-    }
+      requestId: crypto.randomUUID(),
+      signal: req.signal,
+    });
+    const generated = completion.text.trim();
     // Only reviewed model output replaces the known-safe fallback greeting.
     if (generated && await scanWaffoContent(generated, locale, "output")) greeting = generated;
   } catch (error) {
