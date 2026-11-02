@@ -450,8 +450,19 @@ export async function POST(req: Request) {
 
         controller.close();
       } catch (err: any) {
-        console.error("Stream error:", err instanceof Error ? err.message : "Unknown error");
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: contentSafetyMessage(locale, "output") })}\n\n`));
+        // 模型、网络或数据库异常不是内容违规。保留可检索的诊断信息，
+        // 但不向日志写入用户正文、完整提示词或密钥。
+        console.error("[companion POST] Stream failed", {
+          name: err instanceof Error ? err.name : "UnknownError",
+          status: err?.status ?? null,
+          code: err?.code ?? null,
+          message: (err instanceof Error ? err.message : "Unknown error").slice(0, 500),
+          stack: (err instanceof Error && err.stack ? err.stack : "").slice(0, 2000),
+        });
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+          error: locale === "zh" ? "回复生成暂时失败，请稍后再试。" : "I couldn’t generate a response just now. Please try again shortly.",
+          code: "STREAM_ERROR",
+        })}\n\n`));
         controller.close();
       }
     },
