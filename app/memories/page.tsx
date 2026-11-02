@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { apiRequest, ConfirmDialog, ErrorState, formatDate, Memory, PageLoader } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
+import { displayMemoryText } from "@/lib/memory-display";
 
 export default function MemoriesPage() {
   const { session } = useSessionContext();
@@ -91,25 +92,28 @@ export default function MemoriesPage() {
             </button>
           </div>
           <ul className="divide-y divide-[#e4ddd3]">
-            {memories.map((memory) => (
+            {memories.map((memory) => {
+              const displayText = displayMemoryText(memory.summary, locale);
+              return (
               <li key={memory.id} className={`py-5 transition-colors sm:px-4 ${selected.has(memory.id) ? "bg-[#f3ebe2]" : ""}`}>
                 <div className="flex items-start gap-3">
-                  <button type="button" onClick={() => toggle(memory.id)} aria-label={`${copy.select}: ${memory.summary}`} className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center border ${selected.has(memory.id) ? "border-[#9e4837] bg-[#9e4837] text-white" : "border-[#cfc5b7] bg-[#fffdf8]"}`}>
+                  <button type="button" onClick={() => toggle(memory.id)} aria-label={`${copy.select}: ${displayText}`} className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center border ${selected.has(memory.id) ? "border-[#9e4837] bg-[#9e4837] text-white" : "border-[#cfc5b7] bg-[#fffdf8]"}`}>
                     {selected.has(memory.id) && <Check className="h-4 w-4" />}
                   </button>
                   <div className="min-w-0 flex-1">
-                    <p className="text-base leading-7 text-[#37332d]">{memory.summary}</p>
+                    <p className="text-base leading-7 text-[#37332d]">{displayText}</p>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs leading-5 text-[#817a70]"><span>{memory.source_session_id ? copy.fromChat : copy.saved}</span><span>{copy.updated} {formatDate(memory.updated_at || memory.created_at, false, locale)}</span></div>
                   </div>
-                  <button type="button" onClick={() => setDeleting(memory)} className="inline-flex min-h-11 shrink-0 items-center gap-2 px-2 text-sm font-medium text-[#9e4837] hover:bg-[#f6eae4]" aria-label={`${copy.delete}: ${memory.summary}`}><Trash2 className="h-4 w-4" /><span className="hidden sm:inline">{copy.delete}</span></button>
+                  <button type="button" onClick={() => setDeleting(memory)} className="inline-flex min-h-11 shrink-0 items-center gap-2 px-2 text-sm font-medium text-[#9e4837] hover:bg-[#f6eae4]" aria-label={`${copy.delete}: ${displayText}`}><Trash2 className="h-4 w-4" /><span className="hidden sm:inline">{copy.delete}</span></button>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       )}
 
-      {deleting && <ConfirmDialog title={copy.deleteTitle} description={`“${deleting.summary}”\n${copy.deleteBody}`} confirmLabel={copy.deleteConfirm} busy={deleteBusy} onCancel={() => setDeleting(null)} onConfirm={() => void removeMemories([deleting.id])} />}
+      {deleting && <ConfirmDialog title={copy.deleteTitle} description={`“${displayMemoryText(deleting.summary, locale)}”\n${copy.deleteBody}`} confirmLabel={copy.deleteConfirm} busy={deleteBusy} onCancel={() => setDeleting(null)} onConfirm={() => void removeMemories([deleting.id])} />}
       {bulkDeleting && <ConfirmDialog title={copy.bulkTitle} description={`${selected.size} ${copy.selected}。${copy.bulkBody}`} confirmLabel={copy.bulkConfirm} busy={deleteBusy} onCancel={() => setBulkDeleting(false)} onConfirm={() => void removeMemories(Array.from(selected))} />}
     </AppShell>
   );

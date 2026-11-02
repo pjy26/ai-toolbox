@@ -9,6 +9,7 @@ import { apiRequest, Companion, Dream, ErrorState, formatDate, getLiveState, Ima
 import { useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
 import { amaraMomentText } from "@/lib/amara-moments";
+import { displayMemoryText } from "@/lib/memory-display";
 
 type HomeResponse = {
   companion: Companion | null;
@@ -125,7 +126,7 @@ function DashboardContent({ data }: { data: HomeResponse }) {
         <section className="border-b border-[#ded7cc] py-9 sm:py-10">
           <div className="flex items-center justify-between gap-4"><h2 className="text-xs font-semibold uppercase tracking-[0.17em] text-[#817a70]">{copy.remembered}</h2><Link href="/memories" className="min-h-11 py-3 text-xs font-semibold text-[#923f30] hover:underline">{copy.review}</Link></div>
           {recentMemories.length > 0 ? (
-            <ul className="mt-2 divide-y divide-[#e4ddd3]">{recentMemories.slice(0, 3).map((memory) => <li key={memory.id} className="py-4"><p className="text-sm leading-6 text-[#49453e]">{memory.summary}</p><p className="mt-1 text-xs text-[#817a70]">{copy.updated} {formatDate(memory.updated_at || memory.created_at, false, locale)}</p></li>)}</ul>
+            <ul className="mt-2 divide-y divide-[#e4ddd3]">{recentMemories.slice(0, 3).map((memory) => <li key={memory.id} className="py-4"><p className="text-sm leading-6 text-[#49453e]">{displayMemoryText(memory.summary, locale)}</p><p className="mt-1 text-xs text-[#817a70]">{copy.updated} {formatDate(memory.updated_at || memory.created_at, false, locale)}</p></li>)}</ul>
           ) : (
             <div className="pt-5"><BookOpen className="h-6 w-6 text-[#a98a78]" strokeWidth={1.4} /><p className="mt-4 font-serif text-2xl">{copy.nothingSaved}</p><p className="mt-2 max-w-md text-sm leading-6 text-[#6e685f]">{copy.nothingBody}</p></div>
           )}
