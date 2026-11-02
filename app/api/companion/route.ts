@@ -21,7 +21,7 @@ import {
   normalizeConversationLocale,
   outputLanguageBlock,
 } from "@/lib/conversation-context";
-import { contentSafetyMessage, scanWaffoContent } from "@/lib/content-safety";
+import { contentSafetyMessage, contentSafetyUnavailableMessage, reviewContentSafety, scanWaffoContent } from "@/lib/content-safety";
 
 // 即时状态不是长期事实。初版先使用保守 TTL，避免昨天/上周的状态被描述成“此刻”。
 const LIVE_STATE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -404,8 +404,13 @@ export async function POST(req: Request) {
         }
 
         // Generated content must be reviewed before it is shown or persisted.
-        if (!await scanWaffoContent(assistantFull, locale, "output")) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: contentSafetyMessage(locale, "output"), code: "OUTPUT_REVIEW_FAILED" })}\n\n`));
+        const outputReview = await reviewContentSafety(assistantFull, locale, "output");
+        if (outputReview.status !== "allowed") {
+          const unavailable = outputReview.status === "unavailable";
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            error: unavailable ? contentSafetyUnavailableMessage(locale) : contentSafetyMessage(locale, "output"),
+            code: unavailable ? "OUTPUT_REVIEW_UNAVAILABLE" : "OUTPUT_REVIEW_BLOCKED",
+          })}\n\n`));
           controller.close();
           return;
         }
