@@ -11,6 +11,7 @@ export async function GET() {
     isMember: status.isMember,
     membershipType: status.membershipType,
     expiresAt: status.expiresAt,
+    membershipSource: status.membershipSource,
     freeMessagesUsed: status.freeMessagesUsed,
     freeLimit: FREE_MESSAGE_LIMIT,
     remaining: status.isMember ? -1 : Math.max(0, FREE_MESSAGE_LIMIT - status.freeMessagesUsed),

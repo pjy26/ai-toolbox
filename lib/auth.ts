@@ -10,34 +10,37 @@ export async function getAuthUser() {
 // 陪伴对话的免费额度
 export const FREE_MESSAGE_LIMIT = 20;
 
-// 会员判断
+// 会员判断：付费权益与管理员赠送权益分别保存，取当前更晚的到期时间。
 export async function getMembershipStatus(userId: string): Promise<{
   isMember: boolean;
   membershipType: string | null;
   expiresAt: string | null;
+  membershipSource: "paid" | "manual" | null;
   freeMessagesUsed: number;
 }> {
   const supabase = createRouteHandlerClient({ cookies });
   const { data } = await supabase
     .from("profiles")
-    .select("membership_type, membership_expires_at, free_messages_used, credits")
+    .select("membership_type, membership_expires_at, manual_membership_type, manual_membership_expires_at, free_messages_used, credits")
     .eq("id", userId)
     .single();
 
   if (!data) {
-    return { isMember: false, membershipType: null, expiresAt: null, freeMessagesUsed: 0 };
+    return { isMember: false, membershipType: null, expiresAt: null, membershipSource: null, freeMessagesUsed: 0 };
   }
 
-  const isMember =
-    !!data.membership_type &&
-    data.membership_type !== "free" &&
-    !!data.membership_expires_at &&
-    new Date(data.membership_expires_at) > new Date();
+  const now = new Date();
+  const paidExpiry = data.membership_expires_at ? new Date(data.membership_expires_at) : null;
+  const manualExpiry = data.manual_membership_expires_at ? new Date(data.manual_membership_expires_at) : null;
+  const paidActive = !!data.membership_type && data.membership_type !== "free" && !!paidExpiry && paidExpiry > now;
+  const manualActive = !!data.manual_membership_type && !!manualExpiry && manualExpiry > now;
+  const useManual = manualActive && (!paidActive || (manualExpiry && paidExpiry && manualExpiry > paidExpiry));
 
   return {
-    isMember,
-    membershipType: data.membership_type,
-    expiresAt: data.membership_expires_at,
+    isMember: paidActive || manualActive,
+    membershipType: useManual ? data.manual_membership_type : data.membership_type,
+    expiresAt: useManual ? data.manual_membership_expires_at : data.membership_expires_at,
+    membershipSource: useManual ? "manual" : paidActive ? "paid" : null,
     freeMessagesUsed: data.free_messages_used || 0,
   };
 }
@@ -72,16 +75,22 @@ export async function checkCredits(userId: string, required: number) {
   const supabase = createRouteHandlerClient({ cookies });
   const { data } = await supabase
     .from("profiles")
-    .select("credits, membership_type, membership_expires_at")
+    .select("credits, membership_type, membership_expires_at, manual_membership_type, manual_membership_expires_at")
     .eq("id", userId)
     .single();
 
   if (!data) return { ok: false, credits: 0, isMember: false };
 
-  const isMember =
+  const now = new Date();
+  const paidActive =
     data.membership_type !== "free" &&
-    data.membership_expires_at &&
-    new Date(data.membership_expires_at) > new Date();
+    !!data.membership_expires_at &&
+    new Date(data.membership_expires_at) > now;
+  const manualActive =
+    !!data.manual_membership_type &&
+    !!data.manual_membership_expires_at &&
+    new Date(data.manual_membership_expires_at) > now;
+  const isMember = paidActive || manualActive;
 
   return { ok: isMember || data.credits >= required, credits: data.credits, isMember };
 }
