@@ -129,12 +129,24 @@ function ChatInner() {
       ]);
       if (!isCurrent()) return;
       if (qData) setQuota(qData);
-      const c: Companion | null = listData.companions?.length > 0 ? listData.companions[0] : null;
+      let c: Companion | null = listData.companions?.length > 0 ? listData.companions[0] : null;
 
       if (!c) {
-        if (isCurrent()) window.location.href = "/";
-        return;
+        // “Start a conversation” must work for a genuinely new account. The
+        // product currently has one default Amara, so create her atomically
+        // through the existing single-relationship endpoint instead of
+        // bouncing the user back to the marketing page.
+        const createRes = await fetch("/api/companion/list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ relationship_type: role }),
+        });
+        if (!createRes.ok) throw new Error("Could not create Amara");
+        const created = await createRes.json();
+        c = created.companion || null;
+        if (!isCurrent()) return;
       }
+      if (!c) throw new Error("Amara is unavailable");
       setCompanion(c);
       // 先展示聊天框架，再恢复历史或生成开场白，避免长时间全屏加载。
       setInitLoading(false);
@@ -196,7 +208,7 @@ function ChatInner() {
     } finally {
       if (isCurrent()) setInitLoading(false);
     }
-  }, [userId, localeReady]);
+  }, [userId, localeReady, role]);
 
   useEffect(() => {
     void init();
