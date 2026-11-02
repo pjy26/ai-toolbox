@@ -84,8 +84,8 @@ export const dictionaries = {
       save: "Save new password",
     },
     pricing: {
-      title: "More time for the conversations that matter",
-      subtitle: "Memberships are priced in US dollars and include unlimited conversations plus member memory features during the access period.",
+      title: "Keep a connection that remembers and grows",
+      subtitle: "Memberships are priced in US dollars and include unlimited conversations, evolving memory features, and Dreams inspired by your shared story during the access period.",
       limitedTime: "Limited time",
       fixedAccess: "Memberships renew automatically at the price shown until canceled. Cancel anytime in the secure customer portal; access continues through the current paid period.",
       newUserOffer: "New-user launch offer: your first Weekly membership starts at $0.99, then renews at $1.99/week until canceled. Once per account while available.",
@@ -207,8 +207,8 @@ export const dictionaries = {
       save: "保存新密码",
     },
     pricing: {
-      title: "给重要的对话更多时间",
-      subtitle: "会员价格以美元计价，在有效期内不限次数对话，并可使用会员记忆功能。",
+      title: "让一段记得你、与你成长的关系延续下去",
+      subtitle: "会员价格以美元计价，在有效期内不限次数对话，并可使用持续进阶的记忆功能与由你们故事生成的梦境。",
       limitedTime: "限时",
       fixedAccess: "会员将按页面所示价格自动续费，直至取消。你可以随时在安全客户门户退订；取消后仍可使用至当前已付账期结束。",
       newUserOffer: "新用户限时优惠：首个周卡首周 $0.99，之后按 $1.99/周自动续费，直至取消。优惠可用期间每个账号仅一次。",

@@ -32,10 +32,10 @@ export default function DreamsPage() {
       const result = await apiRequest<{ dreams: Dream[]; unavailable?: boolean }>("/api/dreams");
       setDreams(Array.isArray(result.dreams) ? result.dreams : []);
       setUnavailable(Boolean(result.unavailable));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Please try again.");
+    } catch {
+      setError(locale === "zh" ? "暂时无法读取梦境，请稍后重试。" : "We couldn’t load your Dreams. Please try again.");
     } finally { setLoading(false); }
-  }, [session]);
+  }, [locale, session]);
 
   useEffect(() => { void load(); }, [load]);
 

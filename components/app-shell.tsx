@@ -8,6 +8,7 @@ import { BookOpen, CloudMoon, HeartHandshake, Home, Mail, Settings, UserRound, U
 import { PageLoader } from "@/components/amara-ui";
 import { LocaleToggle, useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
+import { letterUnreadCountFromEvent } from "@/lib/letter";
 
 const navigation = [
   { href: "/app", key: "today", icon: Home },
@@ -47,11 +48,42 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const copy = consoleCopy[locale];
   const [unreadLetters, setUnreadLetters] = useState(false);
 
+  const userId = session?.user.id;
+
   useEffect(() => {
-    const update = (event: Event) => setUnreadLetters(Boolean((event as CustomEvent<boolean>).detail));
+    let cancelled = false;
+    let eventVersion = 0;
+    const controller = new AbortController();
+    const update = (event: Event) => {
+      const count = letterUnreadCountFromEvent((event as CustomEvent<unknown>).detail);
+      if (count === null) return;
+      eventVersion += 1;
+      setUnreadLetters(count > 0);
+    };
     window.addEventListener("amara:letters-unread", update);
-    return () => window.removeEventListener("amara:letters-unread", update);
-  }, []);
+
+    if (!userId) {
+      setUnreadLetters(false);
+    } else {
+      const versionAtStart = eventVersion;
+      fetch("/api/letters/unread-count", { cache: "no-store", signal: controller.signal })
+        .then(async (response) => {
+          if (!response.ok) return;
+          const data = await response.json() as { unreadCount?: unknown };
+          if (!cancelled && versionAtStart === eventVersion && typeof data.unreadCount === "number") {
+            setUnreadLetters(data.unreadCount > 0);
+          }
+        })
+        .catch(() => {
+          // Optional storage or a transient network failure must not block the shell.
+        });
+    }
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.removeEventListener("amara:letters-unread", update);
+    };
+  }, [userId]);
 
   if (isLoading) {
     return <main className="min-h-screen bg-[#f8f5ef]"><PageLoader label={locale === "zh" ? "正在打开你的空间…" : "Opening your space…"} /></main>;

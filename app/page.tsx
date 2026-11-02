@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSessionContext } from "@supabase/auth-helpers-react";
-import { ArrowRight, Check, MoonStar, Pencil, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowRight, Check, MoonStar, Eye, ShieldCheck, Trash2 } from "lucide-react";
 import { LocaleToggle, useLocale } from "@/components/locale-provider";
 import { homeCopy } from "@/lib/home-copy";
 
@@ -23,7 +23,7 @@ export default function HomePage() {
   const t = homeCopy[locale];
   const primaryHref = session ? "/app" : "/login?redirect=/app";
   const primaryLabel = isLoading ? t.meet : session ? t.return : t.meet;
-  const featureIcons = [Pencil, Trash2, ShieldCheck];
+  const featureIcons = [Eye, Trash2, ShieldCheck];
 
   return (
     <div className="bg-[#f8f5ef] text-[#282621]">
