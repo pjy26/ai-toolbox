@@ -9,6 +9,7 @@ import {
   dedupeMemoryEntries,
   findMemoryTextMatch,
   isExpiredTransientMemory,
+  isUserScopedMemoryText,
   mergeMemoryArrays,
 } from "@/lib/memory-reliability";
 
@@ -106,7 +107,8 @@ export async function POST(req: Request) {
   if (existingError) {
     return NextResponse.json({ ok: false, error: "读取已有记忆失败" }, { status: 503 });
   }
-  const existingMemories = (existing || []) as any[];
+  const existingMemories = ((existing || []) as any[])
+    .filter((memory) => isUserScopedMemoryText(memory.summary));
   const existingSummaries = dedupeMemoryEntries(
     existingMemories,
     (memory) => memory.summary,
@@ -156,7 +158,10 @@ ${recentText}
 规则：
 - 【输出语言】所有新增自然语言内容必须使用${locale === "zh" ? "自然、简洁的简体中文" : "natural, concise English"}，包括档案值、摘要、事件、情绪标签和状态；JSON 字段名保持不变。
 - 【事实来源】profile_updates 和 new_summaries 只能来自 user 明确陈述的信息。assistant 的猜测、安慰、比喻、角色扮演、虚构细节和未经 user 确认的反问，一律不得写成用户事实。无法确认就不抽取。
-- 【档案与摘要分工】profile_updates 保存稳定的基本信息、偏好、习惯、重要人物和仍在进行的事；new_summaries 只补充值得长期携带且尚未进入档案的原子事实。一条只写一个事实，不写双方互动，不写 assistant 的行为，不用空泛标签。
+- 【档案与摘要分工】profile_updates 保存稳定的基本信息、偏好、习惯、重要人物和仍在进行的事；new_summaries 只补充值得长期携带且尚未进入档案的原子事实。一条只写一个用户事实，不写双方互动，不写 assistant 的行为、感受、猜测或判断，不用空泛标签。
+- 【About You 边界】profile_updates 和 new_summaries 中禁止出现“陪伴角色”“陪伴体”“assistant”“Amara”或 companion。像“用户对陪伴角色说……”属于互动，只能在符合 new_events 标准时进入 new_events；像“assistant 觉得用户……”属于 assistant 的推测，必须彻底丢弃。
+- 【纠正不是新事实】用户纠正旧记忆时，只输出纠正后的用户事实本身；不要把“用户纠正了某条记忆”写成新摘要。
+- 【摘要视角】new_summaries 直接写用户事实，通常省略“用户”这个第三方标签，例如写“今天需要休息”，不要写“用户今天需要休息”。
 - important_people 优先使用对象，如 {"name":"名字","relation":"关系","notes":"用户明确说过的细节"}；不知道名字时不要编造。
 - profile_updates 只包含这次对话里新发现或需要更新的字段，没有就留空对象/空数组；已有内容不重复。
 - ongoing_matters 是【覆盖式】字段：输出截至此刻仍在进行的事的完整列表。已经结束、解决、翻篇的事不要再包含。
@@ -209,6 +214,7 @@ ${recentText}
       summariesRefreshed: 0,
       summaryDuplicatesSkipped: 0,
       summaryConflictsSkipped: 0,
+      nonUserSummariesSkipped: 0,
       eventsInserted: 0,
       eventDuplicatesSkipped: 0,
       eventConflictsSkipped: 0,
@@ -223,6 +229,10 @@ ${recentText}
       for (const s of parsed.new_summaries) {
         if (typeof s?.summary !== "string" || !s.summary.trim()) continue;
         const summary = s.summary.trim().slice(0, 4000);
+        if (!isUserScopedMemoryText(summary)) {
+          memoryWriteStats.nonUserSummariesSkipped += 1;
+          continue;
+        }
         const importance = Math.min(5, Math.max(1, Number(s.importance) || 1));
         const matchInfo = findMemoryTextMatch(summary, workingMemories.map((memory) => memory.summary));
         if (matchInfo?.relation === "conflict") {

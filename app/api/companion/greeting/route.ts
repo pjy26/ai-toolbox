@@ -14,6 +14,7 @@ import {
   outputLanguageBlock,
 } from "@/lib/conversation-context";
 import { scanWaffoContent } from "@/lib/content-safety";
+import { isUserScopedMemoryText } from "@/lib/memory-reliability";
 
 // 生成 Amara 的主动开场白
 export async function GET(req: Request) {
@@ -83,7 +84,10 @@ export async function GET(req: Request) {
       if (p.personality_notes) parts.push(locale === "en" ? `Personality notes: ${p.personality_notes}` : `TA性格：${p.personality_notes}`);
       profileText = parts.join(locale === "en" ? ". " : "。");
     }
-    memText = (summariesResult.data || []).map((s: any) => `- ${s.summary}`).join("\n");
+    memText = (summariesResult.data || [])
+      .filter((s: any) => isUserScopedMemoryText(s.summary))
+      .map((s: any) => `- ${s.summary}`)
+      .join("\n");
   }
 
   // 4. 构建 prompt 让 AI 生成开场白

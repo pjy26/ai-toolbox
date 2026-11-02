@@ -16,6 +16,9 @@ function listMock() {
   const summaries = [
     { id: "s1", companion_id: companionId, summary: "Recently had insomnia", importance: 4, source_session_id: null, created_at: "2026-09-01T00:00:00Z", updated_at: "2026-09-01T00:00:00Z" },
     { id: "s2", companion_id: companionId, summary: "Likes quiet weekends", importance: 3, source_session_id: null, created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z" },
+    { id: "s3", companion_id: companionId, summary: "用户对陪伴角色表达了爱意", importance: 5, source_session_id: null, created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z" },
+    { id: "s4", companion_id: companionId, summary: "陪伴角色觉得用户在想念自己", importance: 5, source_session_id: null, created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z" },
+    { id: "s5", companion_id: companionId, summary: "用户纠正了陪伴角色保存的旧记忆", importance: 5, source_session_id: null, created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z" },
   ];
   return {
     from(table: string) {
@@ -43,6 +46,7 @@ async function main() {
   assert.ok(texts.includes("Uses public transport"));
   assert.ok(texts.includes("Likes quiet weekends"));
   assert.ok(!texts.includes("Recently had insomnia"), "Expired transient memories stay hidden in both chat and console");
+  assert.ok(!texts.some((text) => text.includes("陪伴角色")), "Companion interactions and inferences stay out of About You");
   assert.ok(!texts.some((text) => text.includes("Lin")), "People stay in their dedicated console section");
   assert.ok(records.every((record) => record.record_type === "summary" || record.record_type === "profile"));
 

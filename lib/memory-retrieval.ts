@@ -3,7 +3,7 @@
 // 返回 null 表示走降级路径（调用方退回 importance 排序旧逻辑）
 
 import { embedText } from "./embedding";
-import { dedupeMemoryEntries, isExpiredTransientMemory } from "./memory-reliability";
+import { dedupeMemoryEntries, isExpiredTransientMemory, isUserScopedMemoryText } from "./memory-reliability";
 
 // 初始权重（拍的初始值，留作可调参数，后面用真实数据回灌调）
 export const RETRIEVAL_PARAMS = {
@@ -118,7 +118,7 @@ export async function semanticRecall(
   const memories = dedupeMemoryEntries(
     rankedMemories,
     (memory) => memory.summary,
-    (memory) => isExpiredTransientMemory(memory.summary, memory.updated_at, now),
+    (memory) => !isUserScopedMemoryText(memory.summary) || isExpiredTransientMemory(memory.summary, memory.updated_at, now),
   ).slice(0, RETRIEVAL_PARAMS.memoryTopK);
   const events = dedupeMemoryEntries(rankedEvents, (event) => event.description)
     .slice(0, RETRIEVAL_PARAMS.eventTopK);

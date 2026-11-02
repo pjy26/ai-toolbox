@@ -3,7 +3,7 @@ import { type PersonaType } from "@/lib/amara-persona";
 import { buildFriendSystemPrompt, buildLoverSystemPrompt } from "@/lib/amara-prompt";
 import { semanticRecall } from "@/lib/memory-retrieval";
 import { isMemoryEnabled } from "@/lib/user-settings";
-import { dedupeMemoryEntries, isExpiredTransientMemory } from "@/lib/memory-reliability";
+import { dedupeMemoryEntries, isExpiredTransientMemory, isUserScopedMemoryText } from "@/lib/memory-reliability";
 import {
   conversationTimeBlock,
   daysSinceLastChat,
@@ -155,7 +155,7 @@ export async function loadCompanionContext(
       memText = dedupeMemoryEntries(
         (summaries as any[] || []),
         (memory) => memory.summary,
-        (memory) => isExpiredTransientMemory(memory.summary, memory.updated_at || memory.created_at),
+        (memory) => !isUserScopedMemoryText(memory.summary) || isExpiredTransientMemory(memory.summary, memory.updated_at || memory.created_at),
       ).slice(0, 5).map((memory) => `- ${memory.summary}`).join("\n");
     }
   }

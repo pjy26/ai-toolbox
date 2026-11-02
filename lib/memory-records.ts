@@ -1,4 +1,4 @@
-import { dedupeMemoryEntries, isExpiredTransientMemory } from "@/lib/memory-reliability";
+import { dedupeMemoryEntries, isExpiredTransientMemory, isUserScopedMemoryText } from "@/lib/memory-reliability";
 
 export const PROFILE_MEMORY_PREFIX = "profile_";
 
@@ -45,7 +45,7 @@ function flattenProfile(companionId: string, profile: Record<string, unknown>, t
   const records: ConsoleMemoryRecord[] = [];
   const add = (path: ProfilePath, summary: string) => {
     const clean = summary.trim();
-    if (!clean) return;
+    if (!isUserScopedMemoryText(clean)) return;
     records.push({
       id: profileMemoryId(companionId, path),
       companion_id: companionId,
@@ -97,10 +97,12 @@ export async function listMemoryRecords(
   if (summaryResult.error) throw new Error(summaryResult.error.message);
   if (profileResult.error) throw new Error(profileResult.error.message);
 
-  const summaries = ((summaryResult.data || []) as any[]).map((memory) => ({
-    ...memory,
-    record_type: "summary" as const,
-  }));
+  const summaries = ((summaryResult.data || []) as any[])
+    .filter((memory) => isUserScopedMemoryText(memory.summary))
+    .map((memory) => ({
+      ...memory,
+      record_type: "summary" as const,
+    }));
   const visibleSummaries = dedupeMemoryEntries(
     summaries,
     (memory) => memory.summary,
