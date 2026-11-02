@@ -5,6 +5,12 @@ import { cookies } from "next/headers";
 import OpenAI from "openai";
 import { embedText } from "@/lib/embedding";
 import { isMemoryEnabled } from "@/lib/user-settings";
+import {
+  dedupeMemoryEntries,
+  findMemoryTextMatch,
+  isExpiredTransientMemory,
+  mergeMemoryArrays,
+} from "@/lib/memory-reliability";
 
 // 语义去重阈值：cosine 相似度 > 0.9 视为重复，跳过写入（初始值，可调）
 const DEDUP_THRESHOLD = 0.9;
@@ -89,14 +95,22 @@ export async function POST(req: Request) {
     .maybeSingle();
   const currentProfile = profileRow?.profile || {};
 
-  // 取最近 5 条 summaries，避免重复
-  const { data: existing } = await supabase
+  // 本地文本去重要覆盖比提示词更多的历史；embedding 不可用时仍能可靠去重。
+  const { data: existing, error: existingError } = await supabase
     .from("memory_summaries")
-    .select("summary")
+    .select("id, summary, importance, source_session_id, created_at, updated_at")
     .eq("companion_id", companion_id)
     .order("updated_at", { ascending: false })
-    .limit(5);
-  const existingSummaries = (existing || []).map((s: any) => s.summary).join("\n") || "(无)";
+    .limit(200);
+  if (existingError) {
+    return NextResponse.json({ ok: false, error: "读取已有记忆失败" }, { status: 503 });
+  }
+  const existingMemories = (existing || []) as any[];
+  const existingSummaries = dedupeMemoryEntries(
+    existingMemories,
+    (memory) => memory.summary,
+    (memory) => isExpiredTransientMemory(memory.summary, memory.updated_at || memory.created_at),
+  ).slice(0, 5).map((memory) => memory.summary).join("\n") || "(无)";
 
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -151,6 +165,7 @@ ${recentText}
 - new_events：判断这轮有没有"值得记的共同经历"，判定标准五类：①第一次类里程碑（第一次说喜欢、第一次互道晚安等）②吵架与和好 ③共同完成的事 ④生病或困难时的陪伴 ⑤对方表达深层情感的时刻。符合才写，不符合就空数组，宁缺毋滥。event_type 用 milestone/conflict_together/achievement/support/deep_feeling 之一。importance 1-5。
 - amara_state 必填：以陪伴角色的视角描述对话结束那一刻的场景快照（只管"在干嘛/聊到哪"，情绪一律走 emotion_state，不要在这里表达情绪）。活动要具体、每次不同，不要总是"喝茶"。
 - 一句话能讲清的别拆两条。
+- 不得综合多条记忆或推测出折中事实；新信息与已有信息冲突时，只能原样输出用户最新明确陈述的内容，由系统保守处理。
 - 严格输出 JSON，不要 markdown 代码块，不要解释。`;
 
   try {
@@ -169,26 +184,14 @@ ${recentText}
       return NextResponse.json({ ok: false, error: "parse_failed", raw }, { status: 500 });
     }
 
-    // 合并 profile（深合并，新值覆盖旧值，但数组按 unique 追加）
+    // 合并 profile：对象新值覆盖旧值；字符串数组也执行完全/近似去重和冲突保守跳过。
     if (parsed.profile_updates && Object.keys(parsed.profile_updates).length > 0) {
       const merged = JSON.parse(JSON.stringify(currentProfile));
       for (const key of Object.keys(parsed.profile_updates)) {
         const newVal = parsed.profile_updates[key];
-        // ongoing_matters 覆盖式更新：模型输出的是"此刻仍在进行的事"全量列表，
-        // 空数组也生效（表示手头的事都了结了），防止旧事（如已改完的 bug）永久残留
-        if (key === "ongoing_matters" && Array.isArray(newVal)) {
-          merged[key] = newVal;
-          continue;
-        }
-        if (Array.isArray(newVal) && newVal.length > 0) {
-          const oldArr = Array.isArray(merged[key]) ? merged[key] : [];
-          const set = new Set<string>();
-          for (const x of oldArr) set.add(typeof x === "string" ? x : JSON.stringify(x));
-          for (const x of newVal) {
-            const k = typeof x === "string" ? x : JSON.stringify(x);
-            if (!set.has(k)) oldArr.push(x);
-          }
-          merged[key] = oldArr;
+        // ongoing_matters 覆盖式更新：空数组同样生效，防止已结束事项永久残留。
+        if (Array.isArray(newVal)) {
+          merged[key] = mergeMemoryArrays(merged[key], newVal, key === "ongoing_matters");
         } else if (typeof newVal === "object" && newVal !== null && !Array.isArray(newVal)) {
           merged[key] = { ...(merged[key] || {}), ...newVal };
         } else if (typeof newVal === "string" && newVal.trim()) {
@@ -202,57 +205,138 @@ ${recentText}
       if (profileWriteError) throw new Error(`用户档案写入失败: ${profileWriteError.message}`);
     }
 
-    // 写入新 summaries（先 embedding 去重，> 0.9 视为重复跳过；embedding 复用去重时算的那个）
+    const memoryWriteStats = {
+      summariesInserted: 0,
+      summariesRefreshed: 0,
+      summaryDuplicatesSkipped: 0,
+      summaryConflictsSkipped: 0,
+      eventsInserted: 0,
+      eventDuplicatesSkipped: 0,
+      eventConflictsSkipped: 0,
+    };
+
+    // 先做本地完全/近似/冲突判断，再用 embedding 补充语义去重。
+    // 过期的临时事实若被用户再次明确提及，则更新原行，保留来源并刷新时间，不再新增一行。
     if (Array.isArray(parsed.new_summaries) && parsed.new_summaries.length > 0) {
       const rows: any[] = [];
+      const workingMemories = existingMemories.map((memory) => ({ ...memory }));
+      const extractedAt = new Date().toISOString();
       for (const s of parsed.new_summaries) {
-        if (!s?.summary || typeof s.summary !== "string") continue;
-        const embedding = await embedText(s.summary, EMBED_TIMEOUT_MS);
+        if (typeof s?.summary !== "string" || !s.summary.trim()) continue;
+        const summary = s.summary.trim().slice(0, 4000);
+        const importance = Math.min(5, Math.max(1, Number(s.importance) || 1));
+        const matchInfo = findMemoryTextMatch(summary, workingMemories.map((memory) => memory.summary));
+        if (matchInfo?.relation === "conflict") {
+          memoryWriteStats.summaryConflictsSkipped += 1;
+          continue;
+        }
+        if (matchInfo) {
+          const matched = workingMemories[matchInfo.index];
+          const wasExpired = isExpiredTransientMemory(
+            matched.summary,
+            matched.updated_at || matched.created_at,
+            new Date(extractedAt),
+          );
+          if (!matched.id || !wasExpired) {
+            memoryWriteStats.summaryDuplicatesSkipped += 1;
+            continue;
+          }
+          const embedding = await embedText(summary, EMBED_TIMEOUT_MS);
+          const refreshed = {
+            summary,
+            importance: Math.max(Number(matched.importance) || 1, importance),
+            source_session_id: session_id || matched.source_session_id || null,
+            // 新正文不能继续沿用旧向量；服务暂不可用时由后续语义路径安全降级。
+            embedding: embedding || null,
+          };
+          const { error: refreshError } = await supabase
+            .from("memory_summaries")
+            .update(refreshed)
+            .eq("id", matched.id)
+            .eq("companion_id", companion_id);
+          if (refreshError) throw new Error(`过期记忆更新失败: ${refreshError.message}`);
+          Object.assign(matched, refreshed, { updated_at: extractedAt });
+          memoryWriteStats.summariesRefreshed += 1;
+          continue;
+        }
+
+        const embedding = await embedText(summary, EMBED_TIMEOUT_MS);
         if (embedding) {
           const { data: maxSim } = await supabase.rpc("memory_max_similarity", {
             p_companion_id: companion_id,
             p_embedding: embedding,
           });
-          if (typeof maxSim === "number" && maxSim > DEDUP_THRESHOLD) continue; // 重复，跳过
+          const similarity = Number(maxSim);
+          if (Number.isFinite(similarity) && similarity > DEDUP_THRESHOLD) {
+            memoryWriteStats.summaryDuplicatesSkipped += 1;
+            continue;
+          }
         }
-        rows.push({
+        const row = {
           companion_id,
-          summary: s.summary,
-          importance: Math.min(5, Math.max(1, Number(s.importance) || 1)),
+          summary,
+          importance,
           source_session_id: session_id || null,
           embedding: embedding || null,
-        });
+        };
+        rows.push(row);
+        workingMemories.push({ ...row, id: null, created_at: extractedAt, updated_at: extractedAt });
       }
       if (rows.length > 0) {
         const { error: summaryWriteError } = await supabase.from("memory_summaries").insert(rows);
         if (summaryWriteError) throw new Error(`记忆摘要写入失败: ${summaryWriteError.message}`);
+        memoryWriteStats.summariesInserted = rows.length;
       }
     }
 
-    // 写入共同经历（同 summaries：embedding 去重 > 0.9 跳过）
+    // 共同经历也做全量近期文本与批内去重，不再完全依赖 embedding 服务。
     if (Array.isArray(parsed.new_events) && parsed.new_events.length > 0) {
+      const { data: existingEvents, error: existingEventsError } = await supabase
+        .from("relationship_events")
+        .select("id, description")
+        .eq("companion_id", companion_id)
+        .order("occurred_at", { ascending: false })
+        .limit(200);
+      if (existingEventsError) throw new Error(`读取已有共同经历失败: ${existingEventsError.message}`);
+      const workingEventTexts = (existingEvents || []).map((event: any) => event.description);
       const eventRows: any[] = [];
       for (const e of parsed.new_events) {
-        if (!e?.description || typeof e.description !== "string") continue;
-        const embedding = await embedText(e.description, EMBED_TIMEOUT_MS);
+        if (typeof e?.description !== "string" || !e.description.trim()) continue;
+        const description = e.description.trim().slice(0, 4000);
+        const matchInfo = findMemoryTextMatch(description, workingEventTexts);
+        if (matchInfo?.relation === "conflict") {
+          memoryWriteStats.eventConflictsSkipped += 1;
+          continue;
+        }
+        if (matchInfo) {
+          memoryWriteStats.eventDuplicatesSkipped += 1;
+          continue;
+        }
+        const embedding = await embedText(description, EMBED_TIMEOUT_MS);
         if (embedding) {
           const { data: maxSim } = await supabase.rpc("event_max_similarity", {
             p_companion_id: companion_id,
             p_embedding: embedding,
           });
-          if (typeof maxSim === "number" && maxSim > DEDUP_THRESHOLD) continue; // 重复，跳过
+          const similarity = Number(maxSim);
+          if (Number.isFinite(similarity) && similarity > DEDUP_THRESHOLD) {
+            memoryWriteStats.eventDuplicatesSkipped += 1;
+            continue;
+          }
         }
         eventRows.push({
           companion_id,
-          description: e.description,
+          description,
           event_type: typeof e.event_type === "string" ? e.event_type : null,
           importance: Math.min(5, Math.max(1, Number(e.importance) || 3)),
           embedding: embedding || null,
         });
+        workingEventTexts.push(description);
       }
       if (eventRows.length > 0) {
         const { error: eventWriteError } = await supabase.from("relationship_events").insert(eventRows);
         if (eventWriteError) throw new Error(`共同经历写入失败: ${eventWriteError.message}`);
+        memoryWriteStats.eventsInserted = eventRows.length;
       }
     }
 
@@ -297,7 +381,7 @@ ${recentText}
       }
     }
 
-    return NextResponse.json({ ok: true, extracted: parsed });
+    return NextResponse.json({ ok: true, extracted: parsed, memory_write_stats: memoryWriteStats });
   } catch (error: any) {
     console.error("extract error:", error);
     return NextResponse.json({ ok: false, error: error?.message }, { status: 503 });

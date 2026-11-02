@@ -3,6 +3,7 @@
 // 返回 null 表示走降级路径（调用方退回 importance 排序旧逻辑）
 
 import { embedText } from "./embedding";
+import { dedupeMemoryEntries, isExpiredTransientMemory } from "./memory-reliability";
 
 // 初始权重（拍的初始值，留作可调参数，后面用真实数据回灌调）
 export const RETRIEVAL_PARAMS = {
@@ -42,21 +43,39 @@ export interface RecallResult {
   events: EventHit[];
 }
 
+export interface SemanticRecallOptions {
+  now?: Date;
+  // 测试注入用；生产调用方仍使用原来的三个参数，不触发额外服务。
+  embed?: typeof embedText;
+}
+
+function byRank<T extends { score: number; importance: number }>(a: T, b: T): number {
+  const scoreDelta = (Number.isFinite(b.score) ? b.score : -Infinity) -
+    (Number.isFinite(a.score) ? a.score : -Infinity);
+  return scoreDelta || (Number(b.importance) || 0) - (Number(a.importance) || 0);
+}
+
 /**
  * 语义检索记忆。返回 null → 调用方走降级（importance 排序）。
- * 触发降级的三种情况：消息太短 / embedding 超时或失败 / 两个查询都报错。
+ * 先过量召回再按混合分数去重，避免近似重复挤占重要且相关的结果。
  */
 export async function semanticRecall(
   supabase: any,
   companionId: string,
-  queryText: string
+  queryText: string,
+  options: SemanticRecallOptions = {},
 ): Promise<RecallResult | null> {
   if (!queryText || queryText.trim().length < SHORT_MESSAGE_THRESHOLD) {
     console.info("[memory-recall]", { companionId, path: "fallback", reason: "short_message" });
     return null;
   }
 
-  const embedding = await embedText(queryText, MAIN_TIMEOUT_MS);
+  let embedding: number[] | null;
+  try {
+    embedding = await (options.embed || embedText)(queryText, MAIN_TIMEOUT_MS);
+  } catch {
+    embedding = null;
+  }
   if (!embedding) {
     console.info("[memory-recall]", { companionId, path: "fallback", reason: "embedding_unavailable" });
     return null;
@@ -71,17 +90,39 @@ export async function semanticRecall(
     p_half_life_days: RETRIEVAL_PARAMS.halfLifeDays,
   };
 
-  const [mem, ev] = await Promise.all([
-    supabase.rpc("match_memory_summaries", { ...common, p_limit: RETRIEVAL_PARAMS.memoryTopK }),
-    supabase.rpc("match_relationship_events", { ...common, p_limit: RETRIEVAL_PARAMS.eventTopK }),
+  // Promise.reject 或 Supabase 同步异常都只影响检索，不应冒泡中断聊天。
+  const [memResult, eventResult] = await Promise.allSettled([
+    Promise.resolve().then(() => supabase.rpc("match_memory_summaries", {
+      ...common,
+      p_limit: RETRIEVAL_PARAMS.memoryTopK * 3,
+    })),
+    Promise.resolve().then(() => supabase.rpc("match_relationship_events", {
+      ...common,
+      p_limit: RETRIEVAL_PARAMS.eventTopK * 3,
+    })),
   ]);
+  const mem = memResult.status === "fulfilled"
+    ? memResult.value
+    : { data: null, error: memResult.reason };
+  const ev = eventResult.status === "fulfilled"
+    ? eventResult.value
+    : { data: null, error: eventResult.reason };
 
-  if (mem.error) console.error("match_memory_summaries 检索失败:", mem.error.message);
-  if (ev.error) console.error("match_relationship_events 检索失败:", ev.error.message);
+  if (mem.error) console.error("match_memory_summaries 检索失败:", mem.error.message || "unknown");
+  if (ev.error) console.error("match_relationship_events 检索失败:", ev.error.message || "unknown");
   if (mem.error && ev.error) return null;
 
-  const memories = (mem.data as MemoryHit[]) || [];
-  const events = (ev.data as EventHit[]) || [];
+  const now = options.now || new Date();
+  const rankedMemories = ((mem.data as MemoryHit[] | null) || []).slice().sort(byRank);
+  const rankedEvents = ((ev.data as EventHit[] | null) || []).slice().sort(byRank);
+  const memories = dedupeMemoryEntries(
+    rankedMemories,
+    (memory) => memory.summary,
+    (memory) => isExpiredTransientMemory(memory.summary, memory.updated_at, now),
+  ).slice(0, RETRIEVAL_PARAMS.memoryTopK);
+  const events = dedupeMemoryEntries(rankedEvents, (event) => event.description)
+    .slice(0, RETRIEVAL_PARAMS.eventTopK);
+
   // 只记录 ID、数量和分数，不把用户消息或记忆正文写入日志。
   console.info("[memory-recall]", {
     companionId,

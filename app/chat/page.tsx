@@ -642,6 +642,9 @@ function ChatInner() {
             <Send style={{ width: 18, height: 18 }} />
           </button>
         </div>
+        <p className="max-w-3xl mx-auto mt-2 text-center text-[11px] font-light" style={{ color: "#817A70", letterSpacing: 0.4, lineHeight: 1.5 }}>
+          {copy.aiDisclosure}
+        </p>
       </div>
 
       {/* 付费墙 */}

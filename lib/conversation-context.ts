@@ -14,7 +14,10 @@ export function daysSinceLastChat(
 ): number {
   if (!lastActiveAt) return -1;
   const lastActive = new Date(lastActiveAt);
-  if (!Number.isFinite(lastActive.getTime())) return -1;
+  const lastActiveMs = lastActive.getTime();
+  const nowMs = now.getTime();
+  // 无效或来自未来的时间戳不能伪装成“今天刚聊过”；交给调用方走无可靠记录文案。
+  if (!Number.isFinite(lastActiveMs) || !Number.isFinite(nowMs) || lastActiveMs > nowMs) return -1;
   const zone = normalizeTimeZone(timezone);
   const today = getLocalDate(now, zone);
   const lastDay = getLocalDate(lastActive, zone);
