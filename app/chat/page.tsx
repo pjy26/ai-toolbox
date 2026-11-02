@@ -283,8 +283,13 @@ function ChatInner() {
     }
 
     if (!res.ok || !res.body) {
+      let serverError = copy.errorGeneric;
+      try {
+        const data = await res.json();
+        if (typeof data.error === "string" && data.error.trim()) serverError = data.error;
+      } catch { /* Keep the localized fallback when the response is not JSON. */ }
       setMessages((prev) => prev.slice(0, -2));
-      const errMsg: Message = { role: "assistant", content: copy.errorGeneric };
+      const errMsg: Message = { role: "assistant", content: serverError };
       setMessages((prev) => [...prev, errMsg]);
       setLoading(false);
       return;
@@ -316,7 +321,7 @@ function ChatInner() {
         try {
           const p = JSON.parse(data);
           if (p.error) {
-            content = copy.errorGeneric;
+            content = typeof p.error === "string" ? p.error : copy.errorGeneric;
             setMessages((prev) => {
               const arr = [...prev];
               arr[arr.length - 1] = { role: "assistant", content };

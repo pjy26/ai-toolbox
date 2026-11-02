@@ -113,16 +113,24 @@ export async function GET(req: Request) {
       baseURL: process.env.OPENAI_BASE_URL || "https://api.deepseek.com",
     });
 
-    // max_tokens=1000：v4 思考 token 与正文共享额度，思考本身要吃掉一两百，
-    // 上限给低了正文会被挤成空字符串（开场白是第一眼体验，绝不能空白）
-    const completion = await openai.chat.completions.create({
+    const request = {
       model: process.env.OPENAI_MODEL || "deepseek-v4-pro",
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user" as const, content: prompt }],
       temperature: 0.85,
-      max_tokens: 1000,
-    });
-
-    const generated = completion.choices?.[0]?.message?.content?.trim() || "";
+      reasoning_effort: "low" as const,
+      max_tokens: 1600,
+    };
+    let completion = await openai.chat.completions.create(request);
+    let generated = completion.choices?.[0]?.message?.content?.trim() || "";
+    if (!generated) {
+      console.warn("greeting 首次返回空正文，切换非思考模式重试");
+      completion = await openai.chat.completions.create({
+        ...request,
+        max_tokens: 1000,
+        thinking: { type: "disabled" },
+      } as any);
+      generated = completion.choices?.[0]?.message?.content?.trim() || "";
+    }
     // Only reviewed model output replaces the known-safe fallback greeting.
     if (generated && await scanWaffoContent(generated, locale, "output")) greeting = generated;
   } catch (error) {

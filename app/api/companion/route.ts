@@ -366,22 +366,46 @@ export async function POST(req: Request) {
       let assistantFull = "";
       try {
         const lazyOpenai = new OpenAI({ apiKey, baseURL });
-        // max_tokens=1000：v4 思考 token 与正文共享额度，上限给足防止正文被思考挤空
+        // 日常陪伴不需要高强度推理；低档位能降低延迟，也给正文留下足够额度。
         const stream = await lazyOpenai.chat.completions.create({
           model,
           messages,
           stream: true,
           temperature: 0.7,
-          max_tokens: 1000,
+          reasoning_effort: "low",
+          max_tokens: 1600,
         });
 
         for await (const chunk of stream) {
           assistantFull += chunk.choices?.[0]?.delta?.content || "";
         }
 
+        // 推理额度耗尽时可能只返回 reasoning_content。空正文必须用非思考模式重试，
+        // 不能把一次空响应直接当作用户可见的聊天失败。
+        if (!assistantFull.trim()) {
+          console.warn("[companion POST] 模型首次返回空正文，切换非思考模式重试");
+          const fallbackStream = await lazyOpenai.chat.completions.create({
+            model,
+            messages,
+            stream: true,
+            temperature: 0.7,
+            max_tokens: 1000,
+            thinking: { type: "disabled" },
+          } as OpenAI.ChatCompletionCreateParamsStreaming);
+          for await (const chunk of fallbackStream) {
+            assistantFull += chunk.choices?.[0]?.delta?.content || "";
+          }
+        }
+
+        if (!assistantFull.trim()) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: locale === "zh" ? "我这次没能组织好语言，请再发一次。" : "I couldn’t put my thoughts into words. Please send that again.", code: "EMPTY_MODEL_RESPONSE" })}\n\n`));
+          controller.close();
+          return;
+        }
+
         // Generated content must be reviewed before it is shown or persisted.
-        if (!assistantFull || !await scanWaffoContent(assistantFull, locale, "output")) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: contentSafetyMessage(locale, "output") })}\n\n`));
+        if (!await scanWaffoContent(assistantFull, locale, "output")) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: contentSafetyMessage(locale, "output"), code: "OUTPUT_REVIEW_FAILED" })}\n\n`));
           controller.close();
           return;
         }
