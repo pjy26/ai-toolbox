@@ -9,7 +9,7 @@ export type MemoryTextRelation = "exact" | "near" | "conflict" | "distinct";
 // About You 只承载用户自身的事实。明显涉及陪伴体、助手推测或记忆纠正的
 // 元互动应进入 relationship_events 或直接丢弃，不能成为用户事实记忆。
 const NON_USER_SCOPED_MEMORY_PATTERN =
-  /陪伴(?:角色|体|者)|AI\s*伴侣|\bamara\b|\bassistant\b|\bcompanion\b|(?:觉得|认为|猜测|怀疑)用户|纠正.*记忆|修正.*记忆|\bcorrect(?:ed|ing)?\b.*\bmemory\b/i;
+  /陪伴(?:角色|体|者)|\bAI\b|\bamara\b|\bassistant\b|\bcompanion\b|(?:觉得|认为|猜测|怀疑)用户|纠正.*记忆|修正.*记忆|显示|表明|暗示|展露|通过.{0,30}互动|互动氛围|亲密互动|双方|互称|\bcorrect(?:ed|ing)?\b.*\bmemory\b/i;
 
 export function isUserScopedMemoryText(value: unknown): value is string {
   return typeof value === "string" && Boolean(value.trim()) && !NON_USER_SCOPED_MEMORY_PATTERN.test(value);

@@ -17,6 +17,9 @@ const rejected = [
   "I told Amara that I loved her",
   "The assistant thinks the user is lonely",
   "The user corrected the earlier memory",
+  "用户分享日常后，AI 表示愿意陪伴",
+  "用户深夜主动联系，暗示想念，关系亲密",
+  "双方通过歌词互动，氛围轻松",
 ];
 
 for (const text of accepted) {

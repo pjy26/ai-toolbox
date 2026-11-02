@@ -159,7 +159,7 @@ ${recentText}
 - 【输出语言】所有新增自然语言内容必须使用${locale === "zh" ? "自然、简洁的简体中文" : "natural, concise English"}，包括档案值、摘要、事件、情绪标签和状态；JSON 字段名保持不变。
 - 【事实来源】profile_updates 和 new_summaries 只能来自 user 明确陈述的信息。assistant 的猜测、安慰、比喻、角色扮演、虚构细节和未经 user 确认的反问，一律不得写成用户事实。无法确认就不抽取。
 - 【档案与摘要分工】profile_updates 保存稳定的基本信息、偏好、习惯、重要人物和仍在进行的事；new_summaries 只补充值得长期携带且尚未进入档案的原子事实。一条只写一个用户事实，不写双方互动，不写 assistant 的行为、感受、猜测或判断，不用空泛标签。
-- 【About You 边界】profile_updates 和 new_summaries 中禁止出现“陪伴角色”“陪伴体”“assistant”“Amara”或 companion。像“用户对陪伴角色说……”属于互动，只能在符合 new_events 标准时进入 new_events；像“assistant 觉得用户……”属于 assistant 的推测，必须彻底丢弃。
+- 【About You 边界】profile_updates 和 new_summaries 中禁止出现“陪伴角色”“陪伴体”“AI”“assistant”“Amara”或 companion，也不要使用“显示/表明/暗示/展露”等分析性推断措辞。像“用户对陪伴角色说……”属于互动，只能在符合 new_events 标准时进入 new_events；像“assistant 觉得用户……”属于 assistant 的推测，必须彻底丢弃。
 - 【纠正不是新事实】用户纠正旧记忆时，只输出纠正后的用户事实本身；不要把“用户纠正了某条记忆”写成新摘要。
 - 【摘要视角】new_summaries 直接写用户事实，通常省略“用户”这个第三方标签，例如写“今天需要休息”，不要写“用户今天需要休息”。
 - important_people 优先使用对象，如 {"name":"名字","relation":"关系","notes":"用户明确说过的细节"}；不知道名字时不要编造。
