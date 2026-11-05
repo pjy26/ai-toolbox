@@ -121,7 +121,7 @@ export async function POST(req: Request) {
       ? new Date(eventTime + 7 * 24 * 60 * 60 * 1000).toISOString()
       : null;
     const periodEnd = suppliedPeriodEnd || trialPeriodEnd;
-    const isTrialPayment = event.eventType === "subscription.payment_succeeded" && planId === "plus_trial";
+    const isTrialPayment = (event.eventType === "subscription.payment_succeeded" || event.eventType === "order.completed") && planId === "plus_trial";
     const baseUpdate: Record<string, unknown> = {
       provider_order_id: data.orderId,
       currency: data.currency,
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
         auto_renew: planId !== "plus_trial",
         canceled_at: null,
       });
-    } else if (event.eventType === "subscription.payment_succeeded") {
+    } else if (event.eventType === "subscription.payment_succeeded" || event.eventType === "order.completed") {
       if (isTrialPayment && !periodEnd) throw new Error("Trial payment lacks a valid timestamp or currentPeriodEnd");
       Object.assign(baseUpdate, {
         status: "paid",
