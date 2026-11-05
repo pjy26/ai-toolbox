@@ -18,20 +18,19 @@ console.log(JSON.stringify({ connection: "ok", store: { id: store.id, name: stor
 
 if (process.argv.includes("--setup")) {
   const plans = [
-    { id: "weekly", name: "Amara Weekly", billingPeriod: "weekly", amount: "1.99", trialAmount: "0.99" },
-    { id: "monthly", name: "Amara Monthly", billingPeriod: "monthly", amount: "3.99" },
-    { id: "yearly", name: "Amara Yearly", billingPeriod: "yearly", amount: "29.90" },
+    { id: "plus_monthly", name: "Amara Plus Monthly", billingPeriod: "monthly", amount: "6.99" },
+    { id: "plus_yearly", name: "Amara Plus Yearly", billingPeriod: "yearly", amount: "59.99" },
   ];
   const products = {};
   for (const plan of plans) {
     const { product } = await client.subscriptionProducts.create({
       storeId,
       name: plan.name,
-      description: "Amara AI companion membership",
+      description: "Amara Plus relationship membership",
       billingPeriod: plan.billingPeriod,
-      prices: { USD: { amount: plan.amount, taxCategory: "saas", ...(plan.trialAmount ? { trialAmount: plan.trialAmount } : {}) } },
+      prices: { USD: { amount: plan.amount, taxCategory: "saas" } },
       successUrl: "https://amarapjy.xyz/chat?payment=success",
-      metadata: { planId: plan.id, ...(plan.trialAmount ? { trialDays: 7 } : {}) },
+      metadata: { planId: plan.id },
     }, { idempotencyKey: `amara-test-${plan.id}-product-v1` });
     products[plan.id] = product.id;
     console.log(JSON.stringify({ product: plan.id, id: product.id, status: product.status }));

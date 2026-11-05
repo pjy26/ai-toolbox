@@ -33,4 +33,7 @@ temp_*.cjs
 # build cache
 tsconfig.tsbuildinfo
 
+# local model evaluation reports
+eval-results/
+
 .vercel

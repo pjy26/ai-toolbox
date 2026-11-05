@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { BookOpen, Check, ChevronRight, Loader2, WalletCards } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { useMembership } from "@/components/membership-provider";
 import { apiRequest, ErrorState, PageLoader } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
@@ -15,7 +16,9 @@ const fallbackTimezones = ["UTC", "America/New_York", "America/Los_Angeles", "Eu
 
 export default function SettingsPage() {
   const { session } = useSessionContext();
+  const { tier, loading: membershipLoading } = useMembership();
   const { setLocale, locale } = useLocale();
+  const isFree = tier === "free";
   const copy = consoleCopy[locale].settings;
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,8 +94,9 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between gap-4"><div><h2 className="font-serif text-2xl">{copy.continuity}</h2><p className="mt-2 text-sm text-[#6e685f]">{copy.continuityBody}</p></div>{saving && <Loader2 className="h-5 w-5 animate-spin text-[#a34f3d]" aria-label={copy.continuityBody} />}</div>
             <div className="mt-4 divide-y divide-[#e4ddd3]">
               <SettingToggle title={copy.memories} description={copy.memoriesBody} checked={settings.memory_enabled} disabled={saving} onChange={(value) => void updateSettings({ memory_enabled: value })} />
-              <SettingToggle title={copy.dreams} description={copy.dreamsBody} checked={settings.dream_enabled} disabled={saving} onChange={(value) => void updateSettings({ dream_enabled: value })} />
+              <SettingToggle title={copy.dreams} description={copy.dreamsBody} checked={!isFree && settings.dream_enabled} disabled={saving || membershipLoading || isFree} onChange={(value) => void updateSettings({ dream_enabled: value })} />
             </div>
+            {isFree && !membershipLoading && <div className="mt-2 flex flex-col gap-3 border-l-2 border-[#c98c72] bg-[#f4ebe2] px-4 py-4 text-sm leading-6 text-[#6e685f] sm:flex-row sm:items-center sm:justify-between"><span>{locale === "zh" ? "梦境记忆属于 Plus。升级后即可开启，记忆开关不受影响。" : "Dreams are part of Plus. Upgrade to turn them on; your memory setting is unaffected."}</span><Link href="/pricing" className="shrink-0 font-semibold text-[#923f30] underline underline-offset-4">{locale === "zh" ? "查看 Plus" : "Explore Plus"}</Link></div>}
           </section>
 
           <section className="py-8">

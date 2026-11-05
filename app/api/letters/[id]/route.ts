@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getMembershipStatus } from "@/lib/auth";
+import { canAccessConsoleFeature, MEMBERSHIP_REQUIRED_CODE } from "@/lib/access";
 import { LETTER_DETAIL_SELECT } from "@/lib/letter";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,10 @@ type RouteContext = { params: { id: string } };
 const LETTER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 async function getOwnedLetter(userId: string, letterId: string) {
+  const membership = await getMembershipStatus(userId);
+  if (!canAccessConsoleFeature(membership.tier, "letters")) {
+    return { error: NextResponse.json({ error: "Plus membership required", code: MEMBERSHIP_REQUIRED_CODE }, { status: 403 }) };
+  }
   if (!LETTER_ID.test(letterId)) return { error: NextResponse.json({ error: "信件不存在" }, { status: 404 }) };
   const supabase = createRouteHandlerClient({ cookies });
   const { data: letter, error } = await supabase

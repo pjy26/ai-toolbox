@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { getAuthUser } from "@/lib/auth";
 import { listMemoryRecords } from "@/lib/memory-records";
+import { getActiveCompanionId } from "@/lib/companions";
 
 export const dynamic = "force-dynamic";
 
@@ -24,12 +25,12 @@ export async function GET(req: Request) {
     if (!companion) return NextResponse.json({ error: "角色不存在" }, { status: 404 });
     companionIds = [companion.id];
   } else {
-    const { data: companions, error } = await supabase
-      .from("companions")
-      .select("id")
-      .eq("user_id", user.id);
-    if (error) return NextResponse.json({ error: "读取角色失败" }, { status: 500 });
-    companionIds = (companions || []).map((companion) => companion.id);
+    try {
+      const activeId = await getActiveCompanionId(supabase, user.id);
+      companionIds = activeId ? [activeId] : [];
+    } catch {
+      return NextResponse.json({ error: "读取角色失败" }, { status: 500 });
+    }
   }
 
   try {

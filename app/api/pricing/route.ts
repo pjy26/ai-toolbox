@@ -4,10 +4,10 @@ import { cookies } from "next/headers";
 import { getAuthUser } from "@/lib/auth";
 import { MEMBERSHIP_CURRENCY, membershipPlans } from "@/lib/membership-plans";
 
-// 统一美元定价。只有已支付会员订单才消耗新客资格，放弃结账不影响优惠。
+// 统一美元定价。0.99 美元 Plus 体验仅一周且不续费；只有已支付订单才消耗新客资格。
 export async function GET() {
   const user = await getAuthUser();
-  let weeklyIntroEligible = true;
+  let plusTrialEligible = true;
 
   if (user) {
     const supabase = createRouteHandlerClient({ cookies });
@@ -20,14 +20,14 @@ export async function GET() {
       .limit(1);
 
     // 无法核实资格时不展示优惠价，避免对用户做出无法兑现的承诺。
-    weeklyIntroEligible = !error && data.length === 0;
+    plusTrialEligible = !error && data.length === 0;
   }
 
   return NextResponse.json(
     {
       currency: MEMBERSHIP_CURRENCY,
-      weeklyIntroEligible,
-      plans: membershipPlans(weeklyIntroEligible),
+      plusTrialEligible,
+      plans: membershipPlans(plusTrialEligible),
     },
     { headers: { "Cache-Control": "private, no-store" } },
   );

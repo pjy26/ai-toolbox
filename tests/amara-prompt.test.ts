@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import {
-  buildFriendSystemPrompt,
   buildGreetingPrompt,
+  buildLoverStaticPrompt,
+  buildLoverStatePrompt,
   buildLoverSystemPrompt,
   companionExpressionBlock,
   memoryGroundingBlock,
@@ -89,34 +90,34 @@ const tests: [string, () => void][] = [
     assert.ok(lover({ locale: "zh", companion_gender: "女", last_chat_context: LAST_CHAT_ZH }).includes(sharedZh));
     assert.doesNotMatch(`${male}\n${female}`, /makeup|football|facial mask/i);
   }],
-  ["AI identity is honest in lover and friend prompts", () => {
+  ["AI identity is honest in the lover prompt", () => {
     for (const prompt of [
       lover(),
       lover({ locale: "zh", last_chat_context: LAST_CHAT_ZH }),
-      buildFriendSystemPrompt({
-        locale: "en",
-        companion_gender: "女",
-        nickname: "",
-        user_profile: "",
-        memory_summaries: "",
-        current_time: "Current time",
-        last_chat_context: LAST_CHAT_EN,
-      }),
-      buildFriendSystemPrompt({
-        locale: "zh",
-        companion_gender: "男",
-        nickname: "",
-        user_profile: "",
-        memory_summaries: "",
-        current_time: "当前时间",
-        last_chat_context: LAST_CHAT_ZH,
-      }),
     ]) {
       assert.match(prompt, /AI/);
       assert.doesNotMatch(prompt, /不承认自己是 AI|任何情况下不承认自己是 AI/);
     }
     assert.match(lover(), /I'm Amara, an AI companion/);
     assert.match(lover({ locale: "zh", last_chat_context: LAST_CHAT_ZH }), /我是 Amara，一个 AI 伴侣/);
+  }],
+  ["Static prefix holds identity and style; dynamic state holds time and records", () => {
+    const base = { ...loverBase };
+    const staticPart = buildLoverStaticPrompt(base);
+    const statePart = buildLoverStatePrompt(base);
+    // Static prefix: identity, personality, continuity, safety — cacheable.
+    assert.match(staticPart, /# Identity/);
+    assert.match(staticPart, /# Personality core/);
+    assert.match(staticPart, /# Conversation continuity and voice/);
+    assert.doesNotMatch(staticPart, /# Right now|# Relationship stage|Memory records/);
+    // Dynamic state: time, stage, supplied records — injected before the turn.
+    assert.match(statePart, /# Right now/);
+    assert.match(statePart, /# Relationship stage/);
+    assert.match(statePart, /Memory records/);
+    assert.doesNotMatch(statePart, /# Identity|# Personality core/);
+    // Combined prompt is the two parts joined, preserving every instruction.
+    assert.ok(buildLoverSystemPrompt(base).includes(staticPart));
+    assert.ok(buildLoverSystemPrompt(base).includes(statePart));
   }],
   ["Memory, current conversation, and supplied last-chat constraints are explicit", () => {
     const prompt = lover();
@@ -150,7 +151,6 @@ const tests: [string, () => void][] = [
       persona: "playful",
       companion_gender: "女",
       companion_name: "Amara",
-      relationship_type: "lover",
       relationship_stage: 40,
       current_time: "Current local time",
       last_chat_context: LAST_CHAT_EN,
@@ -169,7 +169,6 @@ const tests: [string, () => void][] = [
       persona: "quiet",
       companion_gender: "男",
       companion_name: "Amara",
-      relationship_type: "friend",
       relationship_stage: 5,
       current_time: "当前时间",
       last_chat_context: LAST_CHAT_ZH,

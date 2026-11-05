@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { createServerAdminClient } from "@/lib/supabase";
+import type { CheckoutPlanId } from "@/lib/membership-plans";
 
 export const runtime = "nodejs";
 
-const PLAN_DAYS = { weekly: 7, monthly: 30, yearly: 365 } as const;
+const PLAN_DAYS = { plus_trial: 7, plus_monthly: 30, plus_yearly: 365, premium_monthly: 30, premium_yearly: 365 } as const;
 type PlanId = keyof typeof PLAN_DAYS;
 
 export async function POST(req: Request) {

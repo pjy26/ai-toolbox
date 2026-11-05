@@ -1,10 +1,12 @@
 import { getAuthUser, getMembershipStatus } from "@/lib/auth";
+import { limitImportantPeople } from "@/lib/access";
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { createCompanionClient, getCompanionModel } from "@/lib/companion-model";
 import { embedText } from "@/lib/embedding";
 import { isMemoryEnabled } from "@/lib/user-settings";
+import { recordProductEvent } from "@/lib/product-events";
 import {
   dedupeMemoryEntries,
   findMemoryTextMatch,
@@ -19,18 +21,11 @@ const DEDUP_THRESHOLD = 0.9;
 const EMBED_TIMEOUT_MS = 5000;
 
 // 从最近对话中抽取记忆要点（更新 profile + 写入 memory_summaries）
-// 仅会员可调用：长期记忆是会员特权
-// 调用时机：前端在每轮对话结束后异步触发，不阻塞用户
+// 免费试用与会员共用完整记忆链路；调用不阻塞用户回复。
 
 export async function POST(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
-
-  // 会员校验
-  const status = await getMembershipStatus(user.id);
-  if (!status.isMember) {
-    return NextResponse.json({ error: "需要会员", code: "MEMBER_ONLY" }, { status: 403 });
-  }
 
   const supabase = createRouteHandlerClient({ cookies });
   const { companion_id, session_id, locale: requestedLocale } = await req.json();
@@ -45,6 +40,7 @@ export async function POST(req: Request) {
     .eq("user_id", user.id)
     .single();
   if (!companion) return NextResponse.json({ error: "角色不存在" }, { status: 404 });
+  const membership = await getMembershipStatus(user.id);
   if (!(await isMemoryEnabled(supabase, user.id))) {
     return NextResponse.json({ ok: true, note: "memory_disabled" });
   }
@@ -202,6 +198,9 @@ ${recentText}
           merged[key] = newVal;
         }
       }
+      if (Array.isArray(merged.important_people)) {
+        merged.important_people = limitImportantPeople(merged.important_people, membership.tier);
+      }
       const { error: profileWriteError } = await supabase.from("user_profiles").upsert(
         { companion_id, profile: merged },
         { onConflict: "companion_id" }
@@ -299,7 +298,7 @@ ${recentText}
     }
 
     // 共同经历也做全量近期文本与批内去重，不再完全依赖 embedding 服务。
-    if (Array.isArray(parsed.new_events) && parsed.new_events.length > 0) {
+    if (membership.tier !== "free" && Array.isArray(parsed.new_events) && parsed.new_events.length > 0) {
       const { data: existingEvents, error: existingEventsError } = await supabase
         .from("relationship_events")
         .select("id, description")
@@ -390,9 +389,19 @@ ${recentText}
       }
     }
 
+    await recordProductEvent(supabase, user.id, "memory_extract_completed", {
+      companionId: companion_id,
+      locale,
+      details: { status: memoryWriteStats.summariesInserted + memoryWriteStats.eventsInserted },
+    });
     return NextResponse.json({ ok: true, extracted: parsed, memory_write_stats: memoryWriteStats });
   } catch (error: any) {
     console.error("extract error:", error);
+    await recordProductEvent(supabase, user.id, "memory_extract_failed", {
+      companionId: companion_id,
+      locale,
+      details: { reason: error instanceof Error ? error.name : "UnknownError" },
+    });
     return NextResponse.json({ ok: false, error: error?.message }, { status: 503 });
   }
 }

@@ -1,53 +1,106 @@
 export const SUPPORT_EMAIL = "admin@amarapjy.xyz";
 export const MEMBERSHIP_CURRENCY = "USD" as const;
-export const WEEKLY_INTRO_PRICE = 0.99;
+export const PLUS_TRIAL_PRICE = 0.99;
+export const WEEKLY_INTRO_PRICE = PLUS_TRIAL_PRICE;
 
-export type MembershipPlanId = "weekly" | "monthly" | "yearly";
+export type MembershipTier = "free" | "plus" | "premium";
+export type CheckoutPlanId = "plus_trial" | "plus_monthly" | "plus_yearly" | "premium_monthly" | "premium_yearly";
+export type LegacyMembershipPlanId = "weekly" | "monthly" | "yearly";
+export type MembershipPlanId = CheckoutPlanId | LegacyMembershipPlanId;
 
 export type MembershipPlan = {
-  id: MembershipPlanId;
+  id: CheckoutPlanId;
+  tier: Exclude<MembershipTier, "free">;
   name: string;
   price: number;
   regularPrice?: number;
   period: string;
   popular: boolean;
   hint: string;
-  offer?: "new_user_weekly";
+  available: boolean;
+  autoRenew: boolean;
+  offer?: "new_user_plus_trial";
 };
 
 export const MEMBERSHIP_PLANS: MembershipPlan[] = [
   {
-    id: "weekly",
-    name: "Weekly",
-    price: 1.99,
-    period: "/ week",
+    id: "plus_trial",
+    tier: "plus",
+    name: "Plus · one-week experience",
+    price: PLUS_TRIAL_PRICE,
+    period: "/ one week",
     popular: false,
-    hint: "A little more time",
+    hint: "One week of Plus, with no automatic renewal",
+    available: true,
+    autoRenew: false,
+    offer: "new_user_plus_trial",
   },
   {
-    id: "monthly",
-    name: "Monthly",
-    price: 3.99,
+    id: "plus_monthly",
+    tier: "plus",
+    name: "Plus Monthly",
+    price: 6.99,
     period: "/ month",
     popular: true,
-    hint: "For ongoing connection",
+    hint: "A relationship that keeps unfolding",
+    available: true,
+    autoRenew: true,
   },
   {
-    id: "yearly",
-    name: "Yearly",
-    price: 29.9,
+    id: "plus_yearly",
+    tier: "plus",
+    name: "Plus Yearly",
+    price: 59.99,
+    period: "/ year",
+    popular: true,
+    hint: "A year of growing together",
+    available: true,
+    autoRenew: true,
+  },
+  {
+    id: "premium_monthly",
+    tier: "premium",
+    name: "Premium Monthly",
+    price: 12.99,
+    period: "/ month",
+    popular: false,
+    hint: "Deeper understanding, currently in development",
+    available: false,
+    autoRenew: true,
+  },
+  {
+    id: "premium_yearly",
+    tier: "premium",
+    name: "Premium Yearly",
+    price: 109.99,
     period: "/ year",
     popular: false,
-    hint: "A year together",
+    hint: "Deeper understanding, currently in development",
+    available: false,
+    autoRenew: true,
   },
 ];
 
-export function membershipPlans(weeklyIntroEligible: boolean): MembershipPlan[] {
+export function membershipPlans(plusTrialEligible: boolean): MembershipPlan[] {
   return MEMBERSHIP_PLANS.map((plan) =>
-    plan.id === "weekly" && weeklyIntroEligible
-      ? { ...plan, price: WEEKLY_INTRO_PRICE, regularPrice: plan.price, offer: "new_user_weekly" as const }
+    plan.id === "plus_trial"
+      ? { ...plan, available: plusTrialEligible, offer: plusTrialEligible ? "new_user_plus_trial" as const : undefined }
       : { ...plan },
   );
+}
+
+export function membershipTier(membershipType: string | null | undefined): MembershipTier {
+  if (membershipType === "premium_monthly" || membershipType === "premium_yearly") return "premium";
+  if (membershipType && membershipType !== "free") return "plus";
+  return "free";
+}
+
+export function isMembershipPlanId(value: unknown): value is MembershipPlanId {
+  return value === "weekly" || value === "monthly" || value === "yearly" || MEMBERSHIP_PLANS.some((plan) => plan.id === value);
+}
+
+export function isCheckoutPlanId(value: unknown): value is CheckoutPlanId {
+  return MEMBERSHIP_PLANS.some((plan) => plan.id === value);
 }
 
 export function formatUsd(price: number) {

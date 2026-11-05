@@ -2,6 +2,8 @@ import { getAuthUser } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { chooseActiveCompanionId, normalizeCompanionGender } from "@/lib/companions";
+import { recordProductEvent } from "@/lib/product-events";
 
 // 获取当前用户的所有陪伴角色 + 每个角色的 profile / 记忆数
 export async function GET(req: Request) {
@@ -10,32 +12,34 @@ export async function GET(req: Request) {
 
   const supabase = createRouteHandlerClient({ cookies });
   const lightweight = new URL(req.url).searchParams.get("lightweight") === "1";
-  let query = supabase
-    .from("companions")
-    .select(`
-      id,
-      relationship_type,
-      gender,
-      companion_name,
-      user_nickname,
-      persona,
-      relationship_stage,
-      last_active_at,
-      created_at,
-      updated_at
-    `)
-    .eq("user_id", user.id)
-    .order("updated_at", { ascending: false });
-  if (lightweight) query = query.limit(1);
-  const { data: companions, error } = await query;
+  const [companionsResult, settingsResult] = await Promise.all([
+    supabase
+      .from("companions")
+      .select(`
+        id,
+        relationship_type,
+        gender,
+        companion_name,
+        user_nickname,
+        persona,
+        relationship_stage,
+        last_active_at,
+        created_at,
+        updated_at
+      `)
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false }),
+    supabase.from("user_settings").select("active_companion_id").eq("user_id", user.id).maybeSingle(),
+  ]);
+  const { data: companions, error } = companionsResult;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  const activeCompanionId = chooseActiveCompanionId(companions || [], settingsResult.data?.active_companion_id);
 
-  // Chat only needs the current relationship. Avoid reading every profile and
-  // memory row merely to calculate a count that the chat first screen never uses.
-  if (lightweight) return NextResponse.json({ companions: companions || [] });
+  // Lightweight reads return both profiles but no profile or memory rows.
+  if (lightweight) return NextResponse.json({ companions: companions || [], activeCompanionId });
 
   const ids = (companions || []).map((c: any) => c.id);
   let profiles: any[] = [];
@@ -60,47 +64,44 @@ export async function GET(req: Request) {
     };
   });
 
-  return NextResponse.json({ companions: result });
+  return NextResponse.json({ companions: result, activeCompanionId });
 }
 
-// 创建新的陪伴角色（一个用户终身只有一段关系，不可切换）
+// Create one of at most two fully independent profiles: female and male.
 export async function POST(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const supabase = createRouteHandlerClient({ cookies });
-
-  // 检查是否已有关系：一个用户终身只有一段关系
-  const { count } = await supabase
-    .from("companions")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id);
-
-  if (count && count > 0) {
-    return NextResponse.json({ error: "你已经有了一段关系，无法创建新的" }, { status: 409 });
-  }
-
   const body = await req.json();
-  const { relationship_type, gender, companion_name, user_nickname } = body;
+  const { user_nickname } = body;
+  const gender = normalizeCompanionGender(body.gender);
+  // Amara is a romantic companion only; the friend variant has been removed.
+  const relationship_type = "lover";
 
-  if (!relationship_type || !["friend", "lover"].includes(relationship_type)) {
-    return NextResponse.json({ error: "角色类型无效" }, { status: 400 });
+  const { data: existing, error: readError } = await supabase
+    .from("companions")
+    .select("id, gender")
+    .eq("user_id", user.id);
+  if (readError) return NextResponse.json({ error: readError.message }, { status: 500 });
+  if ((existing || []).some((companion) => normalizeCompanionGender(companion.gender) === gender)) {
+    return NextResponse.json({ error: "This companion profile already exists.", code: "PROFILE_EXISTS" }, { status: 409 });
   }
-
-  // 恋人版统一叫 Amara；朋友版暂不取名（让对话自然出现）
-  const autoName = relationship_type === "lover" ? "Amara" : null;
+  if ((existing || []).length >= 2) {
+    return NextResponse.json({ error: "Only two independent companion profiles are supported.", code: "PROFILE_LIMIT" }, { status: 409 });
+  }
 
   const { data, error } = await supabase
     .from("companions")
     .insert({
       user_id: user.id,
       relationship_type,
-      gender: gender || null,
-      companion_name: autoName,
+      gender,
+      profile_key: gender,
+      companion_name: "Amara",
       user_nickname: user_nickname || null,
-      persona: "gentle", // 默认过渡人格，后台 5-8 轮后自动锁定
+      persona: "gentle",
       relationship_stage: 5,
-      // 创建关系不等于已经聊过；首次开场白需要可信的“第一次”状态。
       last_active_at: null,
     })
     .select()
@@ -110,8 +111,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // 顺带建一份空 profile
   await supabase.from("user_profiles").insert({ companion_id: data.id, profile: {} });
+  const { error: activateError } = await supabase.from("user_settings").upsert(
+    { user_id: user.id, active_companion_id: data.id },
+    { onConflict: "user_id" },
+  );
+  if (activateError) return NextResponse.json({ error: "Profile created but could not be activated. Please run the latest migration." }, { status: 503 });
 
-  return NextResponse.json({ companion: data });
+  await recordProductEvent(supabase, user.id, "companion_created", { companionId: data.id, details: { profile: gender } });
+  return NextResponse.json({ companion: data, activeCompanionId: data.id });
 }

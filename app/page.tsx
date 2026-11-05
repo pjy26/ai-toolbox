@@ -88,17 +88,14 @@ export default function HomePage() {
               <h2 className="mt-4 font-serif text-4xl leading-tight tracking-[-0.03em] sm:text-5xl">{t.continuityTitle}</h2>
               <p className="mt-5 max-w-md text-base leading-7 text-[#6e685f]">{t.continuityBody}</p>
             </div>
-            <ol className="divide-y divide-[#d5ccbf] border-y border-[#d5ccbf]">
-              {t.steps.map(([number, title, body]) => (
-                <li key={number} className="grid gap-3 py-7 sm:grid-cols-[48px_1fr] sm:py-8">
-                  <span className="font-serif text-sm italic text-[#a34f3d]">{number}</span>
-                  <div>
-                    <h3 className="font-serif text-2xl">{title}</h3>
-                    <p className="mt-2 max-w-xl text-sm leading-7 text-[#6e685f]">{body}</p>
-                  </div>
-                </li>
+            <div className="grid border-y border-[#d5ccbf] sm:grid-cols-2">
+              {t.pillars.map((pillar, index) => (
+                <article key={pillar.title} className={`border-b border-[#d5ccbf] py-7 last:border-b-0 sm:py-8 ${index % 2 === 0 ? "sm:border-r sm:pr-7" : "sm:pl-7"} ${index === t.pillars.length - 1 ? "sm:col-span-2 sm:border-r-0 sm:pl-0 sm:pr-0" : ""}`}>
+                  <h3 className="font-serif text-2xl">{pillar.title}</h3>
+                  <p className="mt-2 max-w-xl text-sm leading-7 text-[#6e685f]">{pillar.body}</p>
+                </article>
               ))}
-            </ol>
+            </div>
           </div>
         </section>
 
@@ -146,6 +143,22 @@ export default function HomePage() {
             </div>
             <div className="mt-12 flex flex-col gap-3 border-l-2 border-[#a34f3d] pl-5 text-sm leading-7 text-[#625d55] sm:flex-row sm:gap-10">
               {t.assurances.map((item) => <p key={item} className="flex items-start gap-2"><Check className="mt-1.5 h-4 w-4 shrink-0 text-[#a34f3d]" />{item}</p>)}
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="privacy-promise" className="border-b border-[#ded7cc] bg-[#292d2b] text-[#f6f0e7]">
+          <div className="mx-auto grid max-w-7xl gap-8 px-5 py-16 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-20 lg:px-12 lg:py-20">
+            <div>
+              <ShieldCheck className="h-7 w-7 text-[#d8a78f]" strokeWidth={1.5} aria-hidden="true" />
+              <h2 id="privacy-promise" className="mt-5 max-w-xl font-serif text-4xl leading-tight tracking-[-0.03em]">{t.privacyTitle}</h2>
+            </div>
+            <div>
+              <p className="max-w-2xl text-base leading-8 text-[#dcd7ce]">{t.privacyBody}</p>
+              <ul className="mt-6 grid gap-3 text-sm text-[#f6f0e7] sm:grid-cols-3">
+                {t.privacyPoints.map((item) => <li key={item} className="flex items-start gap-2 border-t border-[#525652] pt-3"><Check className="mt-1 h-4 w-4 shrink-0 text-[#d8a78f]" aria-hidden="true" />{item}</li>)}
+              </ul>
+              <p className="mt-6 text-sm font-medium text-[#d8a78f]">{t.freeTrial}</p>
             </div>
           </div>
         </section>

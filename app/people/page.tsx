@@ -1,12 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
-import { ChevronDown, ChevronUp, UserRound, UsersRound } from "lucide-react";
+import { ChevronDown, ChevronUp, LockKeyhole, UserRound, UsersRound } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { useMembership } from "@/components/membership-provider";
 import { apiRequest, ErrorState, PageLoader } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
+import { relationshipCopy } from "@/lib/relationship-copy";
 
 type Person = { id: string; name: string; details: Array<[string, string]> };
 type CompanionWithProfile = { id: string; profile?: { important_people?: unknown } | null };
@@ -38,6 +41,8 @@ export default function PeoplePage() {
   const { session } = useSessionContext();
   const { locale } = useLocale();
   const copy = consoleCopy[locale].people;
+  const relationship = relationshipCopy[locale];
+  const membership = useMembership();
   const [people, setPeople] = useState<Person[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,8 +53,9 @@ export default function PeoplePage() {
     setLoading(true);
     setError("");
     try {
-      const result = await apiRequest<{ companions: CompanionWithProfile[] }>("/api/companion/list");
-      setPeople(normalizePeople(result.companions?.[0]?.profile?.important_people));
+      const result = await apiRequest<{ companions: CompanionWithProfile[]; activeCompanionId: string | null }>("/api/companion/list");
+      const active = result.companions?.find((companion) => companion.id === result.activeCompanionId) || result.companions?.[0];
+      setPeople(normalizePeople(active?.profile?.important_people));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Please try again.");
     } finally { setLoading(false); }
@@ -60,6 +66,7 @@ export default function PeoplePage() {
   const labels: Record<string, string> = locale === "zh"
     ? { relation: "关系", relationship: "关系", description: "关于这个人", notes: "记得的事", birthday: "生日", personality: "性格", 关系: "关系", 描述: "关于这个人", 备注: "记得的事" }
     : { relation: "Relationship", relationship: "Relationship", description: "About them", notes: "Remembered", birthday: "Birthday", personality: "Personality", 关系: "Relationship", 描述: "About them", 备注: "Remembered" };
+  const visiblePeople = membership.tier === "free" ? people.slice(0, 1) : people;
 
   return (
     <AppShell>
@@ -69,11 +76,13 @@ export default function PeoplePage() {
         <p className="mt-4 text-sm leading-7 text-[#6e685f]">{copy.body}</p>
       </header>
 
-      {loading ? <PageLoader /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : people.length === 0 ? (
+      {membership.tier === "free" && <aside className="mt-6 flex flex-col gap-4 border-y border-[#d8cfc2] py-5 sm:flex-row sm:items-center sm:justify-between"><div className="flex max-w-2xl items-start gap-3"><LockKeyhole className="mt-1 h-4 w-4 shrink-0 text-[#a34f3d]" /><p className="text-sm leading-6 text-[#625d55]">{relationship.peopleLimit}</p></div><Link href="/pricing?from=people" className="shrink-0 text-sm font-semibold text-[#923f30] underline underline-offset-4">{relationship.peopleLimitAction}</Link></aside>}
+
+      {loading ? <PageLoader /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : visiblePeople.length === 0 ? (
         <div className="py-16 sm:py-20"><UsersRound className="h-8 w-8 text-[#a98a78]" strokeWidth={1.3} /><h2 className="mt-5 font-serif text-3xl">{copy.emptyTitle}</h2><p className="mt-3 max-w-lg text-sm leading-7 text-[#6e685f]">{copy.emptyBody}</p></div>
       ) : (
         <div className="mt-8 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {people.map((person) => {
+          {visiblePeople.map((person) => {
             const open = openId === person.id;
             return (
               <article key={person.id} className={`border bg-[#fffdf8] transition-colors ${open ? "border-[#b9917f] sm:col-span-2 lg:col-span-2" : "border-[#ded7cc]"}`}>

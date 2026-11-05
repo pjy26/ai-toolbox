@@ -1,4 +1,5 @@
 import { getAuthUser, getMembershipStatus, FREE_MESSAGE_LIMIT } from "@/lib/auth";
+import { membershipTier } from "@/lib/membership-plans";
 import { NextResponse } from "next/server";
 
 // 返回当前用户的会员状态和陪伴配额
@@ -9,6 +10,7 @@ export async function GET() {
   const status = await getMembershipStatus(user.id);
   return NextResponse.json({
     isMember: status.isMember,
+    tier: membershipTier(status.membershipType),
     membershipType: status.membershipType,
     expiresAt: status.expiresAt,
     membershipSource: status.membershipSource,

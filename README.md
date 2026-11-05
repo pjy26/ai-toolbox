@@ -1,8 +1,8 @@
 # Amara
 
-**Your personal AI companion for ongoing conversations, meaningful memories, and shared Dreams.**
+**Not just remembered. Truly understood. Amara grows with you.**
 
-Amara is a subscription-based AI companion web application built around one simple idea: a conversation should not have to start from zero every time. The product combines a consistent companion persona, persistent memory, semantic recall, and nightly Dream documents to create a continuous relationship over time.
+Amara is a relationship-centered AI companion. Memory creates continuity; continuity supports understanding; understanding makes interactions more personal; and shared experiences deepen companionship. The product combines a consistent companion persona, persistent memory, semantic recall, shared Moments, Dreams, Letters, and multidimensional memory analysis.
 
 **Live product:** [www.amarapjy.xyz](https://www.amarapjy.xyz)
 
@@ -15,7 +15,8 @@ Amara is a subscription-based AI companion web application built around one simp
 - **Relationship progression** — Emotional state and relationship stages evolve with meaningful interaction rather than message count alone.
 - **User control** — Dedicated surfaces for memories, Dreams, account settings, subscription management, and cancellation.
 - **Bilingual experience** — English and Chinese interfaces across the main product and policy pages.
-- **Subscriptions** — Weekly, monthly, and yearly plans powered by Waffo Pancake checkout, signed webhooks, and automatic membership updates.
+- **Membership tiers** — Free includes Today, About You, and one important person. Plus unlocks unlimited people, Moments, Dreams, Letters, and multidimensional analysis at $6.99/month or $59.99/year. A $0.99 one-week Plus experience does not renew. Premium is presented as in development and checkout is disabled.
+- **Payments** — Plus checkout, signed Waffo webhooks, and automatic membership updates. New product IDs are documented in `.env.example`; apply `migrations/relationship_membership_plans.sql` before launch.
 - **Trust and safety** — Authentication, content-safety checks, privacy policy, terms of service, and clear cancellation information.
 
 ## Technology
@@ -61,6 +62,26 @@ npm run build
 ```
 
 The production build includes TypeScript validation and Next.js route generation.
+
+### Persona stability evaluation
+
+The synthetic runner covers both locales, both independent companion genders, all four personas, and eight scenarios: everyday conversation, tiredness, happiness, respecting refusal, AI identity, same-day time grounding, no-memory honesty, and previous-session context. It repeats cases and checks language, length, question count, identity, time, and supplied facts.
+
+```bash
+# Preview the matrix without API calls
+npx tsx scripts/persona-stability.ts --repeats=2
+
+# Explicit live run; writes raw synthetic replies and results to eval-results/
+npx tsx scripts/persona-stability.ts --live --repeats=2
+
+# Optional model-assisted 1–5 rubric scores (additional model calls)
+npx tsx scripts/persona-stability.ts --live --repeats=2 --judge
+
+# Narrow a run while iterating
+npx tsx scripts/persona-stability.ts --live --locale=en --gender=female --persona=gentle --scenario=time_interval
+```
+
+Hard checks and model-assisted scores are diagnostic signals, not proof of a stable persona. Always review raw replies across repeated runs, especially failures; the report includes a human-review sampling recommendation.
 
 ## Environment and Secrets
 

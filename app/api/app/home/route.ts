@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { DREAM_SELECT } from "@/lib/dream";
 import { listMemoryRecords } from "@/lib/memory-records";
+import { getActiveCompanionId } from "@/lib/companions";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +16,15 @@ export async function GET() {
   const supabase = createRouteHandlerClient({ cookies });
   const membership = await getMembershipStatus(user.id);
 
-  const { data: companion, error: companionError } = await supabase
-    .from("companions")
-    .select(COMPANION_SELECT)
-    .eq("user_id", user.id)
-    .order("last_active_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let activeCompanionId: string | null = null;
+  try {
+    activeCompanionId = await getActiveCompanionId(supabase, user.id);
+  } catch {
+    return NextResponse.json({ error: "读取角色失败" }, { status: 500 });
+  }
+  const { data: companion, error: companionError } = activeCompanionId
+    ? await supabase.from("companions").select(COMPANION_SELECT).eq("id", activeCompanionId).eq("user_id", user.id).maybeSingle()
+    : { data: null, error: null };
   if (companionError) return NextResponse.json({ error: "读取角色失败" }, { status: 500 });
   if (!companion) {
     return NextResponse.json({
@@ -68,8 +71,8 @@ export async function GET() {
   return NextResponse.json({
     companion,
     membership,
-    latestDream: dreamResult.data || null,
+    latestDream: membership.tier === "free" ? null : dreamResult.data || null,
     recentMemories: memoriesResult.data || [],
-    recentEvents: eventsResult.data || [],
+    recentEvents: membership.tier === "free" ? [] : eventsResult.data || [],
   });
 }

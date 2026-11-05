@@ -1,5 +1,5 @@
 import { TaxCategory, WaffoPancake } from "@waffo/pancake-ts";
-import { MEMBERSHIP_PLANS, type MembershipPlanId } from "@/lib/membership-plans";
+import { MEMBERSHIP_PLANS, type CheckoutPlanId } from "@/lib/membership-plans";
 
 export type WaffoEnvironment = "test" | "prod";
 
@@ -11,7 +11,7 @@ export function waffoStoreId() {
   return process.env.WAFFO_STORE_ID || "STO_32qiQR8luEAIEpTCIfzLpF";
 }
 
-export function waffoProductId(planId: MembershipPlanId) {
+export function waffoProductId(planId: CheckoutPlanId) {
   const value = process.env[`WAFFO_PRODUCT_${planId.toUpperCase()}`];
   if (!value || !value.startsWith("PROD_")) {
     throw new Error(`WAFFO_PRODUCT_${planId.toUpperCase()} is not configured`);
@@ -44,13 +44,12 @@ export function getWaffoClient() {
   return cachedClient;
 }
 
-export function waffoPriceSnapshot(planId: MembershipPlanId, weeklyIntro: boolean) {
+export function waffoPriceSnapshot(planId: CheckoutPlanId) {
   const plan = MEMBERSHIP_PLANS.find((item) => item.id === planId);
   if (!plan) throw new Error("Unknown membership plan");
   return {
     amount: plan.price.toFixed(2),
     taxCategory: TaxCategory.SaaS,
-    ...(weeklyIntro ? { trialAmount: "0.99" } : {}),
   };
 }
 

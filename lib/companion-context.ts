@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { type PersonaType } from "@/lib/amara-persona";
-import { buildFriendSystemPrompt, buildLoverSystemPrompt } from "@/lib/amara-prompt";
+import { buildLoverStaticPrompt, buildLoverStatePrompt } from "@/lib/amara-prompt";
 import { semanticRecall } from "@/lib/memory-retrieval";
 import { isMemoryEnabled } from "@/lib/user-settings";
 import { dedupeMemoryEntries, isExpiredTransientMemory, isUserScopedMemoryText } from "@/lib/memory-reliability";
@@ -134,7 +134,8 @@ export async function loadCompanionContext(
   const userGender: string = userProfileRow?.gender || "";
   const memoryEnabled = await isMemoryEnabled(supabase, userId);
 
-  if (isMember && memoryEnabled) {
+  // The 30-message trial includes the same memory retrieval as membership.
+  if (memoryEnabled) {
     const recall = await semanticRecall(supabase, companionId, message);
     const { data: profileRow } = await supabase
       .from("user_profiles").select("profile").eq("companion_id", companionId).maybeSingle();
@@ -198,40 +199,38 @@ export function buildCompanionMessages({
   const daysApart = daysSinceLastChat(companion.last_active_at, now, timezone);
   const currentTime = conversationTimeBlock(now, timezone, locale);
   const lastChat = lastChatContext(daysApart, locale);
-  let systemPrompt: string;
-  if (companion.relationship_type === "lover") {
-    systemPrompt = buildLoverSystemPrompt({
-      locale,
-      persona: companion.persona || "gentle",
-      companion_gender: companion.gender || "不限",
-      nickname: companion.user_nickname || "",
-      companion_name: companion.companion_name || "",
-      current_time: currentTime,
-      last_chat_context: lastChat,
-      relationship_stage: companion.relationship_stage || 5,
-      emotion_state: freshEmotionState,
-      user_profile: profileText,
-      memory_summaries: memText,
-      user_gender: userGender,
-      live_state: freshLiveState,
-      events_text: eventsText,
-      veto_text: vetoText,
-    });
-  } else {
-    systemPrompt = buildFriendSystemPrompt({
-      locale,
-      companion_gender: companion.gender || "不限",
-      companion_name: companion.companion_name || "",
-      nickname: companion.user_nickname || "",
-      user_profile: profileText,
-      memory_summaries: memText,
-      current_time: currentTime,
-      last_chat_context: lastChat,
-    });
-  }
-  systemPrompt += `\n\n${outputLanguageBlock(locale)}`;
 
-  const messages: OpenAI.ChatCompletionMessageParam[] = [{ role: "system", content: systemPrompt }];
+  // Static prefix (identity, personality, style, safety) never changes between
+  // turns, so it leads the message array as a stable, cacheable block.
+  const staticPrompt = buildLoverStaticPrompt({
+    locale,
+    persona: companion.persona || "gentle",
+    companion_gender: companion.gender || "不限",
+    companion_name: companion.companion_name || "",
+  });
+
+  // Dynamic state (time, emotion, stage, care constraints, supplied records)
+  // changes every turn and is injected right before the latest user message so
+  // the model treats it as the current context. The hard output-language rule
+  // also sits here, closest to the turn it must govern.
+  const statePrompt = `${buildLoverStatePrompt({
+    locale,
+    persona: companion.persona || "gentle",
+    companion_gender: companion.gender || "不限",
+    nickname: companion.user_nickname || "",
+    current_time: currentTime,
+    last_chat_context: lastChat,
+    relationship_stage: companion.relationship_stage || 5,
+    emotion_state: freshEmotionState,
+    user_profile: profileText,
+    memory_summaries: memText,
+    user_gender: userGender,
+    live_state: freshLiveState,
+    events_text: eventsText,
+    veto_text: vetoText,
+  })}\n\n${outputLanguageBlock(locale)}`;
+
+  const messages: OpenAI.ChatCompletionMessageParam[] = [{ role: "system", content: staticPrompt }];
   for (const item of dbHistory) {
     if (item.role === "user" || item.role === "assistant") {
       messages.push({ role: item.role, content: item.content });
@@ -246,6 +245,7 @@ export function buildCompanionMessages({
       }
     }
   }
+  messages.push({ role: "system", content: statePrompt });
   messages.push({ role: "user", content: message });
   return messages;
 }

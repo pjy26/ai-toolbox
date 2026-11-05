@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
+import { MembershipProvider } from "@/components/membership-provider";
 import { LocaleProvider } from "@/components/locale-provider";
 import { PwaRegister } from "@/components/pwa-register";
 
 export const metadata: Metadata = {
-  title: "Amara · Your personal AI companion",
+  title: "Amara · Not just remembered. Truly understood.",
   applicationName: "Amara",
-  description: "Meet Amara, your personal AI companion for ongoing conversations, meaningful memories, and Dreams inspired by your shared story.",
+  description: "Amara grows with you—building relationship continuity, deep understanding, shared growth, a unique personality, and warm companionship over time.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
@@ -37,7 +38,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-screen antialiased">
         <AuthProvider>
-          <LocaleProvider>{children}</LocaleProvider>
+          <MembershipProvider>
+            <LocaleProvider>{children}</LocaleProvider>
+          </MembershipProvider>
         </AuthProvider>
         <PwaRegister />
       </body>

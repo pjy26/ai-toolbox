@@ -278,8 +278,8 @@ Time influence: ${timeMod}`;
 
 // 阶段推进（带质量门槛）：
 // 不是"聊了就涨"，而是"当天有实质情感卷入才涨"——防止用户每天一句"在吗"也自动冲到依恋期。
-// 门槛：emotion_state.arousal >= STAGE_AROUSAL_THRESHOLD（extract 会员特权写入；
-//       非会员的 emotion_state 多为旧格式或 null，arousal 读不到 → 阶段停在初始值，符合"长期关系深化=会员"定位）
+// 门槛：emotion_state.arousal >= STAGE_AROUSAL_THRESHOLD（免费试用与会员均由 extract 写入；
+//       没有有效情绪状态时停在当前阶段，不用聊天次数替代实质情感投入）
 // 限速：每自然日（Asia/Shanghai）最多加 STAGE_DAILY_CAP 点。
 // 返回 null 表示本轮不推进；返回对象可直接并入 companions 的 update payload。
 export const STAGE_DAILY_CAP = 2;

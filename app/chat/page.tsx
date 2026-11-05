@@ -9,6 +9,8 @@ import { LocaleToggle, useLocale } from "@/components/locale-provider";
 import { chatCopy, fillCopy } from "@/lib/chat-copy";
 import { formatUsd, SUPPORT_EMAIL } from "@/lib/membership-plans";
 import { openWaffoCheckout } from "@/lib/waffo-browser";
+import { CompanionSwitcher } from "@/components/companion-switcher";
+import { trackProductEvent } from "@/lib/product-events";
 
 interface Message {
   role: "user" | "assistant";
@@ -35,13 +37,16 @@ interface Quota {
 
 interface Plan {
   id: string;
+  tier: "plus" | "premium";
   name: string;
   price: number;
   regularPrice?: number;
   period: string;
   popular: boolean;
   hint: string;
-  offer?: "new_user_weekly";
+  available: boolean;
+  autoRenew: boolean;
+  offer?: "new_user_plus_trial";
 }
 
 function ChatInner() {
@@ -52,8 +57,8 @@ function ChatInner() {
   localeRef.current = locale;
   const userId = session?.user.id || null;
   const params = useSearchParams();
-  const role = (params.get("role") as "friend" | "lover") || "lover";
-  const isLover = role === "lover";
+  // Amara is a romantic companion only; the friend variant has been removed.
+  const role = "lover" as const;
 
   const [companion, setCompanion] = useState<Companion | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -82,6 +87,14 @@ function ChatInner() {
       return () => clearTimeout(t);
     }
   }, []);
+
+  useEffect(() => {
+    if (companion) void trackProductEvent("chat_opened", { companionId: companion.id, locale });
+  }, [companion?.id]);
+
+  useEffect(() => {
+    if (showPaywall) void trackProductEvent("paywall_viewed", { companionId: companion?.id, locale });
+  }, [showPaywall]);
 
   /* ── 初始化 ── */
   // 主动消息去重锁 + 当前 session 指针：均落 sessionStorage + companion_id 维度。
@@ -129,13 +142,11 @@ function ChatInner() {
       ]);
       if (!isCurrent()) return;
       if (qData) setQuota(qData);
-      let c: Companion | null = listData.companions?.length > 0 ? listData.companions[0] : null;
+      let c: Companion | null = listData.companions?.find((item: Companion) => item.id === listData.activeCompanionId)
+        || (listData.companions?.length > 0 ? listData.companions[0] : null);
 
       if (!c) {
-        // “Start a conversation” must work for a genuinely new account. The
-        // product currently has one default Amara, so create her atomically
-        // through the existing single-relationship endpoint instead of
-        // bouncing the user back to the marketing page.
+        // New accounts start with the independent female Amara profile.
         const createRes = await fetch("/api/companion/list", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -359,8 +370,9 @@ function ChatInner() {
     // 回复结束后立即解锁输入。额度刷新和记忆抽取都在后台运行，
     // 记忆仍按同一队列依次执行，避免并发抽取同一批消息造成重复写入。
     setLoading(false);
-    void loadQuota().then((latestQuota) => {
-      if (latestQuota?.isMember) queueExtract(sid || sessionId);
+    void loadQuota().then(() => {
+      // Full-feature trial: memory extraction is not membership-gated.
+      queueExtract(sid || sessionId);
     });
   }
 
@@ -502,7 +514,7 @@ function ChatInner() {
             </div>
             <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#282621", lineHeight: 1.4 }}>Amara</div>
             <div className="text-xs font-light mt-0.5" style={{ letterSpacing: 1, color: "#756F66" }}>
-              {isLover ? copy.loverTagline : copy.friendTagline}
+              {copy.loverTagline}
               {extracting && ` · ${copy.remembering}`}
             </div>
           </div>
@@ -520,6 +532,7 @@ function ChatInner() {
             </button>
           </div>
         </div>
+        <div className="mx-auto mt-3 max-w-3xl text-center"><CompanionSwitcher compact /></div>
       </header>
 
       {/* 支付成功提示 */}
@@ -669,12 +682,11 @@ function ChatInner() {
       </div>
 
       {/* 付费墙 */}
-      {showPaywall && <Paywall isLover={isLover} onClose={() => { setShowPaywall(false); loadQuota(); }} />}
+      {showPaywall && <Paywall onClose={() => { setShowPaywall(false); loadQuota(); }} />}
 
       {/* "我的" 抽屉 */}
       {showMyDrawer && (
         <MyDrawer
-          isLover={isLover}
           quota={quota}
           companion={companion}
           onNicknameSaved={(nick) => setCompanion((prev) => (prev ? { ...prev, user_nickname: nick } : prev))}
@@ -687,8 +699,7 @@ function ChatInner() {
 }
 
 /* ── "我的" 抽屉 ── */
-function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowPaywall }: {
-  isLover: boolean;
+function MyDrawer({ quota, companion, onNicknameSaved, onClose, onShowPaywall }: {
   quota: Quota | null;
   companion: Companion | null;
   onNicknameSaved: (nick: string) => void;
@@ -698,8 +709,8 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
   const { supabaseClient } = useSessionContext();
   const { locale } = useLocale();
   const copy = chatCopy[locale];
-  const accent = isLover ? "#A34F3D" : "#8A6438";
-  const accentRgb = isLover ? "163, 79, 61" : "138, 100, 56";
+  const accent = "#A34F3D";
+  const accentRgb = "163, 79, 61";
   const [editingNick, setEditingNick] = useState(false);
   const [nickInput, setNickInput] = useState("");
   const [savingNick, setSavingNick] = useState(false);
@@ -801,7 +812,7 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
               onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
               onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
             >
-              {isLover ? copy.loverMemberCta : copy.friendMemberCta}
+              {copy.loverMemberCta}
             </button>
           )}
         </div>
@@ -885,7 +896,7 @@ function MyDrawer({ isLover, quota, companion, onNicknameSaved, onClose, onShowP
 }
 
 /* ── 付费墙 ── */
-function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }) {
+function Paywall({ onClose }: { onClose: () => void }) {
   const { locale } = useLocale();
   const copy = chatCopy[locale];
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -893,21 +904,22 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [isPaying, setIsPaying] = useState(false);
   const [paymentError, setPaymentError] = useState("");
-  const accent = isLover ? "#A34F3D" : "#8A6438";
-  const accentRgb = isLover ? "163, 79, 61" : "138, 100, 56";
+  const accent = "#A34F3D";
+  const accentRgb = "163, 79, 61";
   const planNames: Record<string, string> = copy.planNames;
   const planPeriods: Record<string, string> = locale === "en"
-    ? { weekly: "/ week", monthly: "/ month", yearly: "/ year" }
-    : { weekly: "/ 周", monthly: "/ 月", yearly: "/ 年" };
+    ? { plus_trial: "/ one week", plus_monthly: "/ month", plus_yearly: "/ year" }
+    : { plus_trial: "/ 一周", plus_monthly: "/ 月", plus_yearly: "/ 年" };
 
   useEffect(() => {
     fetch("/api/pricing", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
-        setPlans(data.plans || []);
-        if (data.plans?.length > 0) {
-          const popular = data.plans.find((p: Plan) => p.popular);
-          setSelected(popular ? popular.id : data.plans[0].id);
+        const available = ((data.plans || []) as Plan[]).filter((plan) => plan.tier === "plus" && plan.available);
+        setPlans(available);
+        if (available.length > 0) {
+          const popular = available.find((plan) => plan.id === "plus_monthly");
+          setSelected((popular || available[0]).id);
         }
       })
       .catch(() => {})
@@ -919,9 +931,11 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
     if (!selectedPlan || isPaying) return;
     setIsPaying(true);
     setPaymentError("");
+    void trackProductEvent("checkout_started", { locale, details: { planId: selectedPlan.id } });
     try {
       await openWaffoCheckout(selectedPlan.id, locale);
     } catch (error) {
+      void trackProductEvent("checkout_failed", { locale, details: { planId: selectedPlan.id, reason: "checkout_request_failed" } });
       setPaymentError(error instanceof Error ? error.message : copy.paymentError);
       setIsPaying(false);
     }
@@ -934,13 +948,13 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
 
         <div className="text-center mb-6">
           <div className="w-10 h-10 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: `rgba(${accentRgb}, 0.1)`, border: `1px solid rgba(${accentRgb}, 0.22)`, color: accent }}>
-            <span className="text-lg">{isLover ? "\u2665" : "\u263A"}</span>
+            <span className="text-lg">{"\u2665"}</span>
           </div>
           <h3 className="text-lg font-medium leading-relaxed" style={{ color: "#282621" }}>
-            {isLover ? copy.paywallLoverTitle : copy.paywallFriendTitle}
+            {copy.paywallLoverTitle}
           </h3>
           <p className="mt-3 text-sm leading-relaxed whitespace-pre-line" style={{ color: "#6E685F" }}>
-            {isLover ? copy.paywallLoverBody : copy.paywallFriendBody}
+            {copy.paywallLoverBody}
           </p>
         </div>
 
@@ -964,7 +978,7 @@ function Paywall({ isLover, onClose }: { isLover: boolean; onClose: () => void }
                     {formatUsd(p.price)}<span className="text-xs font-normal" style={{ color: "#756F66" }}>{planPeriods[p.id] || p.period}</span>
                     {p.regularPrice && <span className="ml-2 text-xs font-normal line-through" style={{ color: "#817A70" }}>{formatUsd(p.regularPrice)}</span>}
                   </span>
-                  {p.offer === "new_user_weekly" && <span className="w-full text-xs" style={{ color: accent }}>{copy.newUserOffer}</span>}
+                  {p.offer === "new_user_plus_trial" && <span className="w-full text-xs" style={{ color: accent }}>{copy.newUserOffer}</span>}
                 </button>
               ))}
             </div>

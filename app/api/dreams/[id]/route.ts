@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getMembershipStatus } from "@/lib/auth";
+import { canAccessConsoleFeature, MEMBERSHIP_REQUIRED_CODE } from "@/lib/access";
 import { DREAM_SELECT } from "@/lib/dream";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,10 @@ export const dynamic = "force-dynamic";
 type RouteContext = { params: { id: string } };
 
 async function getOwnedDream(userId: string, dreamId: string) {
+  const membership = await getMembershipStatus(userId);
+  if (!canAccessConsoleFeature(membership.tier, "dreams")) {
+    return { error: NextResponse.json({ error: "Plus membership required", code: MEMBERSHIP_REQUIRED_CODE }, { status: 403 }) };
+  }
   const supabase = createRouteHandlerClient({ cookies });
   const { data: dream, error } = await supabase
     .from("dream_entries")

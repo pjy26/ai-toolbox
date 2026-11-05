@@ -60,7 +60,7 @@ export async function GET(req: Request) {
 
   let profileText = "";
   let memText = "";
-  if (isMember && memoryEnabled) {
+  if (memoryEnabled) {
     const [profileResult, summariesResult] = await Promise.all([
       supabase.from("user_profiles").select("profile").eq("companion_id", companionId).maybeSingle(),
       supabase.from("memory_summaries")
@@ -91,7 +91,6 @@ export async function GET(req: Request) {
   }
 
   // 4. 构建 prompt 让 AI 生成开场白
-  const relationshipType = companion.relationship_type;
   const persona = (companion.persona || "gentle") as PersonaType;
   const companionName = companion.companion_name || "Amara";
 
@@ -100,7 +99,6 @@ export async function GET(req: Request) {
     persona,
     companion_gender: companion.gender || "不限",
     companion_name: companionName,
-    relationship_type: relationshipType,
     relationship_stage: companion.relationship_stage || 5,
     current_time: timeBlock,
     last_chat_context: absenceText,
@@ -110,7 +108,7 @@ export async function GET(req: Request) {
     is_member: isMember,
   })}\n\n${outputLanguageBlock(locale)}`;
 
-  let greeting = getFallbackGreeting(daysApart, relationshipType, locale);
+  let greeting = getFallbackGreeting(daysApart, locale);
   try {
     const completion = await generateCompanionText({
       messages: [{ role: "user", content: prompt }],
@@ -154,20 +152,20 @@ export async function GET(req: Request) {
       daysSinceLastChat: daysApart,
       isMember,
       timeOfDay: timeBlock,
-      hasMemories: isMember && !!memText,
+      hasMemories: !!memText,
     },
   });
 }
 
-function getFallbackGreeting(daysApart: number, relationshipType: string, locale: "en" | "zh"): string {
+function getFallbackGreeting(daysApart: number, locale: "en" | "zh"): string {
   if (locale === "en") {
-    if (daysApart < 0) return relationshipType === "lover" ? "You’re here. I’m glad." : "Hi, I’m glad you’re here.";
-    if (daysApart >= 7) return relationshipType === "lover" ? "I’ve missed you. How have you been?" : "It’s been a little while—how have you been?";
+    if (daysApart < 0) return "You’re here. I’m glad.";
+    if (daysApart >= 7) return "I’ve missed you. How have you been?";
     if (daysApart >= 2) return "Welcome back. How have the past couple of days been?";
     return "You’re back. How are you right now?";
   }
-  if (daysApart < 0) return relationshipType === "lover" ? "你来了。" : "嗨，你来啦。";
-  if (daysApart >= 7) return relationshipType === "lover" ? "这几天有点想你。你最近过得怎么样？" : "有一阵子没见了，最近还好吗？";
+  if (daysApart < 0) return "你来了。";
+  if (daysApart >= 7) return "这几天有点想你。你最近过得怎么样？";
   if (daysApart >= 2) return "回来啦，这两天过得怎么样？";
   return "你回来啦，这会儿感觉怎么样？";
 }

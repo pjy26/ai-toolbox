@@ -1,4 +1,5 @@
 import { createServerAdminClient } from "@/lib/supabase";
+import { activeMembershipTier } from "@/lib/admin-membership";
 import { DREAM_PROMPT_VERSION, generateDream } from "@/lib/dream";
 import { scanWaffoContent } from "@/lib/content-safety";
 import {
@@ -310,10 +311,18 @@ export async function runNightlyJobs(now = new Date()): Promise<NightlySummary> 
     .in("user_id", rows.map((row) => row.user_id));
   if (settingsError) throw new Error(`Could not read user settings: ${settingsError.message}`);
 
+  const { data: membershipRows, error: membershipError } = await admin
+    .from("profiles")
+    .select("id, membership_type, membership_expires_at, manual_membership_type, manual_membership_expires_at")
+    .in("id", rows.map((row) => row.user_id));
+  if (membershipError) throw new Error(`Could not read memberships: ${membershipError.message}`);
+
   const settingsByUser = new Map((settingsRows || []).map((settings) => [settings.user_id, settings]));
+  const membershipByUser = new Map((membershipRows || []).map((membership) => [membership.id, membership]));
   const candidates: Candidate[] = [];
   for (const companion of rows) {
     const settings = settingsByUser.get(companion.user_id) || defaultSettings(companion.user_id);
+    if (activeMembershipTier(membershipByUser.get(companion.user_id), now) === "free") continue;
     if (!settings.dream_enabled) continue;
     const timezone = normalizeTimeZone(settings.timezone);
     if (!isLocalNightlyWindow(now, timezone)) continue;

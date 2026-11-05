@@ -21,7 +21,7 @@ console.log("✓ Live state requires a valid, unexpired timestamp");
 const companion: CompanionRow = {
   id: "companion-1",
   user_id: "user-1",
-  relationship_type: "friend",
+  relationship_type: "lover",
   gender: "female",
   companion_name: "Amara",
   user_nickname: "P",
@@ -45,10 +45,13 @@ const messages = buildCompanionMessages({
   timezone: "Asia/Shanghai",
   now: new Date(now),
 });
-assert.deepEqual(messages.map((message) => message.role), ["system", "user", "assistant", "assistant", "user"]);
+// Static prefix leads; dynamic state is a second system turn right before the
+// latest user message, so cacheable content stays at the front.
+assert.deepEqual(messages.map((message) => message.role), ["system", "user", "assistant", "assistant", "system", "user"]);
 assert.equal(messages.filter((message) => message.content === "旧消息").length, 1);
 assert.equal(messages.filter((message) => message.content === "现在的消息").length, 1);
 assert.equal(messages.at(-1)?.content, "现在的消息");
+assert.equal(messages.at(-2)?.role, "system");
 console.log("✓ Message order, client-history dedupe, and the current-user turn stay stable");
 
 console.log("\n3/3 companion context tests passed.");

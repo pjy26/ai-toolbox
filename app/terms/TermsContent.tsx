@@ -29,7 +29,7 @@ const copy = {
       },
       {
         title: "Memberships, prices, and payment",
-        body: "Memberships are displayed and charged in US dollars (USD): Weekly renews at $1.99/week, Monthly at $3.99/month, and Yearly at $29.90/year. While the launch offer is available, an eligible new account may start its first Weekly membership at $0.99 for the first week, then $1.99/week, once per account. Memberships renew automatically until canceled. Checkout is hosted by Waffo Pancake; review the final price, taxes if shown, renewal cadence, and cancellation terms before paying. Never send passwords or full payment-card details by email.",
+        body: "Memberships are displayed and charged in US dollars (USD): Plus renews at $6.99/month or $59.99/year. Premium is shown at $12.99/month or $109.99/year but is not yet available to purchase. While the launch offer is available, an eligible new account may purchase one 7-day Plus experience for $0.99, once per account; it is a one-time payment and does not renew. Plus Monthly and Plus Yearly renew automatically until canceled. Checkout is hosted by Waffo Pancake; review the final price, taxes if shown, renewal cadence, and cancellation terms before paying. Never send passwords or full payment-card details by email.",
       },
       {
         title: "Cancellation and refunds",
@@ -74,7 +74,7 @@ const copy = {
       },
       {
         title: "会员、价格与付款",
-        body: "会员以美元（USD）展示和收费：周卡按 $1.99/周续费，月卡按 $3.99/月续费，年卡按 $29.90/年续费。新客优惠可用期间，符合条件的新账号首周支付 $0.99，之后按 $1.99/周续费，每个账号仅一次。会员将自动续费，直至取消。收银台由 Waffo Pancake 托管；付款前请核对最终价格、可能展示的税费、续费周期及取消条款。切勿通过邮件发送密码或完整银行卡信息。",
+        body: "会员以美元（USD）展示和收费：Plus 月付 $6.99/月，年付 $59.99/年。Premium 展示价格为月付 $12.99/月、年付 $109.99/年，目前尚未开放购买。新客优惠可用期间，符合条件的新账号可支付 $0.99 体验 7 天 Plus，每个账号仅一次；该体验为一次性支付，到期不自动续费。Plus 月付和年付会员将自动续费，直至取消。收银台由 Waffo Pancake 托管；付款前请核对最终价格、可能展示的税费、续费周期及取消条款。切勿通过邮件发送密码或完整银行卡信息。",
       },
       {
         title: "退订与退款",

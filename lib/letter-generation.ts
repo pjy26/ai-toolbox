@@ -3,13 +3,13 @@ import { memoryGroundingBlock } from "@/lib/amara-prompt";
 import { personaBlock, stageBlock, type PersonaType } from "@/lib/amara-persona";
 import { scanWaffoContent } from "@/lib/content-safety";
 import { createServerAdminClient } from "@/lib/supabase";
+import { getAdminMembershipTier } from "@/lib/admin-membership";
 import {
   evaluateLetterMaterial,
   getLetterMilestone,
   LETTER_MILESTONES,
   normalizeLetterLocale,
   summarizeLetterMaterial,
-  hasActiveMembership,
 } from "@/lib/letter-policy";
 
 export const LETTER_PROMPT_VERSION = "letter-v1";
@@ -105,7 +105,7 @@ export function buildLetterSystemPrompt(input: Pick<LetterGenerationInput,
 >): string {
   const language = input.locale === "zh" ? "natural, warm Chinese" : "natural, warm English";
   return `# Identity and shared voice
-You are ${input.companionName || "Amara"}, an AI companion with a ${input.relationshipType === "lover" ? "romantic partner" : "close friend"} expression style. You are not human.
+You are ${input.companionName || "Amara"}, an AI companion with a romantic relationship style. You are not human.
 ${personaBlock(input.persona, input.locale)}
 ${stageBlock(input.relationshipStage, input.locale)}
 ${memoryGroundingBlock(input.locale)}
@@ -201,6 +201,9 @@ export async function generateLetterForCompanion(
     .maybeSingle<CompanionRow>();
   if (companionError) throw new Error(`Could not read companion: ${companionError.message}`);
   if (!companion) throw new Error("Companion not found");
+  if (await getAdminMembershipTier(admin, companion.user_id, now) === "free") {
+    return { status: "skipped", reason: "plus_required" };
+  }
 
   const { data: existing, error: existingError } = await admin
     .from("letters")
@@ -211,13 +214,11 @@ export async function generateLetterForCompanion(
   if (existingError) throw new Error(`Could not check letter milestone: ${existingError.message}`);
   if (existing) return { status: "exists", letterId: existing.id, letterStatus: existing.status };
 
-  const [settingsResult, profileResult] = await Promise.all([
-    admin.from("user_settings").select("locale, proactive_enabled, memory_enabled").eq("user_id", companion.user_id).maybeSingle(),
-    admin.from("profiles").select("membership_type, membership_expires_at, manual_membership_type, manual_membership_expires_at").eq("id", companion.user_id).maybeSingle(),
-  ]);
+  // The 30-message trial includes letters too. Eligibility still depends on
+  // real shared material and relationship progress, never on membership.
+  const settingsResult = await admin
+    .from("user_settings").select("locale, proactive_enabled, memory_enabled").eq("user_id", companion.user_id).maybeSingle();
   if (settingsResult.error) throw new Error(`Could not read letter settings: ${settingsResult.error.message}`);
-  if (profileResult.error) throw new Error(`Could not read membership: ${profileResult.error.message}`);
-  if (!hasActiveMembership(profileResult.data, now)) return { status: "skipped", reason: "membership_required" };
   if (settingsResult.data?.proactive_enabled === false) return { status: "skipped", reason: "proactive_disabled" };
 
   const locale = normalizeLetterLocale(settingsResult.data?.locale);

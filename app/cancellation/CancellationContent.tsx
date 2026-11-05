@@ -11,7 +11,7 @@ const copy = {
   en: {
     eyebrow: "Amara membership support",
     title: "Cancel or manage your membership",
-    intro: "Waffo memberships renew automatically until canceled. You can stop future charges yourself in the secure customer portal—no email required.",
+    intro: "Plus Monthly and Plus Yearly memberships renew automatically until canceled. You can stop future charges yourself in the secure customer portal—no email required. The $0.99 7-day Plus experience is a one-time payment and never renews, so there is nothing to cancel.",
     fixedTitle: "What happens when you cancel",
     fixedItems: [
       "Cancellation stops future automatic renewals; it does not end access immediately.",
@@ -34,7 +34,7 @@ const copy = {
   zh: {
     eyebrow: "Amara 会员支持",
     title: "取消或管理会员",
-    intro: "Waffo 会员会自动续费，直至取消。你可以在安全客户门户自行停止后续扣款，无需发送邮件。",
+    intro: "Plus 月付和年付会员会自动续费，直至取消。你可以在安全客户门户自行停止后续扣款，无需发送邮件。$0.99 的 7 天 Plus 体验为一次性支付，不会续费，因此无需取消。",
     fixedTitle: "取消后会发生什么",
     fixedItems: [
       "取消会停止后续自动续费，不会立即终止会员。",

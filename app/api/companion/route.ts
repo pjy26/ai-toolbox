@@ -21,21 +21,22 @@ import {
 } from "@/lib/companion-context";
 import { generateCompanionText } from "@/lib/companion-model";
 import { createCompanionStream } from "@/lib/companion-stream";
+import { recordProductEvent } from "@/lib/product-events";
 
 export async function POST(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
+  const supabase = createRouteHandlerClient({ cookies });
   const quota = await checkCompanionQuota(user.id);
   if (!quota.ok) {
+    await recordProductEvent(supabase, user.id, "quota_exhausted", { details: { freeMessagesUsed: quota.used } });
     return NextResponse.json(
       { error: "免费额度已用完", code: "QUOTA_EXCEEDED", isMember: false },
       { status: 402 }
     );
   }
   const isMember = quota.isMember;
-
-  const supabase = createRouteHandlerClient({ cookies });
   const { message, history, companion_id, session_id, locale: requestedLocale, timezone: requestedTimezone } = await req.json();
   const locale = normalizeConversationLocale(requestedLocale);
   const timezone = typeof requestedTimezone === "string" ? requestedTimezone : "UTC";
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
     }, { status: 404 });
   }
 
-  // 2. 上下文编排：会员门槛、记忆召回、档案和健康约束保持原有规则。
+  // 2. 上下文编排：免费试用与会员共用记忆召回、档案和健康约束。
   const { userGender, profileText, memText, eventsText, vetoText } = await loadCompanionContext(
     supabase,
     companion_id,
@@ -174,6 +175,13 @@ export async function POST(req: Request) {
       signal: req.signal,
     }),
     review: (text) => reviewContentSafety(text, locale, "output"),
+    onError: async (reason) => {
+      await recordProductEvent(supabase, user.id, "chat_reply_failed", {
+        companionId: companion_id,
+        locale,
+        details: { reason },
+      });
+    },
     onPersist: async (assistantFull) => {
       // 入库内容与通过审核后展示的内容完全一致。
       const { error: assistantMessageError } = await supabase.from("chat_messages").insert({
@@ -189,6 +197,10 @@ export async function POST(req: Request) {
           .update({ updated_at: new Date().toISOString() })
           .eq("id", sessionId);
         if (sessionUpdateError) console.error("[companion POST] 会话时间更新失败:", sessionUpdateError.message);
+        await recordProductEvent(supabase, user.id, "chat_reply_completed", {
+          companionId: companion_id,
+          locale,
+        });
       }
 
       // 恋人版：异步触发隐形性格匹配

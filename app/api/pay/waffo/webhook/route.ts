@@ -1,7 +1,7 @@
 import { verifyWebhook, type WebhookEvent } from "@waffo/pancake-ts";
 import { createServerAdminClient } from "@/lib/supabase";
 import { generateOrderNo } from "@/lib/utils";
-import { MEMBERSHIP_PLANS, type MembershipPlanId } from "@/lib/membership-plans";
+import { MEMBERSHIP_PLANS, isMembershipPlanId, type MembershipPlanId } from "@/lib/membership-plans";
 import { waffoEnvironment, waffoStoreId } from "@/lib/waffo";
 
 export const runtime = "nodejs";
@@ -23,7 +23,7 @@ type OrderRow = {
 
 function planFromEvent(event: WebhookEvent, order?: OrderRow | null): MembershipPlanId | null {
   const candidate = event.data.orderMetadata?.planId || event.data.billingPeriod || order?.plan_id;
-  return candidate === "weekly" || candidate === "monthly" || candidate === "yearly" ? candidate : null;
+  return isMembershipPlanId(candidate) ? candidate : null;
 }
 
 async function findOrder(supabase: ReturnType<typeof createServerAdminClient>, event: WebhookEvent): Promise<OrderRow | null> {
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
         provider_order_id: event.data.orderId,
         plan_id: planId,
         currency: event.data.currency,
-        auto_renew: true,
+        auto_renew: planId !== "plus_trial",
         subscription_status: "pending",
       }).select("id, user_id, order_no, plan_id, last_webhook_at").single();
       if (error) throw new Error(`Could not create webhook order: ${error.message}`);
@@ -115,6 +115,13 @@ export async function POST(req: Request) {
 
     const data = event.data;
     const planId = planFromEvent(event, order);
+    const suppliedPeriodEnd = data.currentPeriodEnd && Number.isFinite(Date.parse(data.currentPeriodEnd)) ? data.currentPeriodEnd : null;
+    const eventTime = Date.parse(event.timestamp);
+    const trialPeriodEnd = planId === "plus_trial" && Number.isFinite(eventTime)
+      ? new Date(eventTime + 7 * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+    const periodEnd = suppliedPeriodEnd || trialPeriodEnd;
+    const isTrialPayment = event.eventType === "subscription.payment_succeeded" && planId === "plus_trial";
     const baseUpdate: Record<string, unknown> = {
       provider_order_id: data.orderId,
       currency: data.currency,
@@ -123,23 +130,30 @@ export async function POST(req: Request) {
     if (planId) baseUpdate.plan_id = planId;
 
     if (PERIOD_EVENTS.has(event.eventType)) {
-      if (!planId || !data.currentPeriodEnd || !Number.isFinite(Date.parse(data.currentPeriodEnd))) {
+      if (!planId || !periodEnd) {
         throw new Error("Subscription event lacks a valid plan or currentPeriodEnd");
       }
       Object.assign(baseUpdate, {
         status: "paid",
         paid_at: new Date().toISOString(),
         subscription_status: data.orderStatus || "active",
-        current_period_end: data.currentPeriodEnd,
-        auto_renew: true,
+        current_period_end: periodEnd,
+        auto_renew: planId !== "plus_trial",
         canceled_at: null,
       });
     } else if (event.eventType === "subscription.payment_succeeded") {
+      if (isTrialPayment && !periodEnd) throw new Error("Trial payment lacks a valid timestamp or currentPeriodEnd");
       Object.assign(baseUpdate, {
         status: "paid",
         paid_at: new Date().toISOString(),
         provider_payment_id: data.paymentId || null,
         ...(data.chargedAmount ? { amount: Number(data.chargedAmount) } : {}),
+        ...(isTrialPayment ? {
+          subscription_status: "active",
+          current_period_end: periodEnd,
+          auto_renew: false,
+          canceled_at: null,
+        } : {}),
       });
     } else if (event.eventType === "subscription.canceling") {
       Object.assign(baseUpdate, {
@@ -151,7 +165,7 @@ export async function POST(req: Request) {
     } else if (event.eventType === "subscription.uncanceled") {
       Object.assign(baseUpdate, {
         subscription_status: data.orderStatus || "active",
-        auto_renew: true,
+        auto_renew: planId !== "plus_trial",
         current_period_end: data.currentPeriodEnd || null,
         canceled_at: null,
       });
@@ -184,12 +198,13 @@ export async function POST(req: Request) {
     const isCurrent = !profile?.membership_provider_order_id || profile.membership_provider_order_id === data.orderId;
     let profileUpdate: Record<string, unknown> | null = null;
 
-    if (PERIOD_EVENTS.has(event.eventType) && isCurrent) {
+    if ((PERIOD_EVENTS.has(event.eventType) || isTrialPayment) && isCurrent) {
+      if (!periodEnd) throw new Error("Cannot activate membership without a valid period end");
       profileUpdate = {
         membership_type: planId,
-        membership_expires_at: data.currentPeriodEnd,
+        membership_expires_at: periodEnd,
         membership_provider_order_id: data.orderId,
-        membership_auto_renew: true,
+        membership_auto_renew: planId !== "plus_trial",
       };
     } else if ((event.eventType === "subscription.canceling" || event.eventType === "subscription.past_due") && profile?.membership_provider_order_id === data.orderId) {
       profileUpdate = { membership_auto_renew: event.eventType !== "subscription.canceling" };
