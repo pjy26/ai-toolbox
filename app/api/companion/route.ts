@@ -1,8 +1,4 @@
-import {
-  getAuthUser,
-  checkCompanionQuota,
-  incFreeMessageCount,
-} from "@/lib/auth";
+import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export const maxDuration = 30; // seconds, Vercel Pro required for >15
@@ -28,15 +24,8 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const supabase = createRouteHandlerClient({ cookies });
-  const quota = await checkCompanionQuota(user.id);
-  if (!quota.ok) {
-    await recordProductEvent(supabase, user.id, "quota_exhausted", { details: { freeMessagesUsed: quota.used } });
-    return NextResponse.json(
-      { error: "免费额度已用完", code: "QUOTA_EXCEEDED", isMember: false },
-      { status: 402 }
-    );
-  }
-  const isMember = quota.isMember;
+  const membership = await getMembershipStatus(user.id);
+  const isMember = membership.isMember;
   const { message, history, companion_id, session_id, locale: requestedLocale, timezone: requestedTimezone } = await req.json();
   const locale = normalizeConversationLocale(requestedLocale);
   const timezone = typeof requestedTimezone === "string" ? requestedTimezone : "UTC";
@@ -125,9 +114,6 @@ export async function POST(req: Request) {
     console.error("[companion POST] 用户消息入库失败:", userMessageError.message);
     return NextResponse.json({ error: "保存消息失败，请稍后重试" }, { status: 500 });
   }
-
-  // 7. 非会员计数
-  await incFreeMessageCount(user.id);
 
   const freshEmotionState = getFreshState(companion.emotion_state, EMOTION_STATE_TTL_MS);
   const freshLiveState = getFreshState(companion.live_state, LIVE_STATE_TTL_MS);

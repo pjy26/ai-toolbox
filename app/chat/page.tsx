@@ -30,9 +30,6 @@ interface Quota {
   isMember: boolean;
   membershipType: string | null;
   expiresAt: string | null;
-  freeMessagesUsed: number;
-  freeLimit: number;
-  remaining: number;
 }
 
 interface Plan {
@@ -265,10 +262,6 @@ function ChatInner() {
   /* ── 发送 ── */
   async function handleSend() {
     if (!input.trim() || !companion || loading) return;
-    if (quota && !quota.isMember && quota.remaining <= 0) {
-      setShowPaywall(true);
-      return;
-    }
     const text = input.trim();
     setInput("");
     setMessages((prev) => [...prev, { role: "user", content: text }]);
@@ -298,14 +291,6 @@ function ChatInner() {
       return;
     }
     clearTimeout(timeout);
-
-    if (res.status === 402) {
-      setShowPaywall(true);
-      setMessages((prev) => prev.slice(0, -2));
-      await loadQuota();
-      setLoading(false);
-      return;
-    }
 
     if (!res.ok || !res.body) {
       let serverError = copy.errorGeneric;
@@ -539,19 +524,6 @@ function ChatInner() {
       {showPaySuccess && (
         <div className="text-center py-1.5 text-xs" style={{ color: "#805A25", letterSpacing: 1, background: "#FFF1D6", position: "relative", zIndex: 10 }}>
           {copy.paymentSuccess}
-        </div>
-      )}
-
-      {/* 免费额度提示 */}
-      {quota && !quota.isMember && (
-        <div className="text-center py-1.5 text-xs" style={{ color: "#6E685F", letterSpacing: 1, background: "#F1ECE4", position: "relative", zIndex: 10 }}>
-          {fillCopy(copy.freeRemaining, { count: quota.remaining })} ·{" "}
-          <span
-            onClick={() => setShowPaywall(true)}
-            style={{ color: "#A34F3D", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}
-          >
-            {copy.rememberCta}
-          </span>
         </div>
       )}
 
