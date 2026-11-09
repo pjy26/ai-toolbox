@@ -1,7 +1,6 @@
 import {
   getAuthUser,
-  checkCompanionQuota,
-  incFreeMessageCount,
+  getMembershipStatus,
 } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
@@ -28,15 +27,10 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const supabase = createRouteHandlerClient({ cookies });
-  const quota = await checkCompanionQuota(user.id);
-  if (!quota.ok) {
-    await recordProductEvent(supabase, user.id, "quota_exhausted", { details: { freeMessagesUsed: quota.used } });
-    return NextResponse.json(
-      { error: "免费额度已用完", code: "QUOTA_EXCEEDED", isMember: false },
-      { status: 402 }
-    );
-  }
-  const isMember = quota.isMember;
+  // 对话次数不设上限：Free 与 Plus 都能一直聊，付费差异只在功能。
+  // isMember 仍要读出来，用于传递会员标记（功能由各自的路由/页面按等级校验）。
+  const membership = await getMembershipStatus(user.id);
+  const isMember = membership.isMember;
   const { message, history, companion_id, session_id, locale: requestedLocale, timezone: requestedTimezone } = await req.json();
   const locale = normalizeConversationLocale(requestedLocale);
   const timezone = typeof requestedTimezone === "string" ? requestedTimezone : "UTC";
@@ -66,7 +60,7 @@ export async function POST(req: Request) {
     }, { status: 404 });
   }
 
-  // 2. 上下文编排：免费试用与会员共用记忆召回、档案和健康约束。
+  // 2. 上下文编排：所有方案共用记忆召回、档案和健康约束。
   const { userGender, profileText, memText, eventsText, vetoText } = await loadCompanionContext(
     supabase,
     companion_id,
@@ -126,9 +120,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "保存消息失败，请稍后重试" }, { status: 500 });
   }
 
-  // 7. 非会员计数
-  await incFreeMessageCount(user.id);
-
+  // 7. 关系状态与情绪状态
   const freshEmotionState = getFreshState(companion.emotion_state, EMOTION_STATE_TTL_MS);
   const freshLiveState = getFreshState(companion.live_state, LIVE_STATE_TTL_MS);
 

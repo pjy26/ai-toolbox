@@ -30,9 +30,6 @@ interface Quota {
   isMember: boolean;
   membershipType: string | null;
   expiresAt: string | null;
-  freeMessagesUsed: number;
-  freeLimit: number;
-  remaining: number;
 }
 
 interface Plan {
@@ -265,10 +262,6 @@ function ChatInner() {
   /* ── 发送 ── */
   async function handleSend() {
     if (!input.trim() || !companion || loading) return;
-    if (quota && !quota.isMember && quota.remaining <= 0) {
-      setShowPaywall(true);
-      return;
-    }
     const text = input.trim();
     setInput("");
     setMessages((prev) => [...prev, { role: "user", content: text }]);
@@ -298,14 +291,6 @@ function ChatInner() {
       return;
     }
     clearTimeout(timeout);
-
-    if (res.status === 402) {
-      setShowPaywall(true);
-      setMessages((prev) => prev.slice(0, -2));
-      await loadQuota();
-      setLoading(false);
-      return;
-    }
 
     if (!res.ok || !res.body) {
       let serverError = copy.errorGeneric;
@@ -367,11 +352,11 @@ function ChatInner() {
       }
     }
 
-    // 回复结束后立即解锁输入。额度刷新和记忆抽取都在后台运行，
+    // 回复结束后立即解锁输入。会员状态刷新和记忆抽取都在后台运行，
     // 记忆仍按同一队列依次执行，避免并发抽取同一批消息造成重复写入。
     setLoading(false);
     void loadQuota().then(() => {
-      // Full-feature trial: memory extraction is not membership-gated.
+      // 记忆抽取对免费账号同样开放：会员等级限制的是功能，不是记忆。
       queueExtract(sid || sessionId);
     });
   }
@@ -384,7 +369,7 @@ function ChatInner() {
       setQuota(data);
       return data;
     } catch (error) {
-      console.error("额度刷新失败:", error);
+      console.error("会员状态刷新失败:", error);
       return null;
     }
   }, []);
@@ -542,15 +527,15 @@ function ChatInner() {
         </div>
       )}
 
-      {/* 免费额度提示 */}
+      {/* Free 方案说明：对话不限次数，其余差异见定价页 */}
       {quota && !quota.isMember && (
         <div className="text-center py-1.5 text-xs" style={{ color: "#6E685F", letterSpacing: 1, background: "#F1ECE4", position: "relative", zIndex: 10 }}>
-          {fillCopy(copy.freeRemaining, { count: quota.remaining })} ·{" "}
+          {copy.freePlanNote} ·{" "}
           <span
             onClick={() => setShowPaywall(true)}
             style={{ color: "#A34F3D", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}
           >
-            {copy.rememberCta}
+            {copy.loverMemberCta}
           </span>
         </div>
       )}

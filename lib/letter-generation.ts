@@ -214,8 +214,8 @@ export async function generateLetterForCompanion(
   if (existingError) throw new Error(`Could not check letter milestone: ${existingError.message}`);
   if (existing) return { status: "exists", letterId: existing.id, letterStatus: existing.status };
 
-  // The 30-message trial includes letters too. Eligibility still depends on
-  // real shared material and relationship progress, never on membership.
+  // Letters are Plus-only (checked above). Eligibility additionally depends on
+  // real shared material and relationship progress, never on message count.
   const settingsResult = await admin
     .from("user_settings").select("locale, proactive_enabled, memory_enabled").eq("user_id", companion.user_id).maybeSingle();
   if (settingsResult.error) throw new Error(`Could not read letter settings: ${settingsResult.error.message}`);

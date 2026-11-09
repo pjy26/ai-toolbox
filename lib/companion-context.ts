@@ -134,7 +134,7 @@ export async function loadCompanionContext(
   const userGender: string = userProfileRow?.gender || "";
   const memoryEnabled = await isMemoryEnabled(supabase, userId);
 
-  // The 30-message trial includes the same memory retrieval as membership.
+  // Memory retrieval is plan-independent: every tier gets the same context.
   if (memoryEnabled) {
     const recall = await semanticRecall(supabase, companionId, message);
     const { data: profileRow } = await supabase

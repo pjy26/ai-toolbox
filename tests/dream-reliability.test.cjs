@@ -167,6 +167,13 @@ function makeDb(overrides = {}) {
       dream_enabled: true,
       memory_enabled: true,
     }],
+    profiles: [{
+      id: "user-1",
+      membership_type: "plus_monthly",
+      membership_expires_at: "2026-12-31T00:00:00.000Z",
+      manual_membership_type: null,
+      manual_membership_expires_at: null,
+    }],
     nightly_jobs: [],
     dream_entries: [],
     chat_sessions: [{ id: "session-1", companion_id: "companion-1" }],

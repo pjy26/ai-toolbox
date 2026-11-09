@@ -1,8 +1,8 @@
-import { getAuthUser, getMembershipStatus, FREE_MESSAGE_LIMIT } from "@/lib/auth";
-import { membershipTier } from "@/lib/membership-plans";
+import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
-// 返回当前用户的会员状态和陪伴配额
+// 返回当前用户的会员状态。对话次数对所有方案都不设上限，
+// 因此这里不再返回 freeLimit / remaining：Free 与 Plus 的差异只在功能。
 export async function GET() {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
@@ -10,12 +10,9 @@ export async function GET() {
   const status = await getMembershipStatus(user.id);
   return NextResponse.json({
     isMember: status.isMember,
-    tier: membershipTier(status.membershipType),
+    tier: status.tier,
     membershipType: status.membershipType,
     expiresAt: status.expiresAt,
     membershipSource: status.membershipSource,
-    freeMessagesUsed: status.freeMessagesUsed,
-    freeLimit: FREE_MESSAGE_LIMIT,
-    remaining: status.isMember ? -1 : Math.max(0, FREE_MESSAGE_LIMIT - status.freeMessagesUsed),
   });
 }
