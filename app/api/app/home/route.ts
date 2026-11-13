@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { DREAM_SELECT } from "@/lib/dream";
 import { listMemoryRecords } from "@/lib/memory-records";
@@ -13,7 +12,7 @@ const COMPANION_SELECT = "id, relationship_type, companion_name, user_nickname, 
 export async function GET() {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const membership = await getMembershipStatus(user.id);
 
   let activeCompanionId: string | null = null;

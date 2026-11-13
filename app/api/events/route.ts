@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { getAuthUser } from "@/lib/auth";
 import { isClientProductEventName, recordProductEvent, type ProductEventDetails } from "@/lib/product-events";
 
@@ -17,7 +16,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid companion." }, { status: 400 });
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const companionId = typeof body.companionId === "string" ? body.companionId : null;
   if (companionId) {
     const { data: owned, error } = await supabase

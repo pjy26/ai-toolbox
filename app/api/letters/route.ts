@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { canAccessConsoleFeature, MEMBERSHIP_REQUIRED_CODE } from "@/lib/access";
 import { LETTER_LIST_SELECT } from "@/lib/letter";
@@ -16,7 +15,7 @@ export async function GET() {
     return NextResponse.json({ error: "Plus membership required", code: MEMBERSHIP_REQUIRED_CODE }, { status: 403 });
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const activeCompanionId = await getActiveCompanionId(supabase, user.id);
   if (!activeCompanionId) return NextResponse.json({ letters: [], unavailable: false });
   const { data: letters, error } = await supabase

@@ -2,11 +2,13 @@ import {
   getAuthUser,
   getMembershipStatus,
 } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { withGenerationGuard } from "@/lib/generation-guard";
+import { readChatInput } from "@/lib/chat-input";
+import { matchCompanionPersona } from "@/lib/persona-matching";
 
 export const maxDuration = 30; // seconds, Vercel Pro required for >15
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { computeStageAdvance } from "@/lib/amara-persona";
 import { normalizeConversationLocale } from "@/lib/conversation-context";
 import { contentSafetyMessage, reviewContentSafety, scanWaffoContent } from "@/lib/content-safety";
@@ -26,12 +28,16 @@ export async function POST(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const input = await readChatInput(req);
+  if (!input) return NextResponse.json({ error: "请输入不超过 4000 字符的消息。", code: "INVALID_CHAT_INPUT" }, { status: 400 });
+  return withGenerationGuard(user.id, async () => {
+
+  const supabase = await createRouteHandlerClient();
   // 对话次数不设上限：Free 与 Plus 都能一直聊，付费差异只在功能。
   // isMember 仍要读出来，用于传递会员标记（功能由各自的路由/页面按等级校验）。
   const membership = await getMembershipStatus(user.id);
   const isMember = membership.isMember;
-  const { message, history, companion_id, session_id, locale: requestedLocale, timezone: requestedTimezone } = await req.json();
+  const { message, companion_id, session_id, locale: requestedLocale, timezone: requestedTimezone } = input;
   const locale = normalizeConversationLocale(requestedLocale);
   const timezone = typeof requestedTimezone === "string" ? requestedTimezone : "UTC";
   if (typeof message !== "string" || !message.trim()) {
@@ -54,10 +60,7 @@ export async function POST(req: Request) {
 
   if (compErr || !companion) {
     console.error("[companion POST] 查询失败", { companion_id, userId: user.id, compErr: compErr?.message, compErrCode: (compErr as any)?.code });
-    return NextResponse.json({
-      error: "陪伴角色不存在",
-      debug: { companion_id_query: companion_id, user_id_auth: user.id, db_error: compErr?.message || null }
-    }, { status: 404 });
+    return NextResponse.json({ error: "陪伴角色不存在" }, { status: 404 });
   }
 
   // 2. 上下文编排：所有方案共用记忆召回、档案和健康约束。
@@ -151,7 +154,7 @@ export async function POST(req: Request) {
     freshLiveState,
     message,
     dbHistory,
-    clientHistory: history,
+    clientHistory: [],
     locale,
     timezone,
   });
@@ -195,20 +198,17 @@ export async function POST(req: Request) {
         });
       }
 
-      // 恋人版：异步触发隐形性格匹配
-      if (companion.relationship_type === "lover" && !companion.persona_locked_at) {
-        try {
-          const absUrl = new URL("/api/companion/match-persona", process.env.NEXT_PUBLIC_SITE_URL || "https://amarapjy.xyz");
-          fetch(absUrl.toString(), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ companion_id: companion.id }),
-          }).catch(() => {});
-        } catch {}
-      }
     },
   });
 
+  // Keep the already authenticated database context; no unauthenticated self-fetch.
+  if (companion.relationship_type === "lover" && !companion.persona_locked_at) {
+    after(async () => {
+      try {
+        await withGenerationGuard(user.id, () => matchCompanionPersona(supabase, user.id, companion.id));
+      } catch { console.warn("[persona] background matching unavailable"); }
+    });
+  }
   return new Response(readable, {
     headers: {
       "Content-Type": "text/event-stream",
@@ -217,5 +217,6 @@ export async function POST(req: Request) {
       "x-session-id": sessionId as string,
       "x-is-member": isMember ? "1" : "0",
     },
+  });
   });
 }

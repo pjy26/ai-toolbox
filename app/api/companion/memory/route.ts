@@ -1,14 +1,13 @@
 import { getAuthUser } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 
 // GET: 列出某个 companion 的所有记忆（profile + summaries）
 export async function GET(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const { searchParams } = new URL(req.url);
   const companion_id = searchParams.get("companion_id");
   if (!companion_id) return NextResponse.json({ error: "缺少 companion_id" }, { status: 400 });
@@ -39,7 +38,7 @@ export async function DELETE(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const { memory_id, companion_id } = await req.json();
   if (!memory_id || !companion_id) return NextResponse.json({ error: "缺少参数" }, { status: 400 });
 

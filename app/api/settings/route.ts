@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { isValidTimeZone } from "@/lib/timezone";
 
@@ -38,7 +37,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
   const membership = await getMembershipStatus(user.id);
   const isFree = membership.tier === "free";
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const { data, error } = await supabase
     .from("user_settings")
     .select("locale, timezone, dream_enabled, proactive_enabled, memory_enabled, active_companion_id")
@@ -48,7 +47,7 @@ export async function GET() {
   // table yet. PATCH remains explicit about persistence failures.
   if (error) {
     console.warn("[settings] read unavailable; returning compatible defaults", error.message);
-    return NextResponse.json({ settings: settingsForTier(null, isFree), persistent: false });
+    return NextResponse.json({ settings: { ...settingsForTier(null, isFree), memory_enabled: false }, persistent: false });
   }
   return NextResponse.json({ settings: settingsForTier(data, isFree), persistent: true });
 }
@@ -96,11 +95,11 @@ export async function PATCH(req: Request) {
       updates[key] = body[key];
     }
   }
-  if (Object.keys(updates).length === 0) {
+  if (Object.keys(updates).length === 0 && body.active_companion_id === undefined) {
     return NextResponse.json({ error: "没有可更新的设置" }, { status: 400 });
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   if (body.active_companion_id !== undefined) {
     if (body.active_companion_id !== null && typeof body.active_companion_id !== "string") {
       return NextResponse.json({ error: "active_companion_id 无效" }, { status: 400 });

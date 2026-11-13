@@ -1,9 +1,8 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { membershipTier, type MembershipTier } from "@/lib/membership-plans";
 
 export async function getAuthUser() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const { data: { user } } = await supabase.auth.getUser();
   return user;
 }
@@ -17,10 +16,10 @@ export async function getMembershipStatus(userId: string): Promise<{
   expiresAt: string | null;
   membershipSource: "paid" | "manual" | null;
 }> {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const { data } = await supabase
     .from("profiles")
-    .select("membership_type, membership_expires_at, manual_membership_type, manual_membership_expires_at, credits")
+    .select("membership_type, membership_expires_at, manual_membership_type, manual_membership_expires_at")
     .eq("id", userId)
     .single();
 

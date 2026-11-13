@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { canAccessConsoleFeature, MEMBERSHIP_REQUIRED_CODE } from "@/lib/access";
 import { getActiveCompanionId } from "@/lib/companions";
@@ -30,7 +29,7 @@ export async function GET(req: Request) {
   }
 
   const locale = new URL(req.url).searchParams.get("locale") === "zh" ? "zh" : "en";
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const activeCompanionId = await getActiveCompanionId(supabase, user.id);
   if (!activeCompanionId) return NextResponse.json({ companion: null });
 

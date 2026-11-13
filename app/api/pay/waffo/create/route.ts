@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerAdminClient } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth";
 import { MEMBERSHIP_PLANS, isCheckoutPlanId, type CheckoutPlanId } from "@/lib/membership-plans";
 import { generateOrderNo } from "@/lib/utils";
@@ -21,7 +20,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Premium subscriptions are not available yet.", code: "PLAN_UNAVAILABLE" }, { status: 409 });
   }
   const locale = body.locale === "zh" ? "zh-Hans" : "en";
-  const supabase = createRouteHandlerClient({ cookies });
+  // Orders are server-owned; browser roles have read-only access.
+  const supabase = createServerAdminClient();
 
   const { data: currentSubscriptions, error: subscriptionError } = await supabase
     .from("orders").select("id").eq("user_id", user.id).eq("provider", "waffo")

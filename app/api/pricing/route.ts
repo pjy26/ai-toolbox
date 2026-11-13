@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { getAuthUser } from "@/lib/auth";
 import { MEMBERSHIP_CURRENCY, membershipPlans } from "@/lib/membership-plans";
 
@@ -10,7 +9,7 @@ export async function GET() {
   let plusTrialEligible = true;
 
   if (user) {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createRouteHandlerClient();
     const { data, error } = await supabase
       .from("orders")
       .select("id")

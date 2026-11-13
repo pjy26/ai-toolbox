@@ -9,7 +9,6 @@ export const PRODUCT_EVENT_NAMES = [
   "paywall_viewed",
   "checkout_started",
   "checkout_failed",
-  "quota_exhausted",
 ] as const;
 
 export const CLIENT_PRODUCT_EVENT_NAMES = [
@@ -27,7 +26,6 @@ export type ProductEventDetails = {
   planId?: string;
   status?: string | number;
   source?: string;
-  freeMessagesUsed?: number;
   profile?: string;
 };
 
@@ -43,9 +41,6 @@ function cleanMetadata(details?: ProductEventDetails) {
   }
   if (typeof details.status === "string" && details.status.trim()) metadata.status = details.status.trim().slice(0, 80);
   if (typeof details.status === "number" && Number.isFinite(details.status)) metadata.status = details.status;
-  if (typeof details.freeMessagesUsed === "number" && Number.isFinite(details.freeMessagesUsed)) {
-    metadata.freeMessagesUsed = Math.max(0, Math.floor(details.freeMessagesUsed));
-  }
   return metadata;
 }
 

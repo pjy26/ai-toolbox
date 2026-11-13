@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { getActiveCompanionId } from "@/lib/companions";
 
@@ -12,7 +11,7 @@ export async function GET() {
   const membership = await getMembershipStatus(user.id);
   if (membership.tier === "free") return NextResponse.json({ unreadCount: 0, unavailable: false });
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const activeCompanionId = await getActiveCompanionId(supabase, user.id);
   if (!activeCompanionId) return NextResponse.json({ unreadCount: 0, unavailable: false });
   const { count, error } = await supabase

@@ -1,15 +1,14 @@
 import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { limitImportantPeople } from "@/lib/access";
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 
 // 删除陪伴角色（级联删除所有记忆）
 export async function DELETE(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const { companion_id } = await req.json();
   if (!companion_id) return NextResponse.json({ error: "缺少 companion_id" }, { status: 400 });
 
@@ -28,7 +27,7 @@ export async function PATCH(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const { companion_id, companion_name, user_nickname, profile } = await req.json();
   if (!companion_id) return NextResponse.json({ error: "缺少 companion_id" }, { status: 400 });
   const { data: ownedCompanion, error: ownershipError } = await supabase

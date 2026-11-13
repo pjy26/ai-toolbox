@@ -1,7 +1,7 @@
 # ai-toolbox 项目构建规则
 
 ## 技术栈
-- Next.js 14.1（App Router）+ React 18 + TypeScript
+- Next.js 15.5.29（App Router）+ React 18 + TypeScript
 - Tailwind CSS
 - Supabase（Auth + Postgres + pgvector）
 - DeepSeek API（OpenAI 兼容接口，`deepseek-v4-pro`）
@@ -13,7 +13,7 @@
 npm run build   # Vercel 用的生产构建；语法/类型/导入错误会直接导致部署失败
 npm test        # node:test + tsx，纯离线单元测试（当前 40 个）
 ```
-- 本地 Node 18+（本机在 Node 22 验证）。
+- 本地 Node 20.9+（本机在 Node 22 验证）。
 - 没有 `.env.local` 时 `npm run build` 会在预渲染阶段报 `supabaseUrl and supabaseKey are required`。至少需要 `NEXT_PUBLIC_SUPABASE_URL` 与 `NEXT_PUBLIC_SUPABASE_ANON_KEY`；占位值只能让构建通过，不代表登录、聊天、支付可用。
 
 ## 严禁事项
@@ -86,3 +86,5 @@ v4-pro/v4-flash 的思考（reasoning）token 与正文共享 `max_tokens` 额�
 - Git：便携版 `C:\Users\21569\AppData\Local\Programs\MinGit\cmd\git.exe`（已加入用户 PATH）。
 - Node：便携版 `C:\Users\21569\AppData\Local\Programs\node`（Node 22 + npm 10，已加入用户 PATH）。
 - `.env.local` 目前是占位值，只保证构建/测试能跑；联调前替换成 Vercel 的真实值。
+### 5. 关系阶段推进有质量门槛和每日限速，两个参数是拍的初始值
+阶段不再"聊了就涨"。`computeStageAdvance`（lib/amara-persona.ts）要求当日 `emotion_state.arousal >= STAGE_AROUSAL_THRESHOLD`（0.5，说明有实质情感卷入）才 +1，且每自然日（上海时区）最多 `STAGE_DAILY_CAP`（2）分，依赖 companions 表的 stage_date / stage_day_count 两列（migrations/stage_pacing.sql）。**这两个参数是没有数据支撑拍的初始值**，上线后根据用户反馈调：嫌升得太慢就抬 DAILY_CAP，嫌"随便聊聊也涨"就抬 THRESHOLD。免费账号不限对话次数，使用基础记忆、今天、关于你和一位重要的人；瞬间、梦境、信件和多维记忆分析属于 Plus。extract 同样写入 arousal，并按会员等级限制重要人物和共同瞬间。

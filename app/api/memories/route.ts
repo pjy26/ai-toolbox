@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { getAuthUser } from "@/lib/auth";
 import { listMemoryRecords } from "@/lib/memory-records";
 import { getActiveCompanionId } from "@/lib/companions";
@@ -11,7 +10,7 @@ export async function GET(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
   const companionId = new URL(req.url).searchParams.get("companion_id");
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
 
   let companionIds: string[];
   if (companionId) {

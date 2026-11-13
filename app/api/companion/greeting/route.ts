@@ -1,7 +1,7 @@
+import { withGenerationGuard } from "@/lib/generation-guard";
 import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { generateCompanionText } from "@/lib/companion-model";
 import { type PersonaType } from "@/lib/amara-persona";
 import { buildGreetingPrompt } from "@/lib/amara-prompt";
@@ -20,12 +20,13 @@ import { isUserScopedMemoryText } from "@/lib/memory-reliability";
 export async function GET(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  return withGenerationGuard(user.id, async () => {
 
   const { searchParams } = new URL(req.url);
   const companionId = searchParams.get("companion_id");
   if (!companionId) return NextResponse.json({ error: "缺少 companion_id" }, { status: 400 });
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
 
   // 1. 获取 companion
   const { data: companion, error: compErr } = await supabase
@@ -154,6 +155,7 @@ export async function GET(req: Request) {
       timeOfDay: timeBlock,
       hasMemories: !!memText,
     },
+  });
   });
 }
 

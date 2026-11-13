@@ -73,7 +73,7 @@ export function readAdminSessionToken(token: string | undefined): AdminSession |
 export async function requireAdmin(): Promise<
   { user: { id: string; email: string | null }; error: null } | { user: null; error: NextResponse }
 > {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const session = readAdminSessionToken(cookieStore.get(ADMIN_SESSION_COOKIE)?.value);
   if (!session) {
     return { user: null, error: NextResponse.json({ error: "Administrator sign-in required" }, { status: 401 }) };

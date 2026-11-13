@@ -1,8 +1,8 @@
+import { withGenerationGuard } from "@/lib/generation-guard";
 import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { limitImportantPeople } from "@/lib/access";
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { createCompanionClient, getCompanionModel } from "@/lib/companion-model";
 import { embedText } from "@/lib/embedding";
 import { isMemoryEnabled } from "@/lib/user-settings";
@@ -26,8 +26,9 @@ const EMBED_TIMEOUT_MS = 5000;
 export async function POST(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  return withGenerationGuard(user.id, async () => {
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
   const { companion_id, session_id, locale: requestedLocale } = await req.json();
   const locale = requestedLocale === "zh" ? "zh" : "en";
   if (!companion_id) return NextResponse.json({ error: "缺少 companion_id" }, { status: 400 });
@@ -402,6 +403,7 @@ ${recentText}
       locale,
       details: { reason: error instanceof Error ? error.name : "UnknownError" },
     });
-    return NextResponse.json({ ok: false, error: error?.message }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "Memory processing temporarily unavailable" }, { status: 503 });
   }
+  });
 }

@@ -44,7 +44,7 @@ docs/                Product and architecture notes
 
 ## Local Development
 
-Requirements: Node.js 18+ and a Supabase project.
+Requirements: Node.js 20.9+ (Node.js 22 recommended) and a Supabase project.
 
 ```bash
 npm install
@@ -62,6 +62,18 @@ npm run build
 ```
 
 The production build includes TypeScript validation and Next.js route generation.
+
+## Launch security rollout
+
+Before deploying the current code, apply `migrations/launch_security.sql` after
+the existing membership/Waffo migrations. It restricts browser writes to profile
+display fields, makes orders server-owned, and installs shared generation guards.
+Missing guard functions return 503 rather than allowing unprotected model calls.
+
+See `docs/launch-readiness.md` for rollout order, verification, and remaining
+production checks. The default guard permits 12 generation requests per account
+per minute, at most 2 concurrent requests per account, and 240 per minute globally.
+These are burst limits, not lifetime Free conversation quotas.
 
 ### Persona stability evaluation
 

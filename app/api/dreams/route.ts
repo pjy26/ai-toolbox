@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@/lib/supabase-server";
 import { getAuthUser, getMembershipStatus } from "@/lib/auth";
 import { canAccessConsoleFeature, MEMBERSHIP_REQUIRED_CODE } from "@/lib/access";
 import { DREAM_SELECT } from "@/lib/dream";
@@ -17,7 +16,7 @@ export async function GET(req: Request) {
   }
 
   const companionId = new URL(req.url).searchParams.get("companion_id");
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createRouteHandlerClient();
 
   let companionIds: string[];
   if (companionId) {

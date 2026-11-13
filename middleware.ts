@@ -16,13 +16,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Pass user info to API routes via request headers
-  if (user && req.nextUrl.pathname.startsWith("/api/")) {
-    const requestHeaders = new Headers(req.headers);
-    requestHeaders.set("X-User-Id", user.id);
-    return NextResponse.next({ request: { headers: requestHeaders } });
-  }
-
+  // Keep refreshed auth cookies attached to this response. API handlers
+  // independently verify the user rather than trusting an injected header.
   return res;
 }
 
