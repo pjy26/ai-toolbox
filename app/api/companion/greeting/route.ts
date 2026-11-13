@@ -12,6 +12,7 @@ import {
   lastChatContext,
   normalizeConversationLocale,
   outputLanguageBlock,
+  matchesConversationLocale,
 } from "@/lib/conversation-context";
 import { scanWaffoContent } from "@/lib/content-safety";
 import { isUserScopedMemoryText } from "@/lib/memory-reliability";
@@ -119,8 +120,8 @@ export async function GET(req: Request) {
       signal: req.signal,
     });
     const generated = completion.text.trim();
-    // Only reviewed model output replaces the known-safe fallback greeting.
-    if (generated && await scanWaffoContent(generated, locale, "output")) greeting = generated;
+    // Never persist a wrong-language greeting, even when the model ignores the prompt.
+    if (matchesConversationLocale(generated, locale) && await scanWaffoContent(generated, locale, "output")) greeting = generated;
   } catch (error) {
     console.error("greeting 生成失败，使用兜底文案:", error);
   }

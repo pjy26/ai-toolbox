@@ -62,3 +62,12 @@ export function outputLanguageBlock(locale: ConversationLocale): string {
     ? "# 输出语言（硬约束）\n无论下方提示词、记忆或历史消息使用什么语言，这一轮都必须只用自然、口语化的简体中文回复。"
     : "# Output language (hard requirement)\nRegardless of the language used in these instructions, memories, or earlier messages, respond only in natural, conversational English. Do not switch into Chinese.";
 }
+
+const HAN_SCRIPT = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+
+/** Model instructions are probabilistic; reject wrong-language output before persistence. */
+export function matchesConversationLocale(text: string, locale: ConversationLocale): boolean {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  return locale === "zh" ? HAN_SCRIPT.test(normalized) : !HAN_SCRIPT.test(normalized);
+}
