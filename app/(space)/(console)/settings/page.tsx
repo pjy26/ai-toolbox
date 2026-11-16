@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { BookOpen, Check, ChevronRight, Loader2, WalletCards } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
 import { useMembership } from "@/components/membership-provider";
 import { apiRequest, ErrorState, PageLoader } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
@@ -70,7 +69,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <AppShell>
+    <>
       <header className="max-w-3xl border-b border-[#ded7cc] pb-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a34f3d]">{copy.eyebrow}</p><h1 className="mt-3 font-serif text-4xl tracking-[-0.03em] sm:text-5xl">{copy.title}</h1><p className="mt-4 text-sm leading-7 text-[#6e685f]">{copy.body}</p></header>
 
       {actionError && <div className="mt-6 border-l-2 border-[#b75c47] bg-[#f6eae4] px-4 py-3 text-sm text-[#813d30]" role="alert">{actionError} {copy.restored}</div>}
@@ -109,7 +108,7 @@ export default function SettingsPage() {
           </section>
         </div>
       ) : null}
-    </AppShell>
+    </>
   );
 }
 

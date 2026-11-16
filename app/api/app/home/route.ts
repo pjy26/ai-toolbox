@@ -9,15 +9,18 @@ export const dynamic = "force-dynamic";
 
 const COMPANION_SELECT = "id, relationship_type, companion_name, user_nickname, relationship_stage, live_state, last_active_at";
 
-export async function GET() {
+export async function GET(req: Request) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
   const supabase = await createRouteHandlerClient();
-  const membership = await getMembershipStatus(user.id);
+  const requestedId = new URL(req.url).searchParams.get("companion_id");
 
-  let activeCompanionId: string | null = null;
+  let activeCompanionId: string | null;
+  let membership: Awaited<ReturnType<typeof getMembershipStatus>>;
   try {
-    activeCompanionId = await getActiveCompanionId(supabase, user.id);
+    [activeCompanionId, membership] = await Promise.all([
+      requestedId || getActiveCompanionId(supabase, user.id), getMembershipStatus(user.id),
+    ]);
   } catch {
     return NextResponse.json({ error: "读取角色失败" }, { status: 500 });
   }
@@ -36,7 +39,7 @@ export async function GET() {
   }
 
   const [dreamResult, memoriesResult, eventsResult] = await Promise.all([
-    supabase
+    membership.tier === "free" ? { data: null, error: null } : supabase
       .from("dream_entries")
       .select(DREAM_SELECT)
       .eq("companion_id", companion.id)
@@ -45,11 +48,11 @@ export async function GET() {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    listMemoryRecords(supabase, [companion.id]).then(
+    listMemoryRecords(supabase, [companion.id], new Date(), 5).then(
       (records) => ({ data: records.slice(0, 5), error: null }),
       (error) => ({ data: null, error }),
     ),
-    supabase
+    membership.tier === "free" ? { data: [], error: null } : supabase
       .from("relationship_events")
       .select("id, companion_id, description, event_type, occurred_at, importance, created_at")
       .eq("companion_id", companion.id)

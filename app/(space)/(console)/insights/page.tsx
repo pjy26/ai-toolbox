@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { Compass, Fingerprint, Heart, Link2, Network, Sprout, Waves } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
 import { apiRequest, ErrorState, formatDate, PageLoader } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
 import { relationshipCopy } from "@/lib/relationship-copy";
@@ -41,7 +40,7 @@ export default function InsightsPage() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <AppShell>
+    <>
       <header className="max-w-4xl border-b border-[#ded7cc] pb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a34f3d]">{copy.eyebrow}</p>
         <h1 className="mt-3 font-serif text-4xl tracking-[-0.03em] sm:text-5xl">{copy.title}</h1>
@@ -81,7 +80,7 @@ export default function InsightsPage() {
       ) : (
         <div className="py-16"><Network className="h-8 w-8 text-[#a98a78]" strokeWidth={1.3} /><h2 className="mt-5 font-serif text-3xl">{copy.status.waiting}</h2><p className="mt-3 max-w-lg text-sm leading-7 text-[#6e685f]">{copy.noEvidence}</p></div>
       )}
-    </AppShell>
+    </>
   );
 }
 

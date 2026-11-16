@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { ChevronDown, ChevronUp, Loader2, Mail, Sparkles, Trash2 } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
 import { apiRequest, ConfirmDialog, ErrorState, formatDate, PageLoader } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
@@ -121,7 +120,7 @@ export default function LettersPage() {
   }
 
   return (
-    <AppShell>
+    <>
       <header className="max-w-3xl border-b border-[#ded7cc] pb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a34f3d]">{copy.eyebrow}</p>
         <h1 className="mt-3 font-serif text-4xl tracking-[-0.03em] sm:text-5xl">{copy.title}</h1>
@@ -191,6 +190,6 @@ export default function LettersPage() {
       )}
 
       {deleting && <ConfirmDialog title={copy.deleteTitle} description={`“${deleting.title}”\n${copy.deleteBody}`} confirmLabel={copy.deleteConfirm} busy={deleteBusy} onCancel={() => setDeleting(null)} onConfirm={() => void deleteLetter()} />}
-    </AppShell>
+    </>
   );
 }

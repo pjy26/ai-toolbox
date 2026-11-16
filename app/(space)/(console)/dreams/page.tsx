@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { ArrowUpRight, CloudMoon, MoonStar } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
 import { apiRequest, Dream, ErrorState, formatDate, ImaginationLabel, PageLoader } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
@@ -40,7 +39,7 @@ export default function DreamsPage() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <AppShell>
+    <>
       <header className="grid gap-6 border-b border-[#ded7cc] pb-8 sm:grid-cols-[1fr_auto] sm:items-end">
         <div className="max-w-3xl"><ImaginationLabel /><h1 className="mt-3 font-serif text-4xl tracking-[-0.03em] sm:text-5xl">{copy.title}</h1><p className="mt-4 text-sm leading-7 text-[#6e685f]">{copy.body}</p></div>
         <Link href="/settings" className="min-h-11 py-3 text-sm font-semibold text-[#923f30] underline decoration-[#d5b6aa] underline-offset-4">{copy.settings}</Link>
@@ -65,6 +64,6 @@ export default function DreamsPage() {
           ))}
         </div>
       )}
-    </AppShell>
+    </>
   );
 }

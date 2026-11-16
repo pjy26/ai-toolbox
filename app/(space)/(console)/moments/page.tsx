@@ -1,10 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useSessionContext } from "@supabase/auth-helpers-react";
+import { useConsoleQuery } from "@/components/console-query";
 import { HeartHandshake } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
-import { apiRequest, Companion, ErrorState, formatDate, PageLoader, RelationshipEvent } from "@/components/amara-ui";
+import { Companion, ErrorState, formatDate, PageLoader, RelationshipEvent } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
 import { amaraMomentText } from "@/lib/amara-moments";
@@ -16,31 +14,14 @@ function eventText(event: RelationshipEvent) {
 }
 
 export default function MomentsPage() {
-  const { session } = useSessionContext();
   const { locale } = useLocale();
   const copy = consoleCopy[locale].moments;
-  const [data, setData] = useState<HomeResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const load = useCallback(async () => {
-    if (!session) { setLoading(false); return; }
-    setLoading(true);
-    setError("");
-    try {
-      const result = await apiRequest<HomeResponse>("/api/app/home");
-      setData({ companion: result.companion, recentEvents: Array.isArray(result.recentEvents) ? result.recentEvents : [] });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Please try again.");
-    } finally { setLoading(false); }
-  }, [session]);
-
-  useEffect(() => { void load(); }, [load]);
+  const { data, loading, errorMessage: error, mutate: load } = useConsoleQuery<HomeResponse>("/api/app/home");
   const events = data?.recentEvents || [];
   const nickname = data?.companion?.user_nickname || (locale === "zh" ? "你" : "you");
 
   return (
-    <AppShell>
+    <>
       <header className="max-w-3xl border-b border-[#ded7cc] pb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a34f3d]">{copy.eyebrow}</p>
         <h1 className="mt-3 font-serif text-4xl tracking-[-0.03em] sm:text-5xl">{copy.title}</h1>
@@ -68,6 +49,6 @@ export default function MomentsPage() {
           })}
         </ol>
       )}
-    </AppShell>
+    </>
   );
 }

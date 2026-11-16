@@ -5,8 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { ArrowLeft, ChevronDown, Trash2 } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
 import { apiRequest, ConfirmDialog, Dream, ErrorState, formatDate, ImaginationLabel, PageLoader } from "@/components/amara-ui";
+import { useCompanionSpace } from "@/components/companion-space";
 import { useLocale } from "@/components/locale-provider";
 
 const detailCopy = {
@@ -55,6 +55,7 @@ export default function DreamDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const id = params.id;
+  const activeId = useCompanionSpace().profiles?.activeCompanionId;
   const [dream, setDream] = useState<Dream | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -70,14 +71,18 @@ export default function DreamDetailPage() {
     setLoading(true);
     setError("");
     try {
-      const result = await apiRequest<{ dream: Dream }>(`/api/dreams/${encodeURIComponent(id)}`);
+      const result = await apiRequest<{ dream: Dream & { companion_id: string } }>(`/api/dreams/${encodeURIComponent(id)}`);
+      if (result.dream.companion_id !== activeId) {
+        router.replace("/dreams");
+        return;
+      }
       setDream(result.dream);
     } catch {
       setError(copy.loadError);
     } finally {
       setLoading(false);
     }
-  }, [copy.loadError, id, session]);
+  }, [activeId, copy.loadError, id, router, session]);
 
   useEffect(() => {
     void load();
@@ -103,7 +108,7 @@ export default function DreamDetailPage() {
   const sourceDescription = (sourceCount === 1 ? copy.sourceOne : copy.sourceMany).replace("{count}", String(sourceCount));
 
   return (
-    <AppShell>
+    <>
       <Link href="/dreams" className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-[#6e685f] hover:text-[#923f30]">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />{copy.allDreams}
       </Link>
@@ -160,6 +165,6 @@ export default function DreamDetailPage() {
           onConfirm={() => void removeDream()}
         />
       )}
-    </AppShell>
+    </>
   );
 }

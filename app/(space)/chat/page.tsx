@@ -9,6 +9,7 @@ import { LocaleToggle, useLocale } from "@/components/locale-provider";
 import { chatCopy, fillCopy } from "@/lib/chat-copy";
 import { formatUsd, SUPPORT_EMAIL } from "@/lib/membership-plans";
 import { openWaffoCheckout } from "@/lib/waffo-browser";
+import { useCompanionSpace } from "@/components/companion-space";
 import { CompanionSwitcher } from "@/components/companion-switcher";
 import { trackProductEvent } from "@/lib/product-events";
 
@@ -23,7 +24,6 @@ interface Companion {
   companion_name: string | null;
   user_nickname: string | null;
   persona?: string;
-  memory_count: number;
 }
 
 interface Quota {
@@ -53,6 +53,8 @@ function ChatInner() {
   const localeRef = useRef(locale);
   localeRef.current = locale;
   const userId = session?.user.id || null;
+  const { profiles, reloadProfiles } = useCompanionSpace();
+  const activeProfile = profiles?.companions.find((item) => item.id === profiles.activeCompanionId);
   const params = useSearchParams();
   // Amara is a romantic companion only; the friend variant has been removed.
   const role = "lover" as const;
@@ -127,20 +129,11 @@ function ChatInner() {
       return;
     }
     try {
-      // 配额和关系并行加载；Chat 使用轻量列表，不再扫描全部记忆计数。
-      const [qRes, listRes] = await Promise.all([
-        fetch("/api/companion/quota"),
-        fetch("/api/companion/list?lightweight=1"),
-      ]);
-      if (!isCurrent()) return;
-      const [qData, listData] = await Promise.all([
-        qRes.ok ? qRes.json() : null,
-        listRes.json(),
-      ]);
+      const qRes = await fetch("/api/companion/quota");
+      const qData = qRes.ok ? await qRes.json() : null;
       if (!isCurrent()) return;
       if (qData) setQuota(qData);
-      let c: Companion | null = listData.companions?.find((item: Companion) => item.id === listData.activeCompanionId)
-        || (listData.companions?.length > 0 ? listData.companions[0] : null);
+      const c = activeProfile;
 
       if (!c) {
         // New accounts start with the independent female Amara profile.
@@ -150,11 +143,9 @@ function ChatInner() {
           body: JSON.stringify({ relationship_type: role }),
         });
         if (!createRes.ok) throw new Error("Could not create Amara");
-        const created = await createRes.json();
-        c = created.companion || null;
-        if (!isCurrent()) return;
+        await reloadProfiles();
+        return;
       }
-      if (!c) throw new Error("Amara is unavailable");
       setCompanion(c);
       // 先展示聊天框架，再恢复历史或生成开场白，避免长时间全屏加载。
       setInitLoading(false);
@@ -216,7 +207,7 @@ function ChatInner() {
     } finally {
       if (isCurrent()) setInitLoading(false);
     }
-  }, [userId, localeReady, role]);
+  }, [userId, localeReady, role, activeProfile, reloadProfiles]);
 
   useEffect(() => {
     void init();
@@ -466,7 +457,7 @@ function ChatInner() {
       <div className="h-screen flex items-center justify-center" style={{ background: "#F8F5EF" }}>
         <div className="text-center" style={{ color: "#282621" }}>
           <p className="text-lg mb-6" style={{ letterSpacing: 2 }}>{copy.loginRequired}</p>
-          <a href="/login" className="px-8 py-3 rounded-xl text-white font-medium inline-block" style={{ letterSpacing: 2, background: "#A34F3D" }}>{copy.login}</a>
+          <Link href="/login" className="px-8 py-3 rounded-xl text-white font-medium inline-block" style={{ letterSpacing: 2, background: "#A34F3D" }}>{copy.login}</Link>
         </div>
       </div>
     );
@@ -491,7 +482,7 @@ function ChatInner() {
       {/* Header */}
       <header style={{ position: "relative", zIndex: 10, flexShrink: 0, padding: "16px 20px 12px", background: "rgba(248,245,239,0.92)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid #DED7CC" }}>
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <a href="/app" aria-label={copy.back} className="w-10 text-lg" style={{ color: "#6E685F", textDecoration: "none" }}>&lsaquo;</a>
+          <Link href="/app" aria-label={copy.back} className="w-10 text-lg" style={{ color: "#6E685F", textDecoration: "none" }}>&lsaquo;</Link>
           <div className="flex-1 flex flex-col items-center">
             <div className="relative mb-1.5" style={{ width: 36, height: 36 }}>
               <div style={{ width: 36, height: 36, borderRadius: "50%", background: "radial-gradient(circle at 35% 35%, #FFFDF8, #E7D6C7)", border: "1px solid #D8C7B7", boxShadow: "0 3px 12px rgba(91,65,47,0.10)" }} />

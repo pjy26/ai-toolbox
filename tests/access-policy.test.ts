@@ -20,7 +20,7 @@ const quotaRoute = read("../app/api/companion/quota/route.ts");
 assert.doesNotMatch(quotaRoute, /remaining\s*:|freeLimit\s*:|freeMessagesUsed/);
 
 // 聊天页不能在前端拦截发送，也不能再处理 402 额度响应。
-const chatPage = read("../app/chat/page.tsx");
+const chatPage = read("../app/(space)/chat/page.tsx");
 assert.doesNotMatch(chatPage, /quota\.remaining|QUOTA_EXCEEDED|status === 402/);
 assert.match(chatPage, /copy\.freePlanNote/);
 

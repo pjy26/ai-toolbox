@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { ChevronDown, ChevronUp, LockKeyhole, UserRound, UsersRound } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
 import { useMembership } from "@/components/membership-provider";
 import { apiRequest, ErrorState, PageLoader } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
@@ -69,7 +68,7 @@ export default function PeoplePage() {
   const visiblePeople = membership.tier === "free" ? people.slice(0, 1) : people;
 
   return (
-    <AppShell>
+    <>
       <header className="max-w-3xl border-b border-[#ded7cc] pb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a34f3d]">{copy.eyebrow}</p>
         <h1 className="mt-3 font-serif text-4xl tracking-[-0.03em] sm:text-5xl">{copy.title}</h1>
@@ -100,6 +99,6 @@ export default function PeoplePage() {
           })}
         </div>
       )}
-    </AppShell>
+    </>
   );
 }

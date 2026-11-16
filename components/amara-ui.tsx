@@ -82,13 +82,17 @@ export function isFreshState(updatedAt: string | null, lastActiveAt: string | nu
   return Number.isFinite(time) && Date.now() - time >= 0 && Date.now() - time < 6 * 60 * 60 * 1000;
 }
 
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
 export async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    if (response.status === 401) throw new Error("Your session has expired. Please sign in again.");
-    if (response.status === 404) throw new Error("This item could not be found. It may have been removed.");
-    throw new Error("The request couldn’t be completed. Please try again.");
+    if (response.status === 401) throw new ApiError("Your session has expired. Please sign in again.", response.status);
+    if (response.status === 404) throw new ApiError("This item could not be found. It may have been removed.", response.status);
+    throw new ApiError("The request couldn’t be completed. Please try again.", response.status);
   }
   return data as T;
 }

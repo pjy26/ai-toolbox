@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { useSessionContext } from "@supabase/auth-helpers-react";
+import { useConsoleQuery } from "@/components/console-query";
 import { ArrowRight, BookOpen, ChevronRight, CloudMoon, Crown, MessageCircle } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
-import { apiRequest, Companion, Dream, ErrorState, formatDate, getLiveState, ImaginationLabel, isFreshState, Memory, PageLoader, RelationshipEvent } from "@/components/amara-ui";
+import { Companion, Dream, ErrorState, formatDate, getLiveState, ImaginationLabel, isFreshState, Memory, PageLoader, RelationshipEvent } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
 import { amaraMomentText } from "@/lib/amara-moments";
@@ -24,35 +22,12 @@ function eventText(event: RelationshipEvent) {
 }
 
 export default function DashboardPage() {
-  const { session } = useSessionContext();
   const { locale } = useLocale();
   const copy = consoleCopy[locale].today;
-  const [data, setData] = useState<HomeResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const load = useCallback(async () => {
-    if (!session) { setLoading(false); return; }
-    setLoading(true);
-    setError("");
-    try {
-      const result = await apiRequest<HomeResponse>("/api/app/home");
-      setData({
-        companion: result.companion,
-        membership: result.membership,
-        latestDream: result.latestDream || null,
-        recentMemories: Array.isArray(result.recentMemories) ? result.recentMemories : [],
-        recentEvents: Array.isArray(result.recentEvents) ? result.recentEvents : [],
-      });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Please try again.");
-    } finally { setLoading(false); }
-  }, [session]);
-
-  useEffect(() => { void load(); }, [load]);
+  const { data, loading, errorMessage: error, mutate: load } = useConsoleQuery<HomeResponse>("/api/app/home");
 
   return (
-    <AppShell>
+    <>
       {loading ? <PageLoader /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : data?.companion ? <DashboardContent data={data} /> : (
         <div className="py-16 text-center">
           <h1 className="font-serif text-4xl">{copy.startTitle}</h1>
@@ -60,7 +35,7 @@ export default function DashboardPage() {
           <Link href="/chat" className="mt-7 inline-flex min-h-12 items-center bg-[#a34f3d] px-6 text-sm font-semibold text-white">{copy.start}</Link>
         </div>
       )}
-    </AppShell>
+    </>
   );
 }
 

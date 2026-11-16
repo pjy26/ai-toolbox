@@ -1,42 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useSessionContext } from "@supabase/auth-helpers-react";
+import { useState } from "react";
+import { useSWRConfig } from "swr";
+import { useConsoleKey, useConsoleQuery } from "@/components/console-query";
 import { BookOpen, Check, Trash2 } from "lucide-react";
-import { AppShell } from "@/components/app-shell";
 import { apiRequest, ConfirmDialog, ErrorState, formatDate, Memory, PageLoader } from "@/components/amara-ui";
 import { useLocale } from "@/components/locale-provider";
 import { consoleCopy } from "@/lib/console-copy";
 import { displayMemoryText } from "@/lib/memory-display";
 
 export default function MemoriesPage() {
-  const { session } = useSessionContext();
+  const { mutate } = useSWRConfig();
+  const homeKey = useConsoleKey("/api/app/home");
   const { locale } = useLocale();
   const copy = consoleCopy[locale].memories;
-  const [memories, setMemories] = useState<Memory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data, loading, errorMessage: error, mutate: load } = useConsoleQuery<{ memories: Memory[] }>("/api/memories");
+  const memories = data?.memories || [];
   const [actionError, setActionError] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<Memory | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
-
-  const load = useCallback(async () => {
-    if (!session) { setLoading(false); return; }
-    setLoading(true);
-    setError("");
-    try {
-      const result = await apiRequest<{ memories: Memory[] }>("/api/memories");
-      const items = Array.isArray(result.memories) ? result.memories : [];
-      setMemories(items);
-      setSelected((current) => new Set(Array.from(current).filter((id) => items.some((memory) => memory.id === id))));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Please try again.");
-    } finally { setLoading(false); }
-  }, [session]);
-
-  useEffect(() => { void load(); }, [load]);
 
   function toggle(id: string) {
     setSelected((current) => {
@@ -58,7 +42,13 @@ export default function MemoriesPage() {
         removed.add(id);
       } catch { /* Keep failed items visible and show one honest error. */ }
     }
-    setMemories((current) => current.filter((memory) => !removed.has(memory.id)));
+    if (removed.size) {
+      const keep = (memory: Memory) => !removed.has(memory.id);
+      await Promise.all([
+        load((current) => current && { memories: current.memories.filter(keep) }, { revalidate: true }),
+        mutate(homeKey, (current?: { recentMemories: Memory[] }) => current && { ...current, recentMemories: current.recentMemories.filter(keep) }, { revalidate: true }),
+      ]);
+    }
     setSelected((current) => new Set(Array.from(current).filter((id) => !removed.has(id))));
     if (removed.size !== ids.length) setActionError(copy.failed);
     setDeleting(null);
@@ -69,7 +59,7 @@ export default function MemoriesPage() {
   const allSelected = memories.length > 0 && selected.size === memories.length;
 
   return (
-    <AppShell>
+    <>
       <header className="max-w-3xl border-b border-[#ded7cc] pb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a34f3d]">{copy.eyebrow}</p>
         <h1 className="mt-3 font-serif text-4xl tracking-[-0.03em] sm:text-5xl">{copy.title}</h1>
@@ -115,6 +105,6 @@ export default function MemoriesPage() {
 
       {deleting && <ConfirmDialog title={copy.deleteTitle} description={`“${displayMemoryText(deleting.summary, locale)}”\n${copy.deleteBody}`} confirmLabel={copy.deleteConfirm} busy={deleteBusy} onCancel={() => setDeleting(null)} onConfirm={() => void removeMemories([deleting.id])} />}
       {bulkDeleting && <ConfirmDialog title={copy.bulkTitle} description={`${selected.size} ${copy.selected}。${copy.bulkBody}`} confirmLabel={copy.bulkConfirm} busy={deleteBusy} onCancel={() => setBulkDeleting(false)} onConfirm={() => void removeMemories(Array.from(selected))} />}
-    </AppShell>
+    </>
   );
 }

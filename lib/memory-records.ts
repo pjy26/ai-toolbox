@@ -80,15 +80,17 @@ export async function listMemoryRecords(
   supabase: any,
   companionIds: string[],
   now = new Date(),
+  previewSize?: number,
 ): Promise<ConsoleMemoryRecord[]> {
   if (!companionIds.length) return [];
+  const candidateLimit = previewSize ? Math.min(200, previewSize * 3) : 200;
   const [summaryResult, profileResult] = await Promise.all([
     supabase
       .from("memory_summaries")
       .select("id, companion_id, summary, importance, source_session_id, created_at, updated_at")
       .in("companion_id", companionIds)
       .order("updated_at", { ascending: false })
-      .limit(200),
+      .limit(candidateLimit),
     supabase
       .from("user_profiles")
       .select("companion_id, profile, updated_at")
@@ -114,10 +116,17 @@ export async function listMemoryRecords(
     row.updated_at || row.created_at || now.toISOString(),
   ));
 
-  return dedupeMemoryEntries(
+  const records = dedupeMemoryEntries(
     [...profileRecords, ...visibleSummaries],
     (memory) => memory.summary,
   ).sort((a, b) => Date.parse(b.updated_at || b.created_at) - Date.parse(a.updated_at || a.created_at));
+  // Expired or duplicate candidates can hide older eligible summaries.
+  const oldestCandidate = summaryResult.data?.at(-1)?.updated_at;
+  if (previewSize && summaryResult.data?.length === candidateLimit && candidateLimit < 200 &&
+      (records.length < previewSize || Date.parse(records[previewSize - 1].updated_at) <= Date.parse(oldestCandidate))) {
+    return (await listMemoryRecords(supabase, companionIds, now)).slice(0, previewSize);
+  }
+  return previewSize ? records.slice(0, previewSize) : records;
 }
 
 /** Delete one flattened profile item without exposing general profile editing. */
