@@ -5,10 +5,28 @@ import { MembershipProvider } from "@/components/membership-provider";
 import { LocaleProvider } from "@/components/locale-provider";
 import { PwaRegister } from "@/components/pwa-register";
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.amarapjy.xyz";
+const title = "Amara · Not just remembered. Truly understood.";
+const description = "Amara grows with you—building relationship continuity, deep understanding, shared growth, a unique personality, and warm companionship over time.";
+
 export const metadata: Metadata = {
-  title: "Amara · Not just remembered. Truly understood.",
+  metadataBase: new URL(siteUrl),
+  title,
   applicationName: "Amara",
-  description: "Amara grows with you—building relationship continuity, deep understanding, shared growth, a unique personality, and warm companionship over time.",
+  description,
+  openGraph: {
+    type: "website",
+    siteName: "Amara",
+    title,
+    description,
+    locale: "en_US",
+    alternateLocale: ["zh_CN"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+  },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

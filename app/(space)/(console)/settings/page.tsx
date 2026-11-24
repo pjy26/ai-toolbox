@@ -25,6 +25,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   const detectedTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", []);
   const timezones = useMemo(() => {
@@ -68,6 +70,28 @@ export default function SettingsPage() {
     } finally { setSaving(false); }
   }
 
+  async function exportData() {
+    if (exporting) return;
+    setExporting(true);
+    setExportError("");
+    try {
+      const response = await fetch("/api/account/export", { cache: "no-store" });
+      if (!response.ok) throw new Error("Export failed");
+      const url = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `amara-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setExportError(copy.exportFailed);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <>
       <header className="max-w-3xl border-b border-[#ded7cc] pb-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a34f3d]">{copy.eyebrow}</p><h1 className="mt-3 font-serif text-4xl tracking-[-0.03em] sm:text-5xl">{copy.title}</h1><p className="mt-4 text-sm leading-7 text-[#6e685f]">{copy.body}</p></header>
@@ -102,8 +126,11 @@ export default function SettingsPage() {
             <h2 className="font-serif text-2xl">{copy.membership}</h2>
             <div className="mt-4 divide-y divide-[#ded7cc] border-y border-[#ded7cc]">
               <Link href="/memories" className="flex min-h-16 items-center justify-between gap-4 py-4 text-sm font-medium hover:text-[#923f30]"><span className="flex items-center gap-3"><BookOpen className="h-5 w-5 text-[#a34f3d]" strokeWidth={1.6} />{copy.viewMemories}</span><ChevronRight className="h-4 w-4 shrink-0" /></Link>
+              <button type="button" onClick={() => void exportData()} disabled={exporting} className="flex min-h-16 w-full items-center justify-between gap-4 py-4 text-left text-sm font-medium hover:text-[#923f30] disabled:cursor-wait disabled:opacity-60"><span>{exporting ? copy.exporting : copy.exportData}</span>{exporting ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> : <ChevronRight className="h-4 w-4 shrink-0" />}</button>
               <Link href="/cancellation" className="flex min-h-16 items-center justify-between gap-4 py-4 text-sm font-medium hover:text-[#923f30]"><span className="flex items-center gap-3"><WalletCards className="h-5 w-5 text-[#a34f3d]" strokeWidth={1.6} />{copy.cancel}</span><ChevronRight className="h-4 w-4 shrink-0" /></Link>
             </div>
+            <p className="mt-3 text-xs leading-6 text-[#817a70]">{copy.exportBody}</p>
+            {exportError && <p role="alert" className="mt-3 text-sm text-[#923f30]">{exportError}</p>}
             <p className="mt-6 text-xs leading-6 text-[#817a70]">{copy.renewal} <Link href="/privacy" className="font-semibold text-[#6e685f] underline underline-offset-4">{copy.privacy}</Link>.</p>
           </section>
         </div>

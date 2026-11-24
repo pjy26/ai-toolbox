@@ -96,7 +96,7 @@ function profileToText(profile: Record<string, any> | null, locale: "en" | "zh")
     if (parts) lines.push(`${locale === "en" ? "" : "【"}${labels.preferences}${locale === "en" ? ":" : "】"}${parts}`);
   }
   if (Array.isArray(profile.important_people) && profile.important_people.length > 0) {
-    lines.push(`${locale === "en" ? "" : "【"}${labels.people}${locale === "en" ? ":" : "】"}${profile.important_people.map((person: any) => typeof person === "string" ? person : JSON.stringify(person)).join(separator)}`);
+    lines.push(`${locale === "en" ? "" : "【"}${labels.people}${locale === "en" ? ":" : "】"}${profile.important_people.map((person: any) => typeof person === "string" ? person : JSON.stringify(person, (key,value) => key === "source_message_id" ? undefined : value)).join(separator)}`);
   }
   if (Array.isArray(profile.ongoing_matters) && profile.ongoing_matters.length > 0) {
     lines.push(`${locale === "en" ? "" : "【"}${labels.ongoing}${locale === "en" ? ":" : "】"}${profile.ongoing_matters.join(separator)}`);
@@ -161,6 +161,13 @@ export async function loadCompanionContext(
     }
   }
 
+  if (memoryEnabled) {
+    // Recently verified facts and corrections remain available without an embedding.
+    const {data: edits} = await supabase.from("memory_summaries").select("summary, updated_at")
+      .eq("companion_id", companionId).in("provenance", ["user_edit","message"]).order("updated_at",{ascending:false}).limit(5);
+    const current = (edits || []).filter((m: any) => isUserScopedMemoryText(m.summary) && !isExpiredTransientMemory(m.summary,m.updated_at));
+    memText = [...new Set([...current.map((m: any) => "- "+m.summary), ...memText.split("\n").filter(Boolean)])].join("\n");
+  }
   const { vetoText, restText } = splitVetoMemories(memText, locale);
   return { userGender, profileText, memText: restText, eventsText, vetoText };
 }

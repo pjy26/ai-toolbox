@@ -1,0 +1,20 @@
+name: Recover pending memory jobs
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: recover-memory
+  cancel-in-progress: false
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Process queued turns
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 65 \
+            -X POST -H "Authorization: Bearer ${CRON_SECRET}" \
+            https://www.amarapjy.xyz/api/jobs/memory

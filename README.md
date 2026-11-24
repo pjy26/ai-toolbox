@@ -13,7 +13,7 @@ Amara is a relationship-centered AI companion. Memory creates continuity; contin
 - **Semantic memory recall** — Embedding-based retrieval helps Amara find relevant earlier memories instead of relying only on recent messages.
 - **Dreams** — Nightly Dream documents turn shared conversations into reflective, readable memories and future conversation context.
 - **Relationship progression** — Emotional state and relationship stages evolve with meaningful interaction rather than message count alone.
-- **User control** — Dedicated surfaces for memories, Dreams, account settings, subscription management, and cancellation.
+- **User control** — Dedicated surfaces for memories, Dreams, account settings, JSON data export, subscription management, and cancellation.
 - **Bilingual experience** — English and Chinese interfaces across the main product and policy pages.
 - **Membership tiers** — Free includes Today, About You, and one important person. Plus unlocks unlimited people, Moments, Dreams, Letters, and multidimensional analysis at $6.99/month or $59.99/year. A $0.99 one-week Plus experience does not renew. Premium is presented as in development and checkout is disabled.
 - **Payments** — Plus checkout, signed Waffo webhooks, and automatic membership updates. New product IDs are documented in `.env.example`; apply `migrations/relationship_membership_plans.sql` before launch.
@@ -53,15 +53,25 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Apply `init.sql` and the required files under `migrations/` to your own Supabase database. Never reuse production credentials for local development.
+Generate the ordered, transactional SQL with `node scripts/schema-plan.mjs fresh` for a new Supabase project, or `node scripts/schema-plan.mjs upgrade` for an existing launch baseline. See [chat and memory rollout](docs/trusted-memory-rollout.md) for prerequisites, deployment order, and verification. Never reuse production credentials for local development.
 
 ## Validation
 
 ```bash
+npm test
+npm audit --omit=dev
 npm run build
 ```
 
-The production build includes TypeScript validation and Next.js route generation.
+The production build includes TypeScript validation and Next.js route generation. Pull requests and pushes to `main` run the same checks in GitHub Actions.
+
+After deployment, run the read-only smoke check against the public site. It verifies public pages, the login redirect, discovery files, the social image, and baseline security headers; it does not create accounts, send chat messages, or place orders.
+
+```bash
+npm run check:launch
+# Or target a preview deployment:
+npm run check:launch -- --base-url=https://your-preview.example.com
+```
 
 ## Launch security rollout
 

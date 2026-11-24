@@ -6,6 +6,7 @@ create table public.profiles (
   id uuid references auth.users on delete cascade primary key,
   username text,
   avatar_url text,
+  gender text,
   credits integer default 50,
   membership_type text default 'free' check (membership_type in ('free', 'monthly', 'yearly')),
   membership_expires_at timestamptz,
@@ -36,6 +37,29 @@ create table public.usage_logs (
   created_at timestamptz default now()
 );
 
+-- 9. companions 表（陪伴角色）
+create table public.companions (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles on delete cascade not null,
+  relationship_type text not null check (relationship_type in ('friend', 'lover')),
+  gender text,
+  companion_name text,
+  user_nickname text,
+  persona text default 'gentle' check (persona in ('gentle', 'playful', 'quiet', 'clingy')),
+  persona_locked_at timestamptz,
+  relationship_stage integer default 5,
+  last_active_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- 10. user_profiles 表（用户档案）
+create table public.user_profiles (
+  companion_id uuid references public.companions on delete cascade primary key,
+  profile jsonb default '{}',
+  updated_at timestamptz default now()
+);
+
 -- 4. chat_sessions 表
 create table public.chat_sessions (
   id uuid default gen_random_uuid() primary key,
@@ -53,6 +77,17 @@ create table public.chat_messages (
   role text not null check (role in ('user', 'assistant')),
   content text not null,
   created_at timestamptz default now()
+);
+
+-- 11. memory_summaries 表（记忆摘要）
+create table public.memory_summaries (
+  id uuid default gen_random_uuid() primary key,
+  companion_id uuid references public.companions on delete cascade not null,
+  summary text not null,
+  importance integer default 3 check (importance between 1 and 5),
+  source_session_id uuid references public.chat_sessions on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 -- 6. 注册自动创建 profile 触发器
@@ -118,39 +153,3 @@ $$ language plpgsql security definer;
 create trigger on_companion_created
   after insert on public.companions
   for each row execute procedure public.handle_new_companion();
-
--- 9. companions 表（陪伴角色）
-create table public.companions (
-  id uuid default gen_random_uuid() primary key,
-  user_id uuid references public.profiles on delete cascade not null,
-  relationship_type text not null check (relationship_type in ('friend', 'lover')),
-  gender text,
-  companion_name text,
-  user_nickname text,
-  persona text default 'gentle' check (persona in ('gentle', 'playful', 'quiet', 'clingy')),
-  persona_locked_at timestamptz,
-  relationship_stage integer default 5,
-  last_active_at timestamptz,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- 10. user_profiles 表（用户档案）
-create table public.user_profiles (
-  companion_id uuid references public.companions on delete cascade primary key,
-  profile jsonb default '{}',
-  updated_at timestamptz default now()
-);
-
--- 11. memory_summaries 表（记忆摘要）
-create table public.memory_summaries (
-  id uuid default gen_random_uuid() primary key,
-  companion_id uuid references public.companions on delete cascade not null,
-  summary text not null,
-  importance integer default 3 check (importance between 1 and 5),
-  source_session_id uuid references public.chat_sessions on delete set null,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
-

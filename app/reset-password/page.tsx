@@ -79,39 +79,34 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] relative flex items-center justify-center px-4 py-16">
-      <LocaleToggle className="absolute top-5 right-5" />
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <Heart className="w-10 h-10 text-rose-400 mx-auto mb-3" />
-          <h1 className="text-2xl font-bold">{t.reset.title}</h1>
-          <p className="text-gray-400 text-sm mt-2">
-            {done ? t.reset.doneSubtitle : t.reset.subtitle}
-          </p>
+    <div className="relative flex min-h-screen items-center justify-center bg-[#f8f5ef] px-5 py-24 text-[#282621]">
+      <button type="button" onClick={() => router.push("/")} className="absolute left-5 top-6 font-serif text-[27px] tracking-[-0.04em] sm:left-8" aria-label="Amara home">Amara</button>
+      <LocaleToggle className="absolute right-5 top-4 !min-h-11 !px-2 !text-xs !font-medium !text-[#6e685f] hover:!text-[#a34f3d] sm:right-8" />
+      <div className="w-full max-w-md border border-[#d8cfc2] bg-[#fffdf8] p-6 shadow-[10px_10px_0_#e9e1d6] sm:p-8">
+        <div className="mb-8 text-center">
+          <Heart className="mx-auto mb-4 h-10 w-10 text-[#a34f3d]" strokeWidth={1.5} />
+          <h1 className="font-serif text-3xl font-semibold tracking-[-0.02em]">{t.reset.title}</h1>
+          <p className="mt-3 text-sm leading-6 text-[#6e685f]">{done ? t.reset.doneSubtitle : t.reset.subtitle}</p>
         </div>
 
         {done ? (
-          <p className="text-center text-sm text-gray-300">{t.reset.done}</p>
+          <p className="text-center text-sm leading-7 text-[#53634b]" role="status">{t.reset.done}</p>
         ) : checking ? (
           <div className="flex justify-center py-6" aria-label={t.reset.title}>
-            <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+            <div className="h-7 w-7 animate-spin rounded-full border-2 border-[#a34f3d] border-t-transparent" />
           </div>
         ) : !ready ? (
           <div className="space-y-4 text-center">
-            <p className="text-sm text-gray-300 leading-relaxed">{t.reset.expired}</p>
-            <p className="text-sm text-gray-400 leading-relaxed">{t.reset.tryAgain}</p>
-            <button
-              type="button"
-              onClick={() => router.push("/login")}
-              className="w-full py-3 rounded-xl gradient-btn text-white font-semibold"
-            >
+            <p className="text-sm leading-7 text-[#6e685f]">{t.reset.expired}</p>
+            <p className="text-sm leading-7 text-[#6e685f]">{t.reset.tryAgain}</p>
+            <button type="button" onClick={() => router.push("/login")} className="min-h-12 w-full bg-[#a34f3d] px-4 py-3 font-semibold text-white hover:bg-[#893f31]">
               {t.reset.backToLogin}
             </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="relative">
-              <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+              <Lock className="absolute left-3 top-4 h-4 w-4 text-[#817a70]" />
               <input
                 type="password"
                 aria-label={t.reset.newPassword}
@@ -121,11 +116,11 @@ export default function ResetPasswordPage() {
                 required
                 minLength={6}
                 autoComplete="new-password"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
+                className="min-h-12 w-full border border-[#cfc5b7] bg-[#f8f5ef] py-3 pl-10 pr-4 text-[#282621] placeholder-[#817a70] focus:border-[#a34f3d] focus:outline-none focus:ring-2 focus:ring-[#a34f3d]/15"
               />
             </div>
             <div className="relative">
-              <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+              <Lock className="absolute left-3 top-4 h-4 w-4 text-[#817a70]" />
               <input
                 type="password"
                 aria-label={t.reset.confirmPassword}
@@ -135,19 +130,15 @@ export default function ResetPasswordPage() {
                 required
                 minLength={6}
                 autoComplete="new-password"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-white/10 text-white placeholder-gray-500 focus:border-brand focus:outline-none"
+                className="min-h-12 w-full border border-[#cfc5b7] bg-[#f8f5ef] py-3 pl-10 pr-4 text-[#282621] placeholder-[#817a70] focus:border-[#a34f3d] focus:outline-none focus:ring-2 focus:ring-[#a34f3d]/15"
               />
             </div>
 
-            {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
+            {error && <p role="alert" className="text-sm text-[#923f30]">{error}</p>}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-xl gradient-btn text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
-            >
+            <button type="submit" disabled={loading} className="flex min-h-12 w-full items-center justify-center gap-2 bg-[#a34f3d] px-4 py-3 font-semibold text-white hover:bg-[#893f31] disabled:opacity-50">
               {loading ? t.reset.saving : t.reset.save}
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="h-4 w-4" />
             </button>
           </form>
         )}

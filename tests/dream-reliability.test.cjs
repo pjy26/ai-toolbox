@@ -176,8 +176,8 @@ function makeDb(overrides = {}) {
     }],
     nightly_jobs: [],
     dream_entries: [],
-    chat_sessions: [{ id: "session-1", companion_id: "companion-1" }],
-    chat_messages: [
+    chat_sessions: [{ id: "session-1", companion_id: "companion-1", user_id: "user-1" }],
+    memory_eligible_messages: [
       { id: "message-user", role: "user", content: "今天终于把难做的事情完成了。", created_at: "2026-11-02T10:00:00.000Z", session_id: "session-1" },
       { id: "message-assistant", role: "assistant", content: "这很值得轻轻庆祝。", created_at: "2026-11-02T10:01:00.000Z", session_id: "session-1" },
     ],
@@ -242,7 +242,7 @@ test("来源 ID 仅允许本轮真实输入，去重且拒绝空消息来源", (
 
 test("当天没有用户消息时跳过，不调用生成或写入梦境", async () => {
   const db = makeDb({
-    chat_messages: [{ id: "assistant-only", role: "assistant", content: "晚安。", created_at: "2026-11-02T10:00:00.000Z", session_id: "session-1" }],
+    memory_eligible_messages: [{ id: "assistant-only", role: "assistant", content: "晚安。", created_at: "2026-11-02T10:00:00.000Z", session_id: "session-1" }],
   });
   activeAdmin = fakeAdmin(db);
   let generations = 0;

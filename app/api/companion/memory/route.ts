@@ -1,3 +1,4 @@
+import { createServerAdminClient } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/lib/supabase-server";
@@ -51,12 +52,9 @@ export async function DELETE(req: Request) {
     .single();
   if (!companion) return NextResponse.json({ error: "角色不存在" }, { status: 404 });
 
-  const { error } = await supabase
-    .from("memory_summaries")
-    .delete()
-    .eq("id", memory_id)
-    .eq("companion_id", companion_id);
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const {data: memory} = await supabase.from("memory_summaries").select("id").eq("id",memory_id).eq("companion_id",companion_id).maybeSingle();
+  if (!memory) return NextResponse.json({error:"Memory not found"},{status:404});
+  const {data,error}=await createServerAdminClient().rpc("edit_trusted_memory",{p_user:user.id,p_memory:memory_id,p_revision:null,p_text:null});
+  if (error || data!=="ok") return NextResponse.json({error:"Delete failed"},{status:503});
   return NextResponse.json({ ok: true });
 }

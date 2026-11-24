@@ -1,0 +1,21 @@
+[
+  "init.sql",
+  "migrations/companion_memory.sql",
+  "migrations/companion_add_missing_columns.sql",
+  "migrations/amara_persona.sql",
+  "migrations/nickname.sql",
+  "migrations/free_quota.sql",
+  "migrations/weekly_plan.sql",
+  "migrations/companion_emotion.sql",
+  "migrations/semantic_memory.sql",
+  "migrations/stage_pacing.sql",
+  "migrations/memory_recall_phase0.sql",
+  "migrations/dream_phase2.sql",
+  "migrations/letters.sql",
+  "migrations/waffo_subscriptions.sql",
+  "migrations/admin_manual_memberships.sql",
+  "migrations/relationship_membership_plans.sql",
+  "migrations/companion_profiles_and_diagnostics.sql",
+  "migrations/launch_security.sql",
+  "migrations/trusted_memory.sql"
+]

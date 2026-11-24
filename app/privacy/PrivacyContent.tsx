@@ -7,7 +7,7 @@ const copy = {
   en: {
     eyebrow: "Amara legal",
     title: "Privacy Policy",
-    effective: "Effective November 1, 2026",
+    effective: "Effective November 19, 2026",
     intro: "This policy explains how Amara handles information when you use the service. It is written to describe the current product, including its limitations.",
     footer: "Questions or privacy requests? Email",
     footerAfter: "Include your account email, but never your password.",
@@ -41,7 +41,7 @@ const copy = {
         paragraphs: [
           "We retain information for as long as reasonably needed to provide the service, maintain security, resolve disputes, and meet applicable obligations. Retention periods can vary by data type and backup cycle. We do not promise permanent memory or immediate erasure from every backup.",
           "We use reasonable safeguards, but no online service can guarantee absolute security or absolute privacy. Avoid sharing information that you would not want processed by an AI service.",
-          "You may contact us to ask about access, correction, or deletion of account data. Self-service account deletion and full data export are not currently available, so some requests require manual handling. We may need to verify account ownership before completing a request.",
+          "You can download a JSON export of your account data from Settings. You may contact us to ask about correction or deletion of account data. Self-service account deletion is not currently available, so deletion requests require manual handling. We may need to verify account ownership before completing a request.",
         ],
       },
       {
@@ -56,7 +56,7 @@ const copy = {
   zh: {
     eyebrow: "Amara 法律条款",
     title: "隐私政策",
-    effective: "生效日期：2026 年 11 月 1 日",
+    effective: "生效日期：2026 年 11 月 19 日",
     intro: "本政策说明你在使用服务时，Amara 如何处理相关信息，并如实描述当前产品的功能及限制。",
     footer: "有疑问或隐私请求？请发送邮件至",
     footerAfter: "请附上账号邮箱，但切勿提供密码。",
@@ -90,7 +90,7 @@ const copy = {
         paragraphs: [
           "我们会在提供服务、维护安全、解决争议及履行适用义务所合理需要的期限内保留信息。保留期限可能因数据类型和备份周期而异。我们不承诺记忆永久保留，也不承诺所有备份中的数据会立即删除。",
           "我们采取合理的安全保障措施，但任何在线服务都无法保证绝对安全或绝对隐私。请避免分享你不希望由 AI 服务处理的信息。",
-          "你可以联系我们，请求访问、更正或删除账号数据。目前不提供自助删除账号和完整数据导出，因此部分请求需要人工处理。完成请求前，我们可能需要验证账号归属。",
+          "你可以在设置中下载账号数据的 JSON 副本，也可以联系我们请求更正或删除账号数据。目前不提供自助删除账号，因此删除请求需要人工处理。完成请求前，我们可能需要验证账号归属。",
         ],
       },
       {

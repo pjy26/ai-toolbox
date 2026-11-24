@@ -22,6 +22,37 @@ export default function MemoriesPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
+  const [editing,setEditing] = useState<Memory | null>(null);
+  const [draft,setDraft] = useState("");
+  const [saving,setSaving] = useState(false);
+  const [evidence,setEvidence] = useState<{id:string;text:string;history:Array<{revision:number;summary:string}>} | null>(null);
+
+  async function showSource(memory:Memory) {
+    try {
+      const {source,history} = await apiRequest<{history:Array<{revision:number;summary:string}>;source:null | {text:string;at:string}}>("/api/memories/"+encodeURIComponent(memory.id));
+      setEvidence({id:memory.id,history:history || [],text:source ? formatDate(source.at,true,locale)+" · "+source.text : (locale==="zh"?"没有可核实的原文":"No verified source available")});
+    } catch { setActionError(copy.failed); }
+  }
+
+  async function saveCorrection() {
+    if (!editing || !draft.trim() || saving) return;
+    setSaving(true);
+    setActionError("");
+    try {
+      await apiRequest("/api/memories/"+encodeURIComponent(editing.id),{method:"PATCH",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({text:draft.trim(),revision:editing.revision,updated_at:editing.updated_at})});
+      setEditing(null);
+      setEvidence(null);
+      setSelected(new Set());
+      // A legacy profile field can acquire a new ID. Drop the old home preview.
+      await mutate(homeKey,undefined,{revalidate:false});
+      await load();
+    } catch {
+      setActionError(locale==="zh"?"未能保存。请重新打开这条记忆，核对最新内容后再试。":"Could not save. Reopen the memory and check its latest wording.");
+      await load();
+    } finally {setSaving(false);}
+  }
+
   function toggle(id: string) {
     setSelected((current) => {
       const next = new Set(current);
@@ -38,7 +69,8 @@ export default function MemoriesPage() {
     // Sequential writes prevent two profile deletions from overwriting each other.
     for (const id of ids) {
       try {
-        await apiRequest(`/api/memories/${encodeURIComponent(id)}`, { method: "DELETE" });
+        const memory=memories.find(item=>item.id===id);
+        await apiRequest(`/api/memories/${encodeURIComponent(id)}`, {method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({revision:memory?.revision,expectedValue:memory?.expectedValue})});
         removed.add(id);
       } catch { /* Keep failed items visible and show one honest error. */ }
     }
@@ -93,6 +125,19 @@ export default function MemoriesPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-base leading-7 text-[#37332d]">{displayText}</p>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs leading-5 text-[#817a70]"><span>{memory.source_session_id ? copy.fromChat : copy.saved}</span><span>{copy.updated} {formatDate(memory.updated_at || memory.created_at, false, locale)}</span></div>
+                    <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-[#6e574d]">
+                      <span>{memory.provenance==="user_edit" ? (locale==="zh"?"由你纠正":"Corrected by you") : memory.source_message_id ? (locale==="zh"?"来自你的原话":"From your words") : (locale==="zh"?"历史记录 · 无逐条原文":"Legacy record · no verified quote")}</span>
+                      {(memory.source_message_id || (memory.revision || 1)>1) && <button className="underline" onClick={()=>void showSource(memory)}>{locale==="zh"?"来源与版本":"Source and history"}</button>}
+                      <button className="underline" onClick={()=>{setEditing(memory);setDraft(memory.summary);}}>{locale==="zh"?"纠正":"Correct"}</button>
+                    </div>
+                    {evidence?.id===memory.id && <blockquote className="mt-2 border-l-2 pl-3 text-sm">{evidence.text}
+                      {evidence.history.length>0 && <ol className="mt-2 space-y-1">{evidence.history.map(v=><li key={v.revision}>{locale==="zh"?"旧版本":"Previous version"} {v.revision} · {v.summary}</li>)}</ol>}
+                    </blockquote>}
+                    {editing?.id===memory.id && <form className="mt-3 space-y-2" onSubmit={e=>{e.preventDefault();void saveCorrection();}}>
+                      <textarea aria-label={locale==="zh"?"纠正后的记忆":"Corrected memory"} maxLength={1000} required value={draft} onChange={e=>setDraft(e.target.value)} className="block w-full border p-2" />
+                      <button className="mr-4 underline" disabled={saving || !draft.trim()}>{locale==="zh"?"保存":"Save"}</button>
+                      <button type="button" disabled={saving} onClick={()=>setEditing(null)}>{locale==="zh"?"取消":"Cancel"}</button>
+                    </form>}
                   </div>
                   <button type="button" onClick={() => setDeleting(memory)} className="inline-flex min-h-11 shrink-0 items-center gap-2 px-2 text-sm font-medium text-[#9e4837] hover:bg-[#f6eae4]" aria-label={`${copy.delete}: ${displayText}`}><Trash2 className="h-4 w-4" /><span className="hidden sm:inline">{copy.delete}</span></button>
                 </div>

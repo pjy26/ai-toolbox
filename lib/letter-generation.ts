@@ -228,7 +228,7 @@ export async function generateLetterForCompanion(
   const { data: sessions, error: sessionsError } = await admin
     .from("chat_sessions")
     .select("id")
-    .eq("companion_id", companion.id);
+    .eq("companion_id", companion.id).eq("user_id", companion.user_id);
   if (sessionsError) throw new Error(`Could not read letter sessions: ${sessionsError.message}`);
   const sessionIds = (sessions || []).map((session) => session.id);
   if (sessionIds.length === 0) {
@@ -237,7 +237,7 @@ export async function generateLetterForCompanion(
   }
 
   const { data: rawMessages, error: messagesError } = await admin
-    .from("chat_messages")
+    .from("memory_eligible_messages")
     .select("id, role, content, created_at")
     .in("session_id", sessionIds)
     .order("created_at", { ascending: false })

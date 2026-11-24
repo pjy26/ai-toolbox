@@ -49,11 +49,11 @@ export function createCompanionStream({
           return;
         }
 
+        await onPersist(assistantFull);
         for (let offset = 0; offset < assistantFull.length; offset += 24) {
           send({ choices: [{ delta: { content: assistantFull.slice(offset, offset + 24) } }] });
         }
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        await onPersist(assistantFull);
         controller.close();
       } catch (error) {
         const err = error as any;

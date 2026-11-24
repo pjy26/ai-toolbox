@@ -166,7 +166,7 @@ async function generateForCandidate(
     const { data: sessions, error: sessionsError } = await admin
       .from("chat_sessions")
       .select("id")
-      .eq("companion_id", companion.id);
+      .eq("companion_id", companion.id).eq("user_id", companion.user_id);
     if (sessionsError) throw new Error(`Could not read chat sessions: ${sessionsError.message}`);
     const sessionIds = (sessions || []).map((session) => session.id);
     if (sessionIds.length === 0) {
@@ -175,7 +175,7 @@ async function generateForCandidate(
     }
 
     const { data: rawMessages, error: messagesError } = await admin
-      .from("chat_messages")
+      .from("memory_eligible_messages")
       .select("id, role, content, created_at")
       .in("session_id", sessionIds)
       .gte("created_at", range.start.toISOString())

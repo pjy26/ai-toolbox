@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --import tsx --test \"tests/*.test.ts\" \"tests/*.test.cjs\""
+    "test": "node --import tsx --test \"tests/*.test.ts\" \"tests/*.test.cjs\"",
+    "check:launch": "node scripts/launch-check.mjs"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.9.0",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.16",
+    "@electric-sql/pglite-pgvector": "^0.0.17",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",

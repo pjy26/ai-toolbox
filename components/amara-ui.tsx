@@ -11,6 +11,10 @@ export type Memory = {
   source_session_id: string | null;
   created_at: string;
   updated_at: string;
+  source_message_id?: string | null;
+  revision?: number;
+  provenance?: string;
+  expectedValue?: unknown;
   record_type?: "summary" | "profile";
 };
 

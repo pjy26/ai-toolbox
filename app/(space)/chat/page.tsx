@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Send, User, Crown, LogOut, ChevronRight, X } from "lucide-react";
 import { LocaleToggle, useLocale } from "@/components/locale-provider";
+import { readSavedReply } from "@/lib/chat-reply";
 import { chatCopy, fillCopy } from "@/lib/chat-copy";
 import { formatUsd, SUPPORT_EMAIL } from "@/lib/membership-plans";
 import { openWaffoCheckout } from "@/lib/waffo-browser";
@@ -14,6 +15,7 @@ import { CompanionSwitcher } from "@/components/companion-switcher";
 import { trackProductEvent } from "@/lib/product-events";
 
 interface Message {
+  id?: string;
   role: "user" | "assistant";
   content: string;
 }
@@ -69,13 +71,13 @@ function ChatInner() {
   const [showMyDrawer, setShowMyDrawer] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [extracting, setExtracting] = useState(false);
+  const [sendError,setSendError] = useState("");
+  const sendingRef = useRef(false);
+  const pendingRef = useRef<{fingerprint:string;id:string;session:string|null} | null>(null);
   const [greetingDone, setGreetingDone] = useState(false);
   const [showPaySuccess, setShowPaySuccess] = useState(false);
   const initRunRef = useRef(0);
   const typeWriterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const extractionQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const pendingExtractionsRef = useRef(0);
 
   // 支付成功回跳：刷新配额 + 显示成功提示（5 秒后自动消失）
   useEffect(() => {
@@ -169,7 +171,7 @@ function ChatInner() {
               const mData = await mRes.json();
               if (!isCurrent()) return;
               if (Array.isArray(mData.messages) && mData.messages.length > 0) {
-                setMessages(mData.messages.map((m: any) => ({ role: m.role, content: m.content })));
+                setMessages(mData.messages.map((m: any) => ({ id: m.id, role: m.role, content: m.content })));
               }
             }
           }
@@ -252,104 +254,76 @@ function ChatInner() {
 
   /* ── 发送 ── */
   async function handleSend() {
-    if (!input.trim() || !companion || loading) return;
-    const text = input.trim();
-    setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    if (!input.trim() || !companion || sendingRef.current) return;
+    sendingRef.current = true;
     setLoading(true);
-
-    const assistantMsg: Message = { role: "assistant", content: "" };
-    setMessages((prev) => [...prev, assistantMsg]);
-
+    const text = input.trim();
+    const key = "amara_pending:" + companion.id;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 35000);
-
-    let res: Response;
+    const before = messages;
+    setInput("");
+    setSendError("");
     try {
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-      res = await fetch("/api/companion", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, companion_id: companion.id, session_id: sessionId, locale: localeRef.current, timezone }),
-        signal: controller.signal,
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      const fingerprint = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2,"0")).join("");
+      let pending = pendingRef.current;
+      try { pending ||= JSON.parse(sessionStorage.getItem(key) || "null"); } catch { /* private browsing */ }
+      const retry = pending?.fingerprint === fingerprint && (!pending.session || pending.session === sessionId);
+      const id = retry && pending ? pending.id : crypto.randomUUID();
+      const remember = (sid: string | null) => {
+        pendingRef.current = {fingerprint,id,session:sid};
+        try { sessionStorage.setItem(key,JSON.stringify(pendingRef.current)); } catch { /* use in-memory identity */ }
+      };
+      remember(sessionId);
+      const base = retry && before.at(-1)?.role === "user" && before.at(-1)?.content === text ? before.slice(0,-1) : before;
+      setMessages([...base,{role:"user",content:text},{role:"assistant",content:""}]);
+      const response = await fetch("/api/companion",{
+        method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,
+        body:JSON.stringify({message:text,companion_id:companion.id,session_id:sessionId,client_turn_id:id,
+          locale:localeRef.current,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"}),
       });
-    } catch {
-      clearTimeout(timeout);
-      setMessages((prev) => prev.slice(0, -2));
-      const errMsg: Message = { role: "assistant", content: copy.networkError };
-      setMessages((prev) => [...prev, errMsg]);
-      setLoading(false);
-      return;
-    }
-    clearTimeout(timeout);
-
-    if (!res.ok || !res.body) {
-      let serverError = copy.errorGeneric;
-      try {
-        const data = await res.json();
-        if (typeof data.error === "string" && data.error.trim()) serverError = data.error;
-      } catch { /* Keep the localized fallback when the response is not JSON. */ }
-      setMessages((prev) => prev.slice(0, -2));
-      const errMsg: Message = { role: "assistant", content: serverError };
-      setMessages((prev) => [...prev, errMsg]);
-      setLoading(false);
-      return;
-    }
-
-    const sid = res.headers.get("x-session-id");
-    if (sid) {
-      setSessionId(sid);
-      // 持久化到 sessionStorage，重挂载后从这里恢复，避免取最近 session 串台
-      if (companion) sessionStorage.setItem(`amara_session:${companion.id}`, sid);
-    }
-
-    const reader = res.body?.getReader();
-    const decoder = new TextDecoder();
-    let content = "", buffer = "";
-    if (!reader) { setLoading(false); return; }
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        const t = line.trim();
-        if (!t.startsWith("data: ")) continue;
-        const data = t.slice(6);
-        if (data === "[DONE]") continue;
-        try {
-          const p = JSON.parse(data);
-          if (p.error) {
-            content = typeof p.error === "string" ? p.error : copy.errorGeneric;
-            setMessages((prev) => {
-              const arr = [...prev];
-              arr[arr.length - 1] = { role: "assistant", content };
-              return arr;
-            });
-            continue;
-          }
-          const delta = p.choices?.[0]?.delta?.content || "";
-          if (delta) {
-            content += delta;
-            setMessages((prev) => {
-              const arr = [...prev];
-              arr[arr.length - 1] = { role: "assistant", content };
-              return arr;
-            });
-          }
-        } catch { /* ignore */ }
+      if (!response.ok || !response.body) {
+        const problem = await response.json().catch(()=>({}));
+        throw Error(problem.error || copy.errorGeneric);
       }
+      const sid = response.headers.get("x-session-id");
+      if (sid) {
+        setSessionId(sid);
+        remember(sid);
+        try { sessionStorage.setItem(SESSION_KEY(companion.id),sid); } catch { /* session remains in memory */ }
+      }
+      const savedReply = await readSavedReply(response, copy.networkError, (_delta, accumulated) => {
+        setMessages((prev) => {
+          if (prev.length === 0) return prev;
+          const last = prev[prev.length - 1];
+          if (last.role !== "assistant") return prev;
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...last, content: accumulated };
+          return updated;
+        });
+      });
+      const userMessageId = response.headers.get("x-user-message-id") || undefined;
+      const replyId = response.headers.get("x-reply-message-id") || undefined;
+      const confirmed = [...before];
+      if (!userMessageId || !confirmed.some(message => message.id === userMessageId)) {
+        confirmed.push({ id: userMessageId, role: "user", content: text });
+      }
+      if (!replyId || !confirmed.some(message => message.id === replyId)) {
+        confirmed.push({ id: replyId, role: "assistant", content: savedReply });
+      }
+      setMessages(confirmed);
+      pendingRef.current=null;
+      try { sessionStorage.removeItem(key); } catch { /* private browsing */ }
+    } catch (error) {
+      setMessages(before);
+      setInput(text);
+      setSendError(error instanceof Error && error.name !== "AbortError" ? error.message : copy.networkError);
+    } finally {
+      clearTimeout(timeout);
+      sendingRef.current=false;
+      setLoading(false);
     }
-
-    // 回复结束后立即解锁输入。会员状态刷新和记忆抽取都在后台运行，
-    // 记忆仍按同一队列依次执行，避免并发抽取同一批消息造成重复写入。
-    setLoading(false);
-    void loadQuota().then(() => {
-      // 记忆抽取对免费账号同样开放：会员等级限制的是功能，不是记忆。
-      queueExtract(sid || sessionId);
-    });
   }
 
   const loadQuota = useCallback(async (): Promise<Quota | null> => {
@@ -364,38 +338,6 @@ function ChatInner() {
       return null;
     }
   }, []);
-
-  const runExtract = async (targetSessionId: string) => {
-    if (!companion) return;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45000);
-    try {
-      const extractRes = await fetch("/api/companion/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companion_id: companion.id, session_id: targetSessionId, locale }),
-        signal: controller.signal,
-      });
-      if (!extractRes.ok) console.error("记忆抽取失败:", extractRes.status);
-    } catch (error) {
-      console.error("记忆抽取请求失败:", error);
-    } finally {
-      clearTimeout(timeout);
-    }
-  };
-
-  const queueExtract = (targetSessionId: string | null) => {
-    if (!companion || !targetSessionId) return;
-    pendingExtractionsRef.current += 1;
-    setExtracting(true);
-    extractionQueueRef.current = extractionQueueRef.current
-      .then(() => runExtract(targetSessionId))
-      .catch((error) => console.error("记忆抽取队列失败:", error))
-      .finally(() => {
-        pendingExtractionsRef.current = Math.max(0, pendingExtractionsRef.current - 1);
-        setExtracting(pendingExtractionsRef.current > 0);
-      });
-  };
 
   /* ── 粒子背景 ── */
   useEffect(() => {
@@ -491,7 +433,6 @@ function ChatInner() {
             <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#282621", lineHeight: 1.4 }}>Amara</div>
             <div className="text-xs font-light mt-0.5" style={{ letterSpacing: 1, color: "#756F66" }}>
               {copy.loverTagline}
-              {extracting && ` · ${copy.remembering}`}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -568,7 +509,15 @@ function ChatInner() {
                     borderBottomRightRadius: 4,
                   }),
                 }}>
-                  {msg.content || (msg.role === "assistant" ? "..." : "")}
+                  {msg.content ? (
+                    msg.content
+                  ) : msg.role === "assistant" ? (
+                    <div className="flex gap-1 py-1 items-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#b87964] animate-bounce" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#b87964] animate-bounce" style={{ animationDelay: "0.15s" }} />
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#b87964] animate-bounce" style={{ animationDelay: "0.3s" }} />
+                    </div>
+                  ) : null}
                 </div>
                 <div className="text-xs mt-1.5" style={{
                   color: "#817A70",
@@ -580,22 +529,10 @@ function ChatInner() {
               </div>
             </div>
           ))}
-
-          {/* 加载指示器 */}
-          {loading && messages.length > 0 && messages[messages.length - 1].role === "assistant" && messages[messages.length - 1].content === "" && (
-            <div className="flex mb-4" style={{ justifyContent: "flex-start", animation: "msgIn 0.5s ease forwards" }}>
-              <div style={{ maxWidth: "min(72vw, 480px)", padding: "12px 16px", borderRadius: 18, borderBottomLeftRadius: 4, background: "#FFFDF8", border: "1px solid #E0D5C8" }}>
-                <div className="flex gap-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#b87964] animate-bounce" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#b87964] animate-bounce" style={{ animationDelay: "0.15s" }} />
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#b87964] animate-bounce" style={{ animationDelay: "0.3s" }} />
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
+      {sendError && <p role="alert" className="px-4 py-2 text-center text-sm text-red-800">{sendError}</p>}
       {/* 输入框 */}
       <div style={{ position: "relative", zIndex: 10, flexShrink: 0, padding: "12px 16px 20px", background: "#F1ECE4", borderTop: "1px solid #DED7CC" }}>
         <div style={{ position: "absolute", top: -20, left: 0, right: 0, height: 20, background: "linear-gradient(180deg, transparent, #F1ECE4)", pointerEvents: "none" }} />

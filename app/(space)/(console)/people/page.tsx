@@ -29,7 +29,7 @@ function normalizePeople(value: unknown): Person[] {
     const name = text(record.name ?? record.姓名 ?? record.名字 ?? record.nickname ?? record.relation ?? record.关系);
     if (!name) return null;
     const details = Object.entries(record)
-      .filter(([key]) => !["name", "姓名", "名字", "nickname"].includes(key))
+      .filter(([key]) => !["name", "姓名", "名字", "nickname", "source_message_id"].includes(key))
       .map(([key, item]) => [key, text(item)] as [string, string])
       .filter(([, item]) => item);
     return { id: `${index}-${name}`, name, details };

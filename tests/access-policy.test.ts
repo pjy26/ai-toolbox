@@ -33,10 +33,10 @@ assert.match(pricingPage, /"Unlimited conversations"/);
 assert.match(pricingPage, /"不限次数对话"/);
 
 // 记忆抽取对所有方案开放；重要人物与共同瞬间仍按会员等级限制。
-const extractRoute = read("../app/api/companion/extract/route.ts");
+const extractRoute = read("../lib/memory-worker.ts");
 assert.doesNotMatch(extractRoute, /if\s*\(\s*!isMember\b|membership required|记忆.*会员/i);
 assert.match(extractRoute, /memory_extract_completed/);
-assert.match(extractRoute, /limitImportantPeople/);
+assert.match(read("../migrations/trusted_memory.sql"), /paid or jsonb_array_length\(people\)=0/);
 const context = read("../lib/companion-context.ts");
 assert.doesNotMatch(context, /if\s*\(\s*!isMember\b/);
 

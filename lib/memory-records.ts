@@ -8,8 +8,12 @@ export type ConsoleMemoryRecord = {
   summary: string;
   importance: number;
   source_session_id: string | null;
+  revision?: number;
+  provenance?: string;
+  source_message_id?: string | null;
   created_at: string;
   updated_at: string;
+  expectedValue?: unknown;
   record_type: "summary" | "profile";
 };
 
@@ -47,6 +51,7 @@ function flattenProfile(companionId: string, profile: Record<string, unknown>, t
     const clean = summary.trim();
     if (!isUserScopedMemoryText(clean)) return;
     records.push({
+      expectedValue: path.reduce<any>((value, key) => value?.[key],profile),
       id: profileMemoryId(companionId, path),
       companion_id: companionId,
       summary: clean.slice(0, 4000),
@@ -87,7 +92,7 @@ export async function listMemoryRecords(
   const [summaryResult, profileResult] = await Promise.all([
     supabase
       .from("memory_summaries")
-      .select("id, companion_id, summary, importance, source_session_id, created_at, updated_at")
+      .select("id, companion_id, summary, importance, source_session_id, source_message_id, provenance, revision, created_at, updated_at")
       .in("companion_id", companionIds)
       .order("updated_at", { ascending: false })
       .limit(candidateLimit),
