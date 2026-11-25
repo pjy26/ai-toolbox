@@ -62,6 +62,12 @@ async function resolveSessionId(
 async function sendConversationError(message: QQIncomingMessage, response: Response) {
   if (response.status === 409) return; // A duplicate webhook already has a turn in progress.
   const body: any = await response.json().catch(() => null);
+  console.error("[QQ Amara] Companion turn failed", {
+    eventId: message.eventId,
+    kind: message.kind,
+    status: response.status,
+    code: body?.code,
+  });
   const text = body?.code === "CONTENT_REVIEW_REQUIRED" && typeof body?.error === "string"
     ? body.error
     : "我这次没能顺利回应你，稍后再发一次好吗？";

@@ -111,10 +111,30 @@ export async function runCompanionTurn({
       },
     );
     if (claimError || !turn) {
-      return NextResponse.json({ error: "Chat storage unavailable" }, { status: 503 });
+      console.error("[companion turn] Could not begin turn", {
+        turnId,
+        companion_id,
+        session_id,
+        code: claimError?.code,
+        message: claimError?.message,
+        details: claimError?.details,
+        hint: claimError?.hint,
+      });
+      return NextResponse.json(
+        { error: "Chat storage unavailable", code: "TURN_BEGIN_FAILED" },
+        { status: 503 },
+      );
     }
     if (turn.state === "missing") {
-      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+      console.error("[companion turn] Session not found", {
+        turnId,
+        companion_id,
+        session_id,
+      });
+      return NextResponse.json(
+        { error: "Session not found", code: "SESSION_NOT_FOUND" },
+        { status: 404 },
+      );
     }
     if (turn.state === "busy" || turn.state === "conflict") {
       return NextResponse.json(
@@ -251,9 +271,19 @@ export async function runCompanionTurn({
         });
       }
       return new Response(readable, { headers });
-    } catch {
+    } catch (error) {
+      const contextError = error as { name?: string; message?: string; code?: string };
+      console.error("[companion turn] Could not build conversation context", {
+        turnId,
+        name: contextError?.name,
+        message: contextError?.message,
+        code: contextError?.code,
+      });
       await releaseTurn();
-      return NextResponse.json({ error: "Chat temporarily unavailable" }, { status: 503 });
+      return NextResponse.json(
+        { error: "Chat temporarily unavailable", code: "TURN_CONTEXT_FAILED" },
+        { status: 503 },
+      );
     }
   });
 }
