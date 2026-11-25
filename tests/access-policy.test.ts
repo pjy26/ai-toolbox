@@ -13,7 +13,8 @@ assert.match(auth, /export async function getMembershipStatus/);
 const companionRoute = read("../app/api/companion/route.ts");
 assert.doesNotMatch(companionRoute, /QUOTA_EXCEEDED|checkCompanionQuota|free_messages_used/);
 assert.doesNotMatch(companionRoute, /status:\s*402/);
-assert.match(companionRoute, /getMembershipStatus/);
+const companionTurn = read("../lib/companion-turn.ts");
+assert.match(companionTurn, /getMembershipStatus/);
 
 // 会员状态接口只返回权益，不再返回条数配额。
 const quotaRoute = read("../app/api/companion/quota/route.ts");

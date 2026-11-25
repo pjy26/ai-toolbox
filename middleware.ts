@@ -22,5 +22,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/chat", "/api/((?!pay/waffo/webhook|jobs/).*)"],
+  matcher: ["/chat", "/api/((?!pay/waffo/webhook|qq/webhook|jobs/).*)"],
 };

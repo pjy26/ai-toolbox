@@ -9,14 +9,14 @@ export async function getAuthUser() {
 
 // 对话次数对所有方案都不设上限；免费与付费的差异只在功能（见 lib/access.ts）。
 // 会员判断：付费权益与管理员赠送权益分别保存，取当前更晚的到期时间。
-export async function getMembershipStatus(userId: string): Promise<{
+export async function getMembershipStatus(userId: string, client?: any): Promise<{
   isMember: boolean;
   tier: MembershipTier;
   membershipType: string | null;
   expiresAt: string | null;
   membershipSource: "paid" | "manual" | null;
 }> {
-  const supabase = await createRouteHandlerClient();
+  const supabase = client || await createRouteHandlerClient();
   const { data } = await supabase
     .from("profiles")
     .select("membership_type, membership_expires_at, manual_membership_type, manual_membership_expires_at")
