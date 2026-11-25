@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
-import { ArrowLeft, ChevronDown, Trash2 } from "lucide-react";
-import { apiRequest, ConfirmDialog, Dream, ErrorState, formatDate, ImaginationLabel, PageLoader } from "@/components/amara-ui";
+import { ArrowLeft, ChevronDown, Feather, MoonStar, Trash2 } from "lucide-react";
+import { apiRequest, ConfirmDialog, Dream, ErrorState, formatDate, ImaginationLabel } from "@/components/amara-ui";
 import { useCompanionSpace } from "@/components/companion-space";
 import { useLocale } from "@/components/locale-provider";
 
@@ -17,8 +17,10 @@ const detailCopy = {
     about: "A Dream about",
     disclaimer: "This is a creative reflection, not something that happened. Nothing in this Dream becomes a factual memory about you.",
     threads: "Real threads behind the imagination",
-    sourceOne: "This Dream was generated with reference to 1 real conversation thread or saved moment.",
-    sourceMany: "This Dream was generated with references to {count} real conversation threads and saved moments.",
+    sourceOne: "Generated from 1 real conversation thread or saved moment.",
+    sourceMany: "Generated from {count} real conversation threads and saved moments.",
+    sourceZeroTitle: "Creative imagination",
+    sourceZero: "This Dream was not generated from a real conversation or saved moment. It is simply a work of imagination.",
     review: "Review saved memories",
     settings: "Turn off future Dreams in Settings",
     delete: "Delete this Dream",
@@ -35,8 +37,10 @@ const detailCopy = {
     about: "一场关于",
     disclaimer: "这是一段创意想象，不是真实发生的事。梦境中的任何内容都不会成为关于你的事实记忆。",
     threads: "想象背后的真实线索",
-    sourceOne: "这场梦参考了 1 条真实对话或已保存的片段。",
-    sourceMany: "这场梦参考了 {count} 条真实对话或已保存的片段。",
+    sourceOne: "这场梦基于1 条真实对话或已保存片段生成。",
+    sourceMany: "这场梦基于{count} 条真实对话或已保存片段生成。",
+    sourceZeroTitle: "创意想象",
+    sourceZero: "这场梦并非基于真实对话或已保存片段生成，而是一段纯粹的创意想象。",
     review: "查看已保存的记忆",
     settings: "在设置中关闭以后的梦境",
     delete: "删除这场梦",
@@ -48,6 +52,14 @@ const detailCopy = {
   },
 };
 
+const paperNoise = {
+  backgroundImage: "radial-gradient(rgba(104, 82, 51, 0.13) 0.55px, transparent 0.75px), radial-gradient(rgba(255, 253, 247, 0.8) 0.55px, transparent 0.8px)",
+  backgroundSize: "7px 7px, 11px 11px",
+  backgroundPosition: "0 0, 3px 5px",
+};
+
+const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9c624c] focus-visible:ring-offset-4 focus-visible:ring-offset-[#f7f3eb]";
+
 export default function DreamDetailPage() {
   const { session } = useSessionContext();
   const { locale } = useLocale();
@@ -58,6 +70,7 @@ export default function DreamDetailPage() {
   const activeId = useCompanionSpace().profiles?.activeCompanionId;
   const [dream, setDream] = useState<Dream | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showSkeleton, setShowSkeleton] = useState(false);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -88,6 +101,15 @@ export default function DreamDetailPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!loading) {
+      setShowSkeleton(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowSkeleton(true), 300);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
+
   async function removeDream() {
     if (!dream || deleting) return;
     setDeleting(true);
@@ -109,46 +131,73 @@ export default function DreamDetailPage() {
 
   return (
     <>
-      <Link href="/dreams" className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-[#6e685f] hover:text-[#923f30]">
+      <Link href="/dreams" className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium text-[#6e685f] transition-[transform,color] duration-200 ease-out hover:-translate-y-px hover:text-[#923f30] active:scale-[0.98] motion-reduce:transform-none motion-reduce:transition-none ${focusRing}`}>
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />{copy.allDreams}
       </Link>
 
       {deleteError && <div className="mt-5 border-l-2 border-[#b75c47] bg-[#f6eae4] px-4 py-3 text-sm text-[#813d30]" role="alert">{deleteError}</div>}
 
-      {loading ? <PageLoader label={copy.opening} /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : dream ? (
-        <article className="mx-auto max-w-3xl pt-8 sm:pt-12">
-          <header className="border-b border-[#ded7cc] pb-8">
-            <ImaginationLabel />
-            <p className="mt-6 text-xs font-medium text-[#817a70]">{formatDate(dream.local_date || dream.generated_at || dream.created_at, false, locale)}</p>
-            <h1 className="mt-3 font-serif text-4xl leading-tight tracking-[-0.035em] sm:text-6xl">{dream.title || copy.untitled}</h1>
-            {dream.emotional_theme && <p className="mt-5 text-sm capitalize text-[#a34f3d]">{copy.about} {dream.emotional_theme.replaceAll("_", " ")}</p>}
+      {loading ? showSkeleton ? (
+        <div className="mx-auto max-w-3xl pt-8 sm:pt-12" role="status" aria-live="polite">
+          <span className="sr-only">{copy.opening}</span>
+          <div className="relative animate-pulse overflow-hidden rounded-2xl border border-[#dfd2bd] bg-[#faf4e8] px-5 py-7 shadow-[0_22px_60px_rgba(91,72,47,0.10)] motion-reduce:animate-none sm:px-10 sm:py-12 lg:px-14" aria-hidden="true">
+            <div className="absolute inset-0 opacity-30" style={paperNoise} />
+            <div className="relative">
+              <div className="flex flex-wrap items-center justify-between gap-4"><div className="h-4 w-36 rounded-md bg-[#ded3c0]" /><div className="h-7 w-32 rounded-full bg-[#ded3c0]" /></div>
+              <div className="mt-8 h-10 w-4/5 rounded-md bg-[#ded3c0] sm:h-14" />
+              <div className="mt-4 h-5 w-40 rounded-md bg-[#e7ddcc]" />
+              <div className="space-y-5 py-10 sm:py-12"><div className="h-5 w-full rounded-md bg-[#e7ddcc]" /><div className="h-5 w-11/12 rounded-md bg-[#e7ddcc]" /><div className="h-5 w-full rounded-md bg-[#e7ddcc]" /><div className="h-5 w-3/4 rounded-md bg-[#e7ddcc]" /><div className="h-5 w-full rounded-md bg-[#e7ddcc]" /><div className="h-5 w-2/3 rounded-md bg-[#e7ddcc]" /></div>
+              <div className="space-y-4 border-y border-[#ded3c0] py-6"><div className="h-4 w-full rounded-md bg-[#e7ddcc]" /><div className="h-4 w-4/5 rounded-md bg-[#e7ddcc]" /><div className="h-5 w-48 rounded-md bg-[#ded3c0]" /></div>
+            </div>
+          </div>
+        </div>
+      ) : null : error ? <ErrorState message={error} onRetry={() => void load()} /> : dream ? (
+        <article className="relative mx-auto mt-8 max-w-3xl overflow-hidden rounded-2xl border border-[#dfd2bd] bg-[#faf4e8] px-5 py-7 shadow-[0_22px_60px_rgba(91,72,47,0.10),0_2px_8px_rgba(91,72,47,0.05)] sm:mt-12 sm:px-10 sm:py-12 lg:px-14">
+          <div className="pointer-events-none absolute inset-0 opacity-30" style={paperNoise} aria-hidden="true" />
+          <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 animate-pulse rounded-full bg-[radial-gradient(circle,rgba(213,190,145,0.24)_0%,rgba(240,224,191,0.09)_48%,transparent_72%)] [animation-duration:8s] motion-reduce:animate-none" aria-hidden="true" />
+
+          <header className="relative border-b border-[#ded3c0] pb-8">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <ImaginationLabel />
+              <div className="flex items-center gap-3">
+                <MoonStar className="h-5 w-5 text-[#a88b60]" strokeWidth={1.2} aria-hidden="true" />
+                <time dateTime={dream.local_date || dream.generated_at || dream.created_at} className="rounded-full border border-[#cdbca4] bg-[#fffaf0]/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#78684f] shadow-sm">{formatDate(dream.local_date || dream.generated_at || dream.created_at, false, locale)}</time>
+              </div>
+            </div>
+            <h1 className="mt-7 max-w-[20ch] break-words font-serif text-4xl leading-tight tracking-[-0.035em] text-[#302b25] [overflow-wrap:anywhere] sm:text-5xl lg:text-6xl">{dream.title || copy.untitled}</h1>
+            {dream.emotional_theme && <p className="mt-5 text-sm font-medium capitalize text-[#98543f]">{copy.about} {dream.emotional_theme.replaceAll("_", " ")}</p>}
           </header>
 
-          <div className="py-9 sm:py-12">
+          <div className="relative max-w-[65ch] py-9 sm:py-12">
             {dream.content.split(/\n+/).filter(Boolean).map((paragraph, index) => (
-              <p key={index} className="mb-6 font-serif text-xl leading-9 text-[#413d36] last:mb-0 sm:text-[1.35rem] sm:leading-10">{paragraph}</p>
+              <p key={index} className="mb-6 font-serif text-lg leading-8 text-[#413a31] [overflow-wrap:anywhere] last:mb-0 sm:text-xl sm:leading-9">{paragraph}</p>
             ))}
           </div>
 
-          <aside className="border-y border-[#ded7cc] py-6">
-            <p className="text-sm leading-7 text-[#6e685f]">{copy.disclaimer}</p>
-            {sourceCount > 0 && (
-              <details className="group mt-5">
-                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-[#5f5951]">
+          <aside className="relative max-w-[65ch] border-y border-[#ded3c0] py-6">
+            <p className="text-sm leading-7 text-[#6e6254]">{copy.disclaimer}</p>
+            {sourceCount > 0 ? (
+              <details className="group mt-5 border-t border-[#e4dac9] pt-4">
+                <summary className={`-mx-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-lg px-2 text-sm font-semibold text-[#5f5548] transition-colors duration-200 hover:bg-[#f1e8d9] hover:text-[#7d4938] ${focusRing}`}>
                   {copy.threads}
-                  <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+                  <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-open:rotate-180 motion-reduce:transform-none motion-reduce:transition-none" aria-hidden="true" />
                 </summary>
-                <div className="pt-2 text-sm leading-7 text-[#6e685f]">
+                <div className="pt-2 text-sm leading-7 text-[#6e6254]">
                   <p>{sourceDescription}</p>
-                  <Link href="/memories" className="mt-2 inline-block font-semibold text-[#923f30] underline decoration-[#d5b6aa] underline-offset-4">{copy.review}</Link>
+                  <Link href="/memories" className={`mt-3 inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-[#923f30] underline decoration-[#d5b6aa] underline-offset-4 transition-transform duration-200 ease-out hover:-translate-y-px active:scale-[0.98] motion-reduce:transform-none motion-reduce:transition-none ${focusRing}`}>{copy.review}</Link>
                 </div>
               </details>
+            ) : (
+              <div className="mt-5 flex items-start gap-3 border-t border-[#e4dac9] pt-5">
+                <Feather className="mt-1 h-4 w-4 shrink-0 text-[#967054]" aria-hidden="true" />
+                <div><p className="text-sm font-semibold text-[#5f5548]">{copy.sourceZeroTitle}</p><p className="mt-1 text-sm leading-7 text-[#6e6254]">{copy.sourceZero}</p></div>
+              </div>
             )}
           </aside>
 
-          <div className="flex flex-col gap-2 py-7 sm:flex-row sm:items-center sm:justify-between">
-            <Link href="/settings" className="inline-flex min-h-11 items-center text-sm font-semibold text-[#6e685f] underline decoration-[#cfc5b7] underline-offset-4">{copy.settings}</Link>
-            <button type="button" onClick={() => setConfirming(true)} className="inline-flex min-h-11 items-center justify-center gap-2 px-3 text-sm font-medium text-[#9e4837] hover:bg-[#f6eae4] sm:justify-start">
+          <div className="relative flex flex-col gap-2 py-6 sm:flex-row sm:items-center sm:justify-between">
+            <Link href="/settings" className={`inline-flex min-h-11 w-fit items-center rounded-lg px-2 text-sm font-semibold text-[#6e685f] underline decoration-[#cfc5b7] underline-offset-4 transition-[transform,color] duration-200 ease-out hover:-translate-y-px hover:text-[#923f30] active:scale-[0.98] motion-reduce:transform-none motion-reduce:transition-none ${focusRing}`}>{copy.settings}</Link>
+            <button type="button" onClick={() => setConfirming(true)} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium text-[#9e4837] transition-[transform,background-color] duration-200 ease-out hover:-translate-y-px hover:bg-[#f3e3d8] active:scale-[0.98] motion-reduce:transform-none motion-reduce:transition-none sm:justify-start ${focusRing}`}>
               <Trash2 className="h-4 w-4" aria-hidden="true" />{copy.delete}
             </button>
           </div>

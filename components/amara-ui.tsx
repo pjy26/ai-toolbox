@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, Loader2, MoonStar, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocale } from "@/components/locale-provider";
 
 export type Memory = {
@@ -103,9 +103,25 @@ export async function apiRequest<T>(url: string, options?: RequestInit): Promise
 
 export function PageLoader({ label }: { label?: string }) {
   const { locale } = useLocale();
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setVisible(true), 300);
+    return () => window.clearTimeout(timer);
+  }, []);
   return (
-    <div className="flex min-h-[45vh] items-center justify-center" role="status">
-      <div className="flex items-center gap-3 text-sm text-[#756f66]"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />{label || (locale === "zh" ? "正在收集你的瞬间…" : "Gathering your moments…")}</div>
+    <div className="flex min-h-[45vh] items-center justify-center px-4" role={visible ? "status" : undefined} aria-live="polite">
+      {visible && (
+        <div className="w-full max-w-md" aria-label={label || (locale === "zh" ? "正在收集你的瞬间…" : "Gathering your moments…")}>
+          <div className="skeleton-block h-3 w-24" />
+          <div className="skeleton-block mt-5 h-8 w-3/4" />
+          <div className="mt-8 space-y-3 rounded-2xl border border-black/[0.05] bg-[#fdfcfa] p-6">
+            <div className="skeleton-block h-3 w-full" />
+            <div className="skeleton-block h-3 w-11/12" />
+            <div className="skeleton-block h-3 w-2/3" />
+          </div>
+          <span className="sr-only">{label || (locale === "zh" ? "正在收集你的瞬间…" : "Gathering your moments…")}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -113,13 +129,13 @@ export function PageLoader({ label }: { label?: string }) {
 export function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   const { locale } = useLocale();
   return (
-    <div className="my-8 border-l-2 border-[#b75c47] bg-[#f6eae4] px-5 py-5" role="alert">
+    <div className="my-8 rounded-2xl border border-[#b75c47]/20 bg-[#f6eae4] px-5 py-5" role="alert">
       <div className="flex items-start gap-3">
         <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-[#9e4837]" aria-hidden="true" />
         <div>
           <p className="font-medium text-[#65372d]">{locale === "zh" ? "暂时无法打开这里。" : "We couldn’t load this just now."}</p>
           <p className="mt-1 text-sm leading-6 text-[#805b50]">{message}</p>
-          <button type="button" onClick={onRetry} className="mt-4 min-h-11 border border-[#b75c47] px-4 text-sm font-medium text-[#813d30] transition-colors hover:bg-[#eedbd2]">{locale === "zh" ? "重试" : "Try again"}</button>
+          <button type="button" onClick={onRetry} className="micro-lift mt-4 min-h-11 rounded-[10px] border border-[#b75c47] px-4 text-sm font-medium text-[#813d30] hover:bg-[#eedbd2]">{locale === "zh" ? "重试" : "Try again"}</button>
         </div>
       </div>
     </div>
@@ -153,16 +169,16 @@ export function ConfirmDialog({ title, description, confirmLabel, busy, onConfir
   }, [busy, onCancel]);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#211f1b]/45 p-4 sm:items-center" role="presentation">
-      <div role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description" className="w-full max-w-md border border-[#d9d0c4] bg-[#fffdf8] p-6 shadow-xl">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#211f1b]/45 p-4 backdrop-blur-sm sm:items-center" role="presentation">
+      <div role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description" className="w-full max-w-md rounded-2xl border border-black/[0.08] bg-[#fdfcfa] p-6 shadow-float">
         <div className="flex items-start justify-between gap-4">
           <h2 id="confirm-title" className="font-serif text-2xl text-[#282621]">{title}</h2>
-          <button type="button" onClick={onCancel} disabled={busy} className="flex h-11 w-11 items-center justify-center text-[#756f66] hover:text-[#282621] disabled:opacity-50" aria-label={locale === "zh" ? "关闭确认框" : "Close confirmation"}><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onCancel} disabled={busy} className="micro-lift flex h-11 w-11 items-center justify-center rounded-full text-[#756f66] hover:bg-black/[0.04] hover:text-[#282621] disabled:opacity-50" aria-label={locale === "zh" ? "关闭确认框" : "Close confirmation"}><X className="h-5 w-5" /></button>
         </div>
         <p id="confirm-description" className="mt-2 text-sm leading-6 text-[#6e685f]">{description}</p>
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button ref={cancelRef} type="button" onClick={onCancel} disabled={busy} className="min-h-11 border border-[#d9d0c4] px-5 text-sm font-medium text-[#49453e] hover:bg-[#f3eee6] disabled:opacity-50">{locale === "zh" ? "保留" : "Keep it"}</button>
-          <button type="button" onClick={onConfirm} disabled={busy} className="flex min-h-11 items-center justify-center gap-2 bg-[#9e4837] px-5 text-sm font-medium text-white hover:bg-[#843a2c] disabled:opacity-60">
+          <button ref={cancelRef} type="button" onClick={onCancel} disabled={busy} className="micro-lift min-h-11 rounded-[10px] border border-[#d9d0c4] px-5 text-sm font-medium text-[#49453e] hover:bg-[#f3eee6] disabled:opacity-50">{locale === "zh" ? "保留" : "Keep it"}</button>
+          <button type="button" onClick={onConfirm} disabled={busy} className="micro-lift flex min-h-11 items-center justify-center gap-2 rounded-[10px] bg-[#9e4837] px-5 text-sm font-medium text-white hover:bg-[#843a2c] disabled:opacity-60">
             {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}{busy ? (locale === "zh" ? "正在删除…" : "Deleting…") : confirmLabel}
           </button>
         </div>

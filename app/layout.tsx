@@ -1,9 +1,22 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, Newsreader } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
 import { MembershipProvider } from "@/components/membership-provider";
 import { LocaleProvider } from "@/components/locale-provider";
 import { PwaRegister } from "@/components/pwa-register";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-newsreader",
+  display: "swap",
+});
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.amarapjy.xyz";
 const title = "Amara · Not just remembered. Truly understood.";
@@ -54,7 +67,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">
+      <body className={`${inter.variable} ${newsreader.variable} min-h-screen antialiased`}>
         <AuthProvider>
           <MembershipProvider>
             <LocaleProvider>{children}</LocaleProvider>

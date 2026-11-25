@@ -223,7 +223,8 @@ function ChatInner() {
   }, [init]);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
   }, [messages]);
 
   /* ── 打字机：保留出现节奏，但不让首句动画成为数秒的输入锁 ── */
@@ -339,257 +340,157 @@ function ChatInner() {
     }
   }, []);
 
-  /* ── 粒子背景 ── */
-  useEffect(() => {
-    const canvas = document.getElementById("chat-particles") as HTMLCanvasElement | null;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    let W: number, H: number;
-    const particles: any[] = [];
-    const COUNT = 60;
-
-    const c = canvas;
-    function resize() { W = c.width = window.innerWidth; H = c.height = window.innerHeight; }
-    resize(); window.addEventListener("resize", resize);
-
-    class Particle {
-      x!: number; y!: number; vx!: number; vy!: number; size!: number; alpha!: number; targetAlpha!: number; fadeIn!: number; pulseSpeed!: number; pulseOffset!: number; r!: number; g!: number; b!: number; currentAlpha!: number;
-      constructor() { this.reset(); }
-      reset() {
-        this.x = Math.random() * W; this.y = Math.random() * H;
-        this.vx = (Math.random() - 0.5) * 0.12; this.vy = (Math.random() - 0.5) * 0.12;
-        this.size = Math.random() * 1.5 + 0.3;
-        this.alpha = 0; this.targetAlpha = Math.random() * 0.3 + 0.05;
-        this.fadeIn = Math.random() * 0.003 + 0.001;
-        this.pulseSpeed = Math.random() * 0.02 + 0.01;
-        this.pulseOffset = Math.random() * Math.PI * 2;
-        const roll = Math.random();
-        if (roll < 0.35) { this.r = 201; this.g = 169; this.b = 110; }
-        else if (roll < 0.7) { this.r = 232; this.g = 213; this.b = 196; }
-        else { this.r = 180; this.g = 150; this.b = 130; }
-      }
-      update() {
-        this.x += this.vx; this.y += this.vy;
-        if (this.x < 0) this.x = W; if (this.x > W) this.x = 0;
-        if (this.y < 0) this.y = H; if (this.y > H) this.y = 0;
-        if (this.alpha < this.targetAlpha) this.alpha += this.fadeIn;
-        const pulse = Math.sin(Date.now() * this.pulseSpeed + this.pulseOffset) * 0.3 + 0.7;
-        this.currentAlpha = this.alpha * pulse;
-      }
-      draw() {
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${this.r},${this.g},${this.b},${this.currentAlpha})`;
-        ctx.fill();
-      }
-    }
-
-    for (let i = 0; i < COUNT; i++) particles.push(new Particle());
-    let raf: number;
-    function animate() {
-      ctx.clearRect(0, 0, W, H);
-      particles.forEach((p) => { p.update(); p.draw(); });
-      raf = requestAnimationFrame(animate);
-    }
-    animate();
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); };
-  }, []);
-
   if (!session) {
     return (
-      <div className="h-screen flex items-center justify-center" style={{ background: "#F8F5EF" }}>
-        <div className="text-center" style={{ color: "#282621" }}>
-          <p className="text-lg mb-6" style={{ letterSpacing: 2 }}>{copy.loginRequired}</p>
-          <Link href="/login" className="px-8 py-3 rounded-xl text-white font-medium inline-block" style={{ letterSpacing: 2, background: "#A34F3D" }}>{copy.login}</Link>
+      <div className="flex h-screen h-[100dvh] items-center justify-center overflow-hidden px-6" style={{ background: "#F8F5EF" }}>
+        <div className="w-full max-w-[720px] text-center" style={{ color: "#282621" }}>
+          <p className="mb-6 text-lg leading-relaxed" style={{ letterSpacing: 2 }}>{copy.loginRequired}</p>
+          <Link href="/login" className="inline-flex min-h-11 items-center justify-center rounded-xl px-8 py-3 font-medium text-white transition duration-200 hover:-translate-y-px hover:bg-[#893F31] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/20 active:scale-[0.98] motion-reduce:transform-none" style={{ letterSpacing: 2, background: "#A34F3D" }}>{copy.login}</Link>
         </div>
       </div>
     );
   }
 
-  if (initLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center" style={{ background: "#F8F5EF" }}>
-        <div className="text-center" style={{ color: "#756F66" }}>
-          <div className="w-8 h-8 rounded-full border-2 border-t-transparent border-[#c9a894] animate-spin mx-auto mb-4" />
-          <p className="text-sm" style={{ letterSpacing: 2 }}>{copy.approaching}</p>
-        </div>
-      </div>
-    );
-  }
+  if (initLoading) return <ChatLoading />;
 
   return (
-    <div className="h-screen flex flex-col relative" style={{ background: "#F8F5EF" }}>
-      <canvas id="chat-particles" style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", opacity: 0.45 }} />
-      <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", background: "radial-gradient(ellipse 55% 45% at 50% 100%, rgba(163,79,61,0.07) 0%, transparent 65%)" }} />
+    <div className="relative flex h-screen h-[100dvh] min-w-0 flex-col overflow-hidden" style={{ background: "#F8F5EF" }}>
+      <div className="pointer-events-none fixed inset-0 z-0" style={{ background: "radial-gradient(ellipse 60% 42% at 50% 100%, rgba(163,79,61,0.035) 0%, transparent 70%)" }} />
 
       {/* Header */}
-      <header style={{ position: "relative", zIndex: 10, flexShrink: 0, padding: "16px 20px 12px", background: "rgba(248,245,239,0.92)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid #DED7CC" }}>
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <Link href="/app" aria-label={copy.back} className="w-10 text-lg" style={{ color: "#6E685F", textDecoration: "none" }}>&lsaquo;</Link>
-          <div className="flex-1 flex flex-col items-center">
-            <div className="relative mb-1.5" style={{ width: 36, height: 36 }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "radial-gradient(circle at 35% 35%, #FFFDF8, #E7D6C7)", border: "1px solid #D8C7B7", boxShadow: "0 3px 12px rgba(91,65,47,0.10)" }} />
-              <div style={{ position: "absolute", bottom: 2, right: 2, width: 8, height: 8, borderRadius: "50%", background: "#6F8B5E", border: "2px solid #F8F5EF", boxShadow: "0 0 5px rgba(111,139,94,0.3)", animation: "statusPulse 3s ease-in-out infinite" }} />
+      <header className="relative z-10 shrink-0 border-b border-[#DED7CC]/80 px-3 pb-2.5 pt-[max(10px,env(safe-area-inset-top))] sm:px-5 sm:pb-3 sm:pt-3" style={{ background: "rgba(248,245,239,0.82)", backdropFilter: "blur(20px) saturate(120%)", WebkitBackdropFilter: "blur(20px) saturate(120%)" }}>
+        <div className="mx-auto grid w-full max-w-[720px] grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-1 sm:gap-3">
+          <Link href="/app" aria-label={copy.back} className="flex h-11 w-11 items-center justify-center rounded-full text-2xl text-[#6E685F] no-underline transition duration-200 hover:-translate-y-px hover:bg-[#EEE9E1] hover:text-[#A34F3D] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/15 active:scale-[0.98] motion-reduce:transform-none">&lsaquo;</Link>
+          <div className="flex min-w-0 items-center justify-center gap-2.5">
+            <div className="relative h-9 w-9 shrink-0">
+              <div className="h-9 w-9 rounded-full border border-[#D8C7B7]" style={{ background: "radial-gradient(circle at 35% 35%, #FFFDF8, #E7D6C7)", boxShadow: "0 3px 12px rgba(91,65,47,0.08)" }} />
+              <div className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#F8F5EF] bg-[#6F8B5E] motion-reduce:!animate-none" style={{ boxShadow: "0 0 5px rgba(111,139,94,0.25)", animation: "statusPulse 3s ease-in-out infinite" }} />
             </div>
-            <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#282621", lineHeight: 1.4 }}>Amara</div>
-            <div className="text-xs font-light mt-0.5" style={{ letterSpacing: 1, color: "#756F66" }}>
-              {copy.loverTagline}
+            <div className="min-w-0">
+              <div className="text-sm font-medium leading-tight" style={{ letterSpacing: 2.5, color: "#282621" }}>Amara</div>
+              <div className="mt-1 truncate text-[11px] font-light leading-tight" style={{ letterSpacing: 1, color: "#756F66" }}>
+                {copy.loverTagline}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-0.5 sm:gap-2 [&_button]:min-h-11 [&_button]:min-w-11">
             <LocaleToggle />
             <button
+              type="button"
               onClick={() => setShowMyDrawer(true)}
               aria-label={copy.myAccount}
-              className="flex w-8 items-center justify-end"
-              style={{ color: "#6E685F", transition: "color 0.2s" }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = "#A34F3D"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = "#6E685F"; }}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#6E685F] transition duration-200 hover:-translate-y-px hover:bg-[#EEE9E1] hover:text-[#A34F3D] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/15 active:scale-[0.98] motion-reduce:transform-none"
             >
-              <User style={{ width: 20, height: 20 }} />
+              <User className="h-5 w-5" />
             </button>
           </div>
         </div>
-        <div className="mx-auto mt-3 max-w-3xl text-center"><CompanionSwitcher compact /></div>
+        <div className="mx-auto mt-1.5 w-full max-w-[720px] text-center sm:mt-2"><CompanionSwitcher compact /></div>
       </header>
 
       {/* 支付成功提示 */}
       {showPaySuccess && (
-        <div className="text-center py-1.5 text-xs" style={{ color: "#805A25", letterSpacing: 1, background: "#FFF1D6", position: "relative", zIndex: 10 }}>
+        <div className="relative z-10 px-4 py-2 text-center text-xs leading-relaxed" style={{ color: "#805A25", letterSpacing: 0.6, background: "#FFF1D6" }}>
           {copy.paymentSuccess}
         </div>
       )}
 
       {/* Free 方案说明：对话不限次数，其余差异见定价页 */}
       {quota && !quota.isMember && (
-        <div className="text-center py-1.5 text-xs" style={{ color: "#6E685F", letterSpacing: 1, background: "#F1ECE4", position: "relative", zIndex: 10 }}>
-          {copy.freePlanNote} ·{" "}
-          <span
+        <div className="relative z-10 flex min-h-11 flex-wrap items-center justify-center px-3 py-1 text-center text-xs leading-relaxed" style={{ color: "#6E685F", letterSpacing: 0.4, background: "rgba(241,236,228,0.88)" }}>
+          <span>{copy.freePlanNote} · </span>
+          <button
+            type="button"
             onClick={() => setShowPaywall(true)}
-            style={{ color: "#A34F3D", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}
+            className="inline-flex min-h-11 items-center rounded-md px-1 font-medium text-[#A34F3D] underline underline-offset-[3px] transition-colors hover:text-[#893F31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A34F3D]/30"
           >
             {copy.loverMemberCta}
-          </span>
+          </button>
         </div>
       )}
 
       {/* 消息列表 */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto" style={{ position: "relative", zIndex: 10, padding: "20px 16px" }}>
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center my-6" style={{ opacity: 0, animation: "fadeIn 0.8s ease forwards" }}>
-            <span className="text-xs font-light" style={{ color: "#817A70", letterSpacing: 2 }}>{copy.today}</span>
+      <div ref={scrollRef} className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 pb-8 pt-5 sm:px-6 sm:pt-7">
+        <div className="mx-auto w-full max-w-[720px]">
+          <div className="my-5 flex items-center gap-4 motion-reduce:!animate-none sm:my-7" style={{ animation: "fadeIn 0.5s ease-out" }}>
+            <span className="h-px flex-1 bg-[#DED7CC]/70" />
+            <span className="text-[11px] font-light" style={{ color: "#817A70", letterSpacing: 1.5 }}>{copy.today}</span>
+            <span className="h-px flex-1 bg-[#DED7CC]/70" />
           </div>
 
-          {messages.map((msg, i) => (
-            <div key={i} className="flex mb-4" style={{
-              justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
-              animation: "msgIn 0.5s ease forwards",
-              opacity: 0,
-              animationDelay: `${i * 0.02}s`,
-            }}>
-              <div>
-                <div style={{
-                  maxWidth: "min(72vw, 480px)",
-                  padding: "12px 16px",
-                  borderRadius: 18,
-                  fontSize: 15,
-                  lineHeight: 1.7,
-                  fontWeight: 400,
-                  letterSpacing: 0.3,
-                  wordBreak: "break-word",
-                  ...(msg.role === "assistant" ? {
-                    background: "#FFFDF8",
-                    color: "#37332D",
-                    border: "1px solid #E0D5C8",
-                    borderBottomLeftRadius: 4,
-                    boxShadow: "0 3px 14px rgba(91,65,47,0.07)",
-                  } : {
-                    background: "#EEE2D5",
-                    color: "#41352F",
-                    border: "1px solid #DCCFC0",
-                    borderBottomRightRadius: 4,
-                  }),
-                }}>
-                  {msg.content ? (
-                    msg.content
-                  ) : msg.role === "assistant" ? (
-                    <div className="flex gap-1 py-1 items-center">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#b87964] animate-bounce" />
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#b87964] animate-bounce" style={{ animationDelay: "0.15s" }} />
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#b87964] animate-bounce" style={{ animationDelay: "0.3s" }} />
-                    </div>
-                  ) : null}
-                </div>
-                <div className="text-xs mt-1.5" style={{
-                  color: "#817A70",
-                  letterSpacing: 1,
-                  ...(msg.role === "user" ? { textAlign: "right", marginRight: 4 } : { marginLeft: 4 }),
-                }}>
-                  {copy.justNow}
-                </div>
-              </div>
-            </div>
-          ))}
+          <div className="space-y-8 sm:space-y-9">
+            {messages.map((msg, i) => {
+              const isUser = msg.role === "user";
+              const fadeFrom = Math.max(0, msg.content.length - 4);
+              return (
+                <article
+                  key={i}
+                  className={`flex min-w-0 flex-col motion-reduce:!animate-none ${isUser ? "items-end" : "items-start"}`}
+                  style={{ animation: "msgIn 0.32s ease-out", animationDelay: `${Math.min(i, 8) * 0.02}s` }}
+                >
+                  <div className={`mb-2 flex items-center gap-1.5 text-[11px] leading-none ${isUser ? "pr-1 text-[#817A70]" : "pl-0 text-[#756F66]"}`} style={{ letterSpacing: 0.8 }}>
+                    <span className={isUser ? "font-normal" : "font-medium text-[#5F5951]"}>{isUser ? (locale === "zh" ? "你" : "You") : "Amara"}</span>
+                    <span aria-hidden="true" className="opacity-50">·</span>
+                    <span>{copy.justNow}</span>
+                  </div>
+                  <div
+                    className={isUser
+                      ? "max-w-[88%] rounded-[14px] bg-[#ECE8E1] px-4 py-3 text-[#413D37] sm:max-w-[560px] sm:px-[18px]"
+                      : "w-full max-w-[68ch] bg-transparent py-0.5 text-[#37332D]"}
+                    style={{ overflowWrap: "anywhere" }}
+                  >
+                    {msg.content ? (
+                      <p className={`whitespace-pre-wrap break-words ${isUser ? "text-[15px] leading-[1.75]" : "text-base leading-[1.85] sm:text-[17px]"}`} style={{ letterSpacing: 0.15 }}>
+                        {msg.content.slice(0, fadeFrom)}
+                        <span key={`stream-${i}-${msg.content.length}`} className="motion-reduce:!animate-none" style={{ animation: "fadeIn 0.24s ease-out" }}>
+                          {msg.content.slice(fadeFrom)}
+                        </span>
+                      </p>
+                    ) : msg.role === "assistant" ? (
+                      <div className="flex h-7 items-center gap-2" role="status" aria-label={locale === "zh" ? "Amara 正在思考" : "Amara is thinking"}>
+                        {[0, 1, 2].map((dot) => (
+                          <span
+                            key={dot}
+                            className="h-2 w-2 rounded-full bg-[#B87964] opacity-40 animate-pulse motion-reduce:!animate-none"
+                            style={{ animationDelay: `${dot * 0.24}s`, animationDuration: "1.8s" }}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {sendError && <p role="alert" className="px-4 py-2 text-center text-sm text-red-800">{sendError}</p>}
+      {sendError && <p role="alert" className="relative z-10 mx-auto w-full max-w-[720px] px-5 py-2 text-center text-sm leading-relaxed text-red-800">{sendError}</p>}
       {/* 输入框 */}
-      <div style={{ position: "relative", zIndex: 10, flexShrink: 0, padding: "12px 16px 20px", background: "#F1ECE4", borderTop: "1px solid #DED7CC" }}>
-        <div style={{ position: "absolute", top: -20, left: 0, right: 0, height: 20, background: "linear-gradient(180deg, transparent, #F1ECE4)", pointerEvents: "none" }} />
-        <div className="max-w-3xl mx-auto flex items-end gap-2.5">
+      <div className="relative z-10 shrink-0 border-t border-[#DED7CC]/70 px-3 pb-[max(14px,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-[max(18px,env(safe-area-inset-bottom))] sm:pt-4" style={{ background: "rgba(241,236,228,0.88)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)" }}>
+        <div className="pointer-events-none absolute -top-5 left-0 right-0 h-5" style={{ background: "linear-gradient(180deg, transparent, rgba(241,236,228,0.88))" }} />
+        <div className="mx-auto flex w-full max-w-[720px] items-center rounded-[22px] border border-[#D8CFC2] bg-[#FFFDF8] shadow-[0_4px_20px_rgba(91,65,47,0.05)] transition duration-200 focus-within:border-[#B87964] focus-within:ring-4 focus-within:ring-[#A34F3D]/10">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder={copy.inputPlaceholder}
             disabled={!greetingDone}
-            className="flex-1 rounded-2xl text-sm font-light placeholder:text-[#9a9186]"
-            style={{
-              background: "#FFFDF8",
-              border: "1px solid #D8CFC2",
-              padding: "10px 16px",
-              height: 44,
-              fontSize: 15,
-              lineHeight: 1.6,
-              color: "#282621",
-              outline: "none",
-              transition: "border-color 0.3s ease, box-shadow 0.3s ease",
-              opacity: greetingDone ? 1 : 0.55,
-            }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "#B87964"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(163,79,61,0.10)"; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = "#D8CFC2"; e.currentTarget.style.boxShadow = "none"; }}
+            className="h-12 min-w-0 flex-1 rounded-l-[22px] bg-transparent px-4 text-base font-light leading-6 text-[#282621] outline-none placeholder:text-[#91887D] disabled:cursor-not-allowed sm:px-5"
+            style={{ opacity: greetingDone ? 1 : 0.55 }}
           />
           <button
+            type="button"
             onClick={handleSend}
             disabled={loading || !input.trim() || !greetingDone}
             aria-label={copy.send}
-            className="rounded-full flex items-center justify-center"
-            style={{
-              width: 44, height: 44,
-              background: "#A34F3D",
-              border: "1px solid #A34F3D",
-              color: "#FFFDF8",
-              fontSize: 18,
-              cursor: "pointer",
-              flexShrink: 0,
-              transition: "all 0.3s ease",
-              opacity: loading || !input.trim() || !greetingDone ? 0.4 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (!loading && input.trim() && greetingDone) {
-                e.currentTarget.style.background = "#893F31";
-                e.currentTarget.style.boxShadow = "0 5px 16px rgba(163,79,61,0.18)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#A34F3D";
-              e.currentTarget.style.boxShadow = "none";
-            }}
+            className="mr-1 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[#A34F3D] bg-[#A34F3D] text-[#FFFDF8] transition duration-200 hover:-translate-y-px hover:bg-[#893F31] hover:shadow-[0_5px_16px_rgba(163,79,61,0.18)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:bg-[#A34F3D] disabled:hover:shadow-none disabled:active:scale-100 motion-reduce:transform-none"
+            style={{ opacity: loading || !input.trim() || !greetingDone ? 0.4 : 1 }}
           >
-            <Send style={{ width: 18, height: 18 }} />
+            <Send className="h-[18px] w-[18px]" />
           </button>
         </div>
-        <p className="max-w-3xl mx-auto mt-2 text-center text-[11px] font-light" style={{ color: "#817A70", letterSpacing: 0.4, lineHeight: 1.5 }}>
+        <p className="mx-auto mt-2 w-full max-w-[720px] text-center text-[11px] font-light" style={{ color: "#817A70", letterSpacing: 0.3, lineHeight: 1.5 }}>
           {copy.aiDisclosure} · {copy.replyLanguage}
         </p>
       </div>
@@ -687,43 +588,39 @@ function MyDrawer({ quota, companion, onNicknameSaved, onClose, onShowPaywall }:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(40,38,33,0.25)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(40,38,33,0.25)", backdropFilter: "blur(4px)" }} onClick={onClose} role="dialog" aria-modal="true" aria-label={copy.myAccount}>
       <div
-        className="h-full w-80 max-w-[85vw] flex flex-col overflow-y-auto"
+        className="flex h-full w-80 max-w-[85vw] flex-col overflow-y-auto overflow-x-hidden motion-reduce:!animate-none"
         style={{ background: "#F8F5EF", borderLeft: "1px solid #DED7CC", animation: "drawerIn 0.3s cubic-bezier(0.22, 1, 0.36, 1)" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid #DED7CC" }}>
           <div className="text-sm font-normal" style={{ letterSpacing: 3, color: "#282621" }}>{copy.myAccount}</div>
-          <button onClick={onClose} aria-label={copy.closeAccount} style={{ color: "#6E685F", transition: "color 0.2s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "#A34F3D"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "#6E685F"; }}
-          >
+          <button type="button" onClick={onClose} aria-label={copy.closeAccount} className="flex h-11 w-11 items-center justify-center rounded-full text-[#6E685F] transition duration-200 hover:bg-[#F1ECE4] hover:text-[#A34F3D] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/15 active:scale-[0.98] motion-reduce:transform-none">
             <X style={{ width: 18, height: 18 }} />
           </button>
         </div>
 
         {/* 会员状态卡片 */}
-        <div className="m-4 p-4 rounded-2xl" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB" }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `rgba(${accentRgb}, 0.10)`, border: `1px solid rgba(${accentRgb}, 0.22)` }}>
+        <div className="m-4 rounded-2xl p-4" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB" }}>
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: `rgba(${accentRgb}, 0.10)`, border: `1px solid rgba(${accentRgb}, 0.22)` }}>
               <Crown style={{ width: 18, height: 18, color: accent }} />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-sm font-medium" style={{ color: "#282621" }}>{copy.membership}</div>
-              <div className="text-xs mt-0.5" style={{ color: quota?.isMember ? accent : "#756F66" }}>
+              <div className="mt-0.5 text-xs" style={{ color: quota?.isMember ? accent : "#756F66" }}>
                 {membershipLabel()}
               </div>
             </div>
           </div>
           {!quota?.isMember && (
             <button
+              type="button"
               onClick={onShowPaywall}
-              className="w-full py-2.5 rounded-xl text-sm font-medium text-white transition"
+              className="min-h-11 w-full rounded-xl px-4 py-2.5 text-sm font-medium text-white transition duration-200 hover:-translate-y-px hover:bg-[#893F31] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/20 active:scale-[0.98] motion-reduce:transform-none"
               style={{ background: accent, letterSpacing: 1 }}
-              onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
             >
               {copy.loverMemberCta}
             </button>
@@ -731,11 +628,11 @@ function MyDrawer({ quota, companion, onNicknameSaved, onClose, onShowPaywall }:
         </div>
 
         {/* 昵称卡片 */}
-        <div className="mx-4 mb-4 p-4 rounded-2xl" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB" }}>
-          <div className="text-xs mb-2" style={{ letterSpacing: 2, color: "#817A70" }}>{copy.nicknameLabel}</div>
+        <div className="mx-4 mb-4 rounded-2xl p-4" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB" }}>
+          <div className="mb-2 text-xs" style={{ letterSpacing: 2, color: "#817A70" }}>{copy.nicknameLabel}</div>
           {editingNick ? (
             <div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input
                   value={nickInput}
                   onChange={(e) => setNickInput(e.target.value)}
@@ -743,60 +640,50 @@ function MyDrawer({ quota, companion, onNicknameSaved, onClose, onShowPaywall }:
                   maxLength={12}
                   autoFocus
                   placeholder={copy.nicknamePlaceholder}
-                  className="flex-1 rounded-xl text-sm font-light placeholder:text-[#9a9186]"
-                  style={{
-                    background: "#F8F5EF",
-                    border: "1px solid #D8CFC2",
-                    padding: "8px 12px",
-                    color: "#282621",
-                    outline: "none",
-                  }}
+                  className="h-11 w-full min-w-0 flex-1 rounded-xl border border-[#D8CFC2] bg-[#F8F5EF] px-3 text-base font-light text-[#282621] outline-none transition focus:border-[#B87964] focus:ring-4 focus:ring-[#A34F3D]/10 placeholder:text-[#91887D]"
                 />
                 <button
+                  type="button"
                   onClick={saveNick}
                   disabled={savingNick}
-                  className="px-4 rounded-xl text-sm text-white"
+                  className="min-h-11 flex-1 rounded-xl px-4 text-sm text-white transition hover:bg-[#893F31] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/20 active:scale-[0.98] disabled:cursor-wait motion-reduce:transform-none"
                   style={{ background: accent, opacity: savingNick ? 0.6 : 1, letterSpacing: 1 }}
                 >
                   {savingNick ? "..." : copy.save}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setEditingNick(false)}
-                  className="px-3 rounded-xl text-sm"
-                  style={{ color: "#6E685F", border: "1px solid #D8CFC2" }}
+                  className="min-h-11 flex-1 rounded-xl border border-[#D8CFC2] px-3 text-sm text-[#6E685F] transition hover:bg-[#F1ECE4] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/10 active:scale-[0.98] motion-reduce:transform-none"
                 >
                   {copy.cancel}
                 </button>
               </div>
-              {nickError && <div className="text-xs mt-2" style={{ color: "#A34F3D" }}>{nickError}</div>}
+              {nickError && <div className="mt-2 text-xs" style={{ color: "#A34F3D" }}>{nickError}</div>}
             </div>
           ) : (
-            <button onClick={startEditNick} className="w-full flex items-center justify-between text-left">
-              <span className="text-sm font-light" style={{ letterSpacing: 1, color: "#37332D" }}>
+            <button type="button" onClick={startEditNick} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/10">
+              <span className="min-w-0 break-words text-sm font-light" style={{ letterSpacing: 1, color: "#37332D" }}>
                 {companion?.user_nickname || copy.notSet}
               </span>
-              <span className="text-xs" style={{ color: accent, letterSpacing: 1 }}>{copy.edit}</span>
+              <span className="shrink-0 text-xs" style={{ color: accent, letterSpacing: 1 }}>{copy.edit}</span>
             </button>
           )}
         </div>
 
         {/* 菜单项 */}
-        <div className="px-4 space-y-1">
+        <div className="space-y-1 px-4 pb-[max(16px,env(safe-area-inset-bottom))]">
           {!quota?.isMember && (
-            <button onClick={onShowPaywall} className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition" style={{ color: "#49453E", letterSpacing: 1 }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#F1ECE4"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-            >
+            <button type="button" onClick={onShowPaywall} className="flex min-h-11 w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm text-[#49453E] transition hover:bg-[#F1ECE4] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/10 active:scale-[0.98] motion-reduce:transform-none" style={{ letterSpacing: 1 }}>
               {copy.viewPlans}
               <ChevronRight style={{ width: 16, height: 16, opacity: 0.55 }} />
             </button>
           )}
           <button
+            type="button"
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition"
-            style={{ color: "#5F5951", letterSpacing: 1 }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#F1ECE4"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            className="flex min-h-11 w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-[#5F5951] transition hover:bg-[#F1ECE4] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/10 active:scale-[0.98] motion-reduce:transform-none"
+            style={{ letterSpacing: 1 }}
           >
             <LogOut style={{ width: 16, height: 16 }} />
             {copy.logout}
@@ -855,43 +742,45 @@ function Paywall({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(40,38,33,0.35)", backdropFilter: "blur(12px)" }} onClick={onClose} role="dialog" aria-modal="true">
-      <div className="rounded-3xl p-6 sm:p-7 max-w-md max-h-[90vh] overflow-y-auto w-full relative" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB", boxShadow: "0 24px 80px rgba(40,38,33,0.16)", animation: "paywallIn 0.4s cubic-bezier(0.22, 1, 0.36, 1)" }} onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} aria-label={copy.cancel} className="absolute top-4 right-4 min-h-11 min-w-11 text-sm" style={{ color: "#756F66" }}>&times;</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden p-3 sm:p-4" style={{ background: "rgba(40,38,33,0.35)", backdropFilter: "blur(12px)" }} onClick={onClose} role="dialog" aria-modal="true" aria-label={copy.paywallLoverTitle}>
+      <div className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto overflow-x-hidden rounded-3xl p-5 motion-reduce:!animate-none sm:p-7" style={{ background: "#FFFDF8", border: "1px solid #E0D7CB", boxShadow: "0 24px 80px rgba(40,38,33,0.16)", animation: "paywallIn 0.3s cubic-bezier(0.22, 1, 0.36, 1)" }} onClick={(e) => e.stopPropagation()}>
+        <button type="button" onClick={onClose} aria-label={copy.cancel} className="absolute right-3 top-3 flex min-h-11 min-w-11 items-center justify-center rounded-full text-lg text-[#756F66] transition hover:bg-[#F1ECE4] hover:text-[#A34F3D] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/15 active:scale-[0.98] motion-reduce:transform-none">&times;</button>
 
-        <div className="text-center mb-6">
-          <div className="w-10 h-10 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: `rgba(${accentRgb}, 0.1)`, border: `1px solid rgba(${accentRgb}, 0.22)`, color: accent }}>
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-full" style={{ background: `rgba(${accentRgb}, 0.1)`, border: `1px solid rgba(${accentRgb}, 0.22)`, color: accent }}>
             <span className="text-lg">{"\u2665"}</span>
           </div>
-          <h3 className="text-lg font-medium leading-relaxed" style={{ color: "#282621" }}>
+          <h3 className="px-6 text-lg font-medium leading-relaxed" style={{ color: "#282621" }}>
             {copy.paywallLoverTitle}
           </h3>
-          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line" style={{ color: "#6E685F" }}>
+          <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed" style={{ color: "#6E685F" }}>
             {copy.paywallLoverBody}
           </p>
         </div>
 
         {loadingPlans ? (
-          <div className="flex justify-center py-8">
-            <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: `rgba(${accentRgb}, 0.3)`, borderTopColor: "transparent" }} />
+          <div className="flex justify-center gap-2 py-8" role="status" aria-label={copy.memberLoading}>
+            {[0, 1, 2].map((dot) => (
+              <span key={dot} className="h-2 w-2 rounded-full bg-[#B87964] opacity-40 animate-pulse motion-reduce:!animate-none" style={{ animationDelay: `${dot * 0.24}s`, animationDuration: "1.8s" }} />
+            ))}
           </div>
         ) : (
           <>
-            <div className="space-y-2 mb-5">
+            <div className="mb-5 space-y-2">
               {plans.map((p) => (
-                <button key={p.id} onClick={() => setSelected(p.id)} className="w-full flex flex-wrap items-center justify-between gap-2 px-4 py-3 rounded-xl transition text-left" style={{
+                <button type="button" key={p.id} onClick={() => setSelected(p.id)} className="flex min-h-11 w-full flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/15 active:scale-[0.98] motion-reduce:transform-none" style={{
                   border: selected === p.id ? `1px solid rgba(${accentRgb}, 0.4)` : "1px solid #DED7CC",
                   background: selected === p.id ? `rgba(${accentRgb}, 0.08)` : "#F8F5EF",
                 }}>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-sm" style={{ color: "#282621" }}>{planNames[p.id] || p.name}</span>
-                    {p.popular && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: accent, color: "#FFFDF8" }}>{copy.recommended}</span>}
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="break-words text-sm font-medium" style={{ color: "#282621" }}>{planNames[p.id] || p.name}</span>
+                    {p.popular && <span className="rounded-full px-1.5 py-0.5 text-xs" style={{ background: accent, color: "#FFFDF8" }}>{copy.recommended}</span>}
                   </div>
-                  <span className="font-semibold text-sm" style={{ color: "#282621" }}>
+                  <span className="text-sm font-semibold" style={{ color: "#282621" }}>
                     {formatUsd(p.price)}<span className="text-xs font-normal" style={{ color: "#756F66" }}>{planPeriods[p.id] || p.period}</span>
                     {p.regularPrice && <span className="ml-2 text-xs font-normal line-through" style={{ color: "#817A70" }}>{formatUsd(p.regularPrice)}</span>}
                   </span>
-                  {p.offer === "new_user_plus_trial" && <span className="w-full text-xs" style={{ color: accent }}>{copy.newUserOffer}</span>}
+                  {p.offer === "new_user_plus_trial" && <span className="w-full text-xs leading-relaxed" style={{ color: accent }}>{copy.newUserOffer}</span>}
                 </button>
               ))}
             </div>
@@ -902,22 +791,22 @@ function Paywall({ onClose }: { onClose: () => void }) {
                   type="button"
                   onClick={() => void handleCheckout()}
                   disabled={isPaying}
-                  className="flex min-h-12 w-full items-center justify-center rounded-2xl px-4 text-center font-semibold text-sm text-white transition disabled:cursor-wait disabled:opacity-60"
+                  className="flex min-h-12 w-full items-center justify-center rounded-2xl px-4 py-3 text-center text-sm font-semibold text-white transition duration-200 hover:-translate-y-px hover:bg-[#893F31] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/20 active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 disabled:hover:translate-y-0 motion-reduce:transform-none"
                   style={{ background: accent, letterSpacing: 1 }}
                 >
                   {isPaying ? "…" : fillCopy(copy.emailPurchase, { price: formatUsd(selectedPlan.price) })}
                 </button>
                 {paymentError && <p className="mt-3 text-center text-xs leading-relaxed" style={{ color: accent }} role="alert">{paymentError}</p>}
-                <p className="mt-3 text-xs text-center leading-relaxed" style={{ color: "#817A70" }}>
+                <p className="mt-3 break-words text-center text-xs leading-relaxed" style={{ color: "#817A70" }}>
                   {copy.paymentNote}
-                  <br /><a href={`mailto:${SUPPORT_EMAIL}`} className="underline underline-offset-2">{copy.support}</a>
+                  <br /><a href={`mailto:${SUPPORT_EMAIL}`} className="inline-flex min-h-11 items-center justify-center underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A34F3D]/30">{copy.support}</a>
                 </p>
-                <Link href="/cancellation" className="mt-2 flex min-h-11 items-center justify-center text-xs font-medium underline underline-offset-4" style={{ color: accent }}>
+                <Link href="/cancellation" className="mt-1 flex min-h-11 items-center justify-center rounded-lg text-xs font-medium underline underline-offset-4 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/15" style={{ color: accent }}>
                   {copy.cancelMembership}
                 </Link>
               </div>
             ) : (
-              <button onClick={() => setSelected(plans[0]?.id || "")} className="w-full py-3 rounded-xl font-semibold text-sm text-white" style={{ background: accent }}>
+              <button type="button" onClick={() => setSelected(plans[0]?.id || "")} className="min-h-11 w-full rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#893F31] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#A34F3D]/20 active:scale-[0.98] motion-reduce:transform-none" style={{ background: accent }}>
                 {copy.choosePlan}
               </button>
             )}
@@ -931,10 +820,62 @@ function Paywall({ onClose }: { onClose: () => void }) {
 function ChatLoading() {
   const { locale } = useLocale();
   return (
-    <div className="h-screen flex items-center justify-center" style={{ background: "#F8F5EF" }}>
-      <div className="text-center" style={{ color: "#756F66" }}>
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-4" style={{ borderColor: "rgba(163,79,61,0.3)", borderTopColor: "transparent" }} />
-        <p className="text-sm" style={{ letterSpacing: 2 }}>{chatCopy[locale].approaching}</p>
+    <div className="relative flex h-screen h-[100dvh] min-w-0 flex-col overflow-hidden" style={{ background: "#F8F5EF" }} aria-busy="true">
+      <p className="sr-only" role="status">{chatCopy[locale].approaching}</p>
+      <div className="flex h-full min-h-0 flex-col animate-pulse motion-reduce:!animate-none" aria-hidden="true">
+        <header className="shrink-0 border-b border-[#DED7CC]/80 px-3 pb-3 pt-[max(10px,env(safe-area-inset-top))] sm:px-5 sm:pt-3" style={{ background: "rgba(248,245,239,0.82)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
+          <div className="mx-auto grid w-full max-w-[720px] grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-1 sm:gap-3">
+            <div className="h-11 w-11 rounded-full bg-[#ECE8E1]" />
+            <div className="flex items-center justify-center gap-2.5">
+              <div className="h-9 w-9 rounded-full bg-[#E4DED5]" />
+              <div className="space-y-2">
+                <div className="h-3 w-16 rounded-full bg-[#E4DED5]" />
+                <div className="h-2 w-10 rounded-full bg-[#ECE8E1]" />
+              </div>
+            </div>
+            <div className="flex gap-1 sm:gap-2">
+              <div className="h-11 w-11 rounded-full bg-[#ECE8E1]" />
+              <div className="h-11 w-11 rounded-full bg-[#ECE8E1]" />
+            </div>
+          </div>
+          <div className="mx-auto mt-2 h-8 w-48 max-w-full rounded-full bg-[#ECE8E1]" />
+        </header>
+
+        <main className="flex-1 overflow-hidden px-4 pb-8 pt-7 sm:px-6">
+          <div className="mx-auto w-full max-w-[720px]">
+            <div className="mx-auto mb-9 h-2.5 w-12 rounded-full bg-[#E4DED5]" />
+            <div className="space-y-9">
+              <div>
+                <div className="mb-3 h-2.5 w-20 rounded-full bg-[#E4DED5]" />
+                <div className="space-y-3">
+                  <div className="h-3.5 w-[88%] rounded-full bg-[#E4DED5]" />
+                  <div className="h-3.5 w-[72%] rounded-full bg-[#E4DED5]" />
+                  <div className="h-3.5 w-[46%] rounded-full bg-[#E4DED5]" />
+                </div>
+              </div>
+              <div className="flex flex-col items-end">
+                <div className="mb-3 h-2.5 w-16 rounded-full bg-[#E4DED5]" />
+                <div className="h-24 w-[78%] max-w-[560px] rounded-[14px] bg-[#ECE8E1]" />
+              </div>
+              <div>
+                <div className="mb-3 h-2.5 w-20 rounded-full bg-[#E4DED5]" />
+                <div className="space-y-3">
+                  <div className="h-3.5 w-[82%] rounded-full bg-[#E4DED5]" />
+                  <div className="h-3.5 w-[58%] rounded-full bg-[#E4DED5]" />
+                </div>
+              </div>
+            </div>
+            <p className="mt-10 text-center text-xs font-light" style={{ color: "#817A70", letterSpacing: 1 }}>{chatCopy[locale].approaching}</p>
+          </div>
+        </main>
+
+        <div className="shrink-0 border-t border-[#DED7CC]/70 px-3 pb-[max(14px,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-[max(18px,env(safe-area-inset-bottom))] sm:pt-4" style={{ background: "rgba(241,236,228,0.88)" }}>
+          <div className="mx-auto flex h-14 w-full max-w-[720px] items-center rounded-[22px] border border-[#DED7CC] bg-[#FFFDF8] px-4">
+            <div className="h-3.5 flex-1 rounded-full bg-[#ECE8E1]" />
+            <div className="ml-5 h-11 w-11 shrink-0 rounded-full bg-[#E4DED5]" />
+          </div>
+          <div className="mx-auto mt-3 h-2 w-56 max-w-[80%] rounded-full bg-[#E4DED5]" />
+        </div>
       </div>
     </div>
   );

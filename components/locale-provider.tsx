@@ -129,7 +129,7 @@ export function LocaleToggle({ className = "" }: { className?: string }) {
     <div
       role="group"
       aria-label={t.common.language}
-      className={`inline-flex shrink-0 items-center rounded-full border border-[#d8cfc2] bg-[#f1ece4] p-0.5 ${className}`}
+      className={`inline-flex shrink-0 items-center rounded-full border border-black/[0.06] bg-[#eeeae3] p-1 shadow-inner ${className}`}
     >
       {options.map((option) => {
         const selected = locale === option.value;
@@ -140,9 +140,8 @@ export function LocaleToggle({ className = "" }: { className?: string }) {
             aria-pressed={selected}
             aria-label={option.value === "en" ? "Use English everywhere" : "全站使用中文"}
             onClick={() => { if (!selected) setLocale(option.value); }}
-            className={`flex min-h-8 items-center justify-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a34f3d] ${selected ? "bg-[#fffdf8] text-[#923f30] shadow-sm" : "text-[#756f66] hover:text-[#282621]"}`}
+            className={`flex min-h-9 items-center justify-center rounded-full px-3 text-[11px] font-medium transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9e4323] ${selected ? "bg-[#fdfcfa] text-[#83371d] shadow-[0_2px_8px_rgba(28,25,23,0.08)]" : "text-[#78716c] hover:text-[#1c1917]"}`}
           >
-            <span className={`h-1.5 w-1.5 rounded-full ${selected ? "bg-[#a34f3d]" : "bg-transparent"}`} aria-hidden="true" />
             {option.label}
           </button>
         );

@@ -117,7 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a34f3d]">{locale === "zh" ? "你的空间是私密的" : "Your space is private"}</p>
           <h1 className="mt-4 font-serif text-4xl leading-tight text-[#282621]">{locale === "zh" ? "登录后，回到 Amara。" : "Sign in to return to Amara."}</h1>
           <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-[#6e685f]">{relationship.tagline}</p>
-          <Link href={`/login?redirect=${encodeURIComponent(pathname || "/app")}`} className="mt-8 inline-flex min-h-12 w-full items-center justify-center bg-[#a34f3d] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#893f31] sm:w-auto">
+          <Link href={`/login?redirect=${encodeURIComponent(pathname || "/app")}`} className="mt-8 inline-flex min-h-12 w-full items-center justify-center micro-lift rounded-[10px] bg-[#a34f3d] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#893f31] sm:w-auto">
             {locale === "zh" ? "登录" : "Sign in"}
           </Link>
         </div>
@@ -205,7 +205,7 @@ function FeatureLock({ feature }: { feature: Exclude<ConsoleFeature, "today" | "
       <ul className="mt-8 divide-y divide-[#ded7cc] border-y border-[#ded7cc]">
         {copy.lockPoints.map((point) => <li key={point} className="flex items-center gap-3 py-4 text-sm text-[#49453e]"><Check className="h-4 w-4 shrink-0 text-[#a34f3d]" />{point}</li>)}
       </ul>
-      <Link href={`/pricing?from=${feature}`} className="mt-8 inline-flex min-h-12 w-full items-center justify-center gap-3 bg-[#a34f3d] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#893f31] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a34f3d] sm:w-auto">{copy.upgrade}<ArrowRight className="h-4 w-4" /></Link>
+      <Link href={`/pricing?from=${feature}`} className="mt-8 inline-flex min-h-12 w-full items-center justify-center gap-3 micro-lift rounded-[10px] bg-[#a34f3d] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#893f31] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a34f3d] sm:w-auto">{copy.upgrade}<ArrowRight className="h-4 w-4" /></Link>
     </section>
   );
 }

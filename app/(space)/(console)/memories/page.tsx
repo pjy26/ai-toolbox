@@ -36,14 +36,22 @@ export default function MemoriesPage() {
 
   async function saveCorrection() {
     if (!editing || !draft.trim() || saving) return;
+    const target = editing;
+    const correctedText = draft.trim();
     setSaving(true);
     setActionError("");
+    // Optimistic editing keeps the reading flow immediate; server truth is restored on failure.
+    setEditing(null);
+    setEvidence(null);
+    setSelected(new Set());
+    void load((current) => current && {
+      memories: current.memories.map((memory) => memory.id === target.id
+        ? { ...memory, summary: correctedText, provenance: "user_edit" }
+        : memory),
+    }, { revalidate: false });
     try {
-      await apiRequest("/api/memories/"+encodeURIComponent(editing.id),{method:"PATCH",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({text:draft.trim(),revision:editing.revision,updated_at:editing.updated_at})});
-      setEditing(null);
-      setEvidence(null);
-      setSelected(new Set());
+      await apiRequest("/api/memories/"+encodeURIComponent(target.id),{method:"PATCH",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({text:correctedText,revision:target.revision,updated_at:target.updated_at})});
       // A legacy profile field can acquire a new ID. Drop the old home preview.
       await mutate(homeKey,undefined,{revalidate:false});
       await load();
@@ -65,6 +73,14 @@ export default function MemoriesPage() {
     if (!ids.length || deleteBusy) return;
     setDeleteBusy(true);
     setActionError("");
+    const requested = new Set(ids);
+    const keepRequested = (memory: Memory) => !requested.has(memory.id);
+    setSelected(new Set());
+    setDeleting(null);
+    setBulkDeleting(false);
+    // Remove immediately, then reconcile with the server so failed writes reappear.
+    void load((current) => current && { memories: current.memories.filter(keepRequested) }, { revalidate: false });
+    void mutate(homeKey, (current?: { recentMemories: Memory[] }) => current && { ...current, recentMemories: current.recentMemories.filter(keepRequested) }, { revalidate: false });
     const removed = new Set<string>();
     // Sequential writes prevent two profile deletions from overwriting each other.
     for (const id of ids) {
@@ -72,19 +88,10 @@ export default function MemoriesPage() {
         const memory=memories.find(item=>item.id===id);
         await apiRequest(`/api/memories/${encodeURIComponent(id)}`, {method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({revision:memory?.revision,expectedValue:memory?.expectedValue})});
         removed.add(id);
-      } catch { /* Keep failed items visible and show one honest error. */ }
+      } catch { /* Failed items are restored by revalidation below. */ }
     }
-    if (removed.size) {
-      const keep = (memory: Memory) => !removed.has(memory.id);
-      await Promise.all([
-        load((current) => current && { memories: current.memories.filter(keep) }, { revalidate: true }),
-        mutate(homeKey, (current?: { recentMemories: Memory[] }) => current && { ...current, recentMemories: current.recentMemories.filter(keep) }, { revalidate: true }),
-      ]);
-    }
-    setSelected((current) => new Set(Array.from(current).filter((id) => !removed.has(id))));
+    await Promise.all([load(), mutate(homeKey)]);
     if (removed.size !== ids.length) setActionError(copy.failed);
-    setDeleting(null);
-    setBulkDeleting(false);
     setDeleteBusy(false);
   }
 
@@ -109,7 +116,7 @@ export default function MemoriesPage() {
               <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(memories.map((memory) => memory.id)))} className="h-4 w-4 accent-[#9e4837]" />
               {copy.select} · {memories.length} {copy.count}
             </label>
-            <button type="button" disabled={!selected.size} onClick={() => setBulkDeleting(true)} className="inline-flex min-h-11 items-center gap-2 border border-[#d8cfc2] px-4 text-sm font-medium text-[#9e4837] hover:bg-[#f6eae4] disabled:cursor-not-allowed disabled:opacity-40">
+            <button type="button" disabled={!selected.size} onClick={() => setBulkDeleting(true)} className="inline-flex min-h-11 items-center gap-2 border border-[#d8cfc2] px-4 text-sm font-medium text-[#9e4837] micro-lift rounded-[10px] hover:bg-[#f6eae4] disabled:cursor-not-allowed disabled:opacity-40">
               <Trash2 className="h-4 w-4" />{copy.deleteSelected}{selected.size > 0 && ` (${selected.size})`}
             </button>
           </div>
@@ -139,7 +146,7 @@ export default function MemoriesPage() {
                       <button type="button" disabled={saving} onClick={()=>setEditing(null)}>{locale==="zh"?"取消":"Cancel"}</button>
                     </form>}
                   </div>
-                  <button type="button" onClick={() => setDeleting(memory)} className="inline-flex min-h-11 shrink-0 items-center gap-2 px-2 text-sm font-medium text-[#9e4837] hover:bg-[#f6eae4]" aria-label={`${copy.delete}: ${displayText}`}><Trash2 className="h-4 w-4" /><span className="hidden sm:inline">{copy.delete}</span></button>
+                  <button type="button" onClick={() => setDeleting(memory)} className="inline-flex min-h-11 shrink-0 items-center gap-2 px-2 text-sm font-medium text-[#9e4837] micro-lift rounded-[10px] hover:bg-[#f6eae4]" aria-label={`${copy.delete}: ${displayText}`}><Trash2 className="h-4 w-4" /><span className="hidden sm:inline">{copy.delete}</span></button>
                 </div>
               </li>
               );
